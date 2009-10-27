@@ -26,22 +26,23 @@ def in_ellipse1(f1,f2):
            (eu_dist((x,y), f1) + eu_dist((x,y), f2)) < eu_dist(f1,f2)
 
 def extract_line(data, xind, f):
-    return data[map(int, f(xind)), map(int,xind)]
-
-def mymore(a,b):
-    return a>b
-
-def myless(a,b):
-    return a<b
+    return array([data[int(i),int(f(i))] for i in xind])
 
 
-def percent_threshold(mat, thresh, func = mymore):
+def extract_line2(data, p1, p2):
+    L = int(eu_dist(p1,p2))
+    f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
+    return array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)] for i in range(L)])
+
+
+def percent_threshold(mat, thresh,
+                      func = lambda a,b: a>b):
     minv = numpy.min(mat)
     maxv = numpy.max(mat)
     val = (maxv-minv) * thresh/100.0
     return func(mat,val)
 
-def times_std(mat, n, func=mymore):
+def times_std(mat, n, func=lambda a,b: a>b):
     x = numpy.std(mat)
     return func(mat, x*n)
 
@@ -75,7 +76,8 @@ def rezip(a):
     return zip(*a)
 
 def shorten_movie(m,n):
-    return array([mean(m[:, i:i+3],1) for i in xrange(0,len(m), n)])
+    print m.shape
+    return array([mean(m[i:i+3,:],0) for i in xrange(0,len(m), n)])
 
 
 class ImgLineSect(ImageSequence):
@@ -86,22 +88,31 @@ class ImgLineSect(ImageSequence):
         else:
             return self.endpoints
 
+    def ontype_timeser(self, event):
+        if event.inaxes == self.ax2:
+            if event.key == 'pageup':
+                self.nshort += 1
+            elif event.lkey == 'pagedown':
+                self.nshort -= 1
+                if self.nshort < 1: self.nshort = 1
+            self.show_timeseries()
+
+
     def onclick(self, event):
         tb = get_current_fig_manager().toolbar
         if event.inaxes == self.ax1 and tb.mode == '':
             x,y = round(event.xdata), round(event.ydata)
             if self.verbose:
                 print "You clicked:", x,y
-            self.endpoints.append((x,y))
-
-            if len(self.endpoints)>2:
-                self.endpoints.pop(0)
-
-            if len(self.endpoints) > 1:
+            if event.button == 1:
+                self.endpoints[0] = (x,y)
+            else:
+                self.endpoints[1] = (x,y)
+            if not None in self.endpoints:    
                 if self.pl_seg is None:
                     self.pl_seg = self.ax1.plot(*rezip(self.endpoints),
                                                 linestyle='-',
-                                                marker='o',
+                                                marker='.',
                                                 color='red')
                 else:
                     setp(self.pl_seg, 'data', rezip(self.endpoints))
@@ -119,40 +130,40 @@ class ImgLineSect(ImageSequence):
             setp(self.pl2, 'data', self.binarizer(self.make_timeseries()))
             
     def binarizer(self, im):
-        return im
-        #return im*percent_threshold(im, self.bin_thresh)
+        #return im
+        return im*percent_threshold(im, self.bin_thresh)
     
     def select(self):
         self.fig = figure()
         self.ax2 = subplot(122)
         self.ax1 = subplot(121); hold(True)
-        gray()
-        self.pl = self.ax1.imshow(self.mean, aspect='equal')
+        self.pl = self.ax1.imshow(self.mean, aspect='equal', cmap=matplotlib.cm.gray)
         self.pl2 = None
         self.pl_seg = None
-        self.endpoints = []
-        self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        self.endpoints = [None, None]
+        self.fig.canvas.mpl_connect('button_press_event',
+                                    self.onclick)
+        self.fig.canvas.mpl_connect('scroll_event',
+                                    self.binarize_scroller)
+        self.fig.canvas.mpl_connect('key_press_event',
+                                    self.ontype_timeser)
+
 
     def make_timeseries(self):
-        nshort = 3
         points = self.check_endpoints()
-        f = line_from_points(*points)
-        xind = arange(points[0][0],
-                      points[1][0])
-        res =  [extract_line(d,xind,f) for d in self.d]
-        return res
-        
+        return  array([extract_line2(d,*points) for d in self.d])
 
     def show_timeseries(self):
         self.ax2.cla()
-        self.bin_thresh = 50
+        self.bin_thresh = 20
         self.bin_step = 0.5
-        self.pl2 = self.ax2.imshow(self.binarizer(self.make_timeseries()),
-                                   interpolation='nearest',
-                                   aspect = 0.5)
-        self.fig.canvas.mpl_connect('scroll_event',
-                                    self.binarize_scroller)
-
+        self.nshort = 1
+        ser = self.make_timeseries()
+        self.pl2 = self.ax2.imshow(
+            self.binarizer(shorten_movie(ser,self.nshort)),
+            extent = (0, ser.shape[1], 0, self.Nf*self.dt),
+            interpolation='nearest')
+        
     def get_timeview(self):
         return self.make_timeview()
 
