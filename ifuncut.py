@@ -2,6 +2,7 @@
 
 import os
 import numpy
+import glob
 from pylab import *
 from iwavelets import pycwt
 from swan_gui import swan
@@ -61,30 +62,31 @@ def times_std(mat, n, func=lambda a,b: a>b):
     return func(mat, x*n)
 
 
-def im_name_gen(pat):
-    n = 0
-    while os.path.exists(pat%n):
-        n +=1
-        yield imread(pat%(n-1))
-    return
+def image_names(pat):
+    x = glob.glob(pat)
+    x.sort()
+    return x
 
 class ImageSequence:
     def __init__(self, pat, channel=0, dt = 0.15):
         self.pat = pat
+        self.ch = channel
         self.dt = dt
-        self.d = [d[:,:,channel] for d in im_name_gen(pat)]
-        self.mean = mean(self.d,0)
+        self.d = [imread(f) for f in image_names(pat)]
         self.Nf = len(self.d)
-        self.shape = self.mean.shape
+        self.shape = self.d[0].shape[:-1]
 
-    def ch_view(ch=0):
+    def ch_view(self, ch=None):
+        if ch is None: ch=self.ch
         return (d[:,:,ch] for d in self.d)
 
-    def show(self):
+    def mean(self, ch=0):
+        return numpy.mean(list(self.ch_view(ch)), axis=0)
+
+    def show(self, ch=0):
         self.fig = figure()
         self.ax = axes()
-        gray()
-        self.pl = imshow(self.mean)
+        self.pl = imshow(self.mean(ch), aspect='equal', cmap=matplotlib.cm.gray)
 
 def rezip(a):
     return zip(*a)
@@ -149,12 +151,14 @@ class ImgLineSect(ImageSequence):
         #return im
         return im*percent_threshold(im, self.bin_thresh)
     
-    def select(self):
+    def select(self, ch=None):
         self.bin_thresh = 20
         self.fig = figure()
         self.ax2 = subplot(122)
         self.ax1 = subplot(121); hold(True)
-        self.pl = self.ax1.imshow(self.mean, aspect='equal', cmap=matplotlib.cm.gray)
+        self.pl = self.ax1.imshow(self.mean(ch),
+                                  aspect='equal',
+                                  cmap=matplotlib.cm.gray)
         self.pl2 = None
         self.pl_seg = None
         self.endpoints = [None, None]
@@ -166,9 +170,9 @@ class ImgLineSect(ImageSequence):
                                     self.ontype_timeser)
 
 
-    def make_timeseries(self):
+    def make_timeseries(self, ch=None):
         points = self.check_endpoints()
-        return  array([extract_line2(d,*points) for d in self.d])
+        return  array([extract_line2(d,*points) for d in self.ch_view(ch)])
 
     def show_timeseries(self):
         self.ax2.cla()
@@ -213,11 +217,11 @@ class ImgPointSelect(ImageSequence):
                 p.set_radius(max(0.1,r-step))
             draw()
             
-    def select(self):
+    def select(self, ch):
         self.points = []
         self.fig = figure()
         self.ax1 = axes()
-        self.pl = self.ax1.imshow(self.mean,
+        self.pl = self.ax1.imshow(self.mean(ch),
                                   aspect='equal',
                                   cmap=matplotlib.cm.gray)
         if True or self.connected is False:
@@ -227,37 +231,43 @@ class ImgPointSelect(ImageSequence):
                                         self.onscroll)
             self.connected = True
 
-    def make_timeview(self, point):
+    def make_timeview(self, point, ch=None):
         fn = in_circle(point.center, point.radius)
-        X,Y = meshgrid(*map(range, (self.mean.shape)))
-        return [mean(frame[fn(X,Y)]) for frame in self.d]
+        X,Y = meshgrid(*map(range, (self.shape)))
+        return array([mean(frame[fn(X,Y)]) for frame in self.ch_view(ch)])
     
-    def get_timeseries(self):
-        return (self.make_timeview(p) for p in self.points)
+    def get_timeseries(self, ch=None):
+        return (self.make_timeview(p, ch) for p in self.points)
 
-    def show_timeseries(self):
+    def show_timeseries(self, ch=None):
         figure()
         t = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
+        print ch
         for i in xrange(L):
             subplot(L,1,i+1);
             p = self.points[i]
-            x = self.make_timeview(p)
+            x = self.make_timeview(p, ch)
             plot(t, x, color=p.get_facecolor())
 
     def make_cwt(self, freqs,
+                 ch = None,
                  wavelet=pycwt.Morlet()):
         self.wcoefs =  [pycwt.cwt_f(v, freqs, 1.0/self.dt, wavelet) for v
-                     in self.get_timeseries()]
+                     in self.get_timeseries(ch)]
         return self.wcoefs
 
     def show_spectrograms(self,
-                          freqs = arange(0.1, 5, 0.005)):
+                          freqs = None,#arange(0.1, 5, 0.005),
+                          ch = None):
         figure()
+        if freqs is None:
+            freqs = arange(2.0/(self.Nf*self.dt),
+                           0.5/self.dt, 0.005)
         t = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
         extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        self.make_cwt(freqs)
+        self.make_cwt(freqs, ch=ch)
         for i in xrange(L):
             subplot(L,1,i+1);
             imshow(EDS(self.wcoefs[i]), extent=extent,
