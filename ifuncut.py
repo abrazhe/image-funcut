@@ -6,6 +6,20 @@ from pylab import *
 from iwavelets import pycwt
 from swan_gui import swan
 
+def best (scoref, lst):
+    n,winner = 0, lst[0]
+    for i, item in enumerate(lst):
+        if  scoref(item, winner): n, winner = i, item
+    return n,winner
+
+def min1(scoref, lst):
+    return best(lambda x,y: x < y, map(scoref, lst))
+
+def nearest_item_ind(items, xy, fn = lambda a: a):
+    "Index of nearest item from collection. collection, position, selector"
+    return min1(lambda p: eu_dist(fn(p), xy), items)
+
+
 
 def eu_dist(p1,p2):
     return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -76,7 +90,6 @@ def rezip(a):
     return zip(*a)
 
 def shorten_movie(m,n):
-    print m.shape
     return array([mean(m[i:i+3,:],0) for i in xrange(0,len(m), n)])
 
 
@@ -92,11 +105,11 @@ class ImgLineSect(ImageSequence):
         if event.inaxes == self.ax2:
             if event.key == 'pageup':
                 self.nshort += 1
-            elif event.lkey == 'pagedown':
+            elif event.key == 'pagedown':
                 self.nshort -= 1
                 if self.nshort < 1: self.nshort = 1
-            self.show_timeseries()
-
+            if self.pl2 is not None:
+                setp(self.pl2, 'data', self.prepare_timeseries())
 
     def onclick(self, event):
         tb = get_current_fig_manager().toolbar
@@ -127,13 +140,17 @@ class ImgLineSect(ImageSequence):
                 step = self.bin_step
         self.bin_thresh += step
         if self.pl2 is not None:
-            setp(self.pl2, 'data', self.binarizer(self.make_timeseries()))
-            
+            setp(self.pl2, 'data', self.prepare_timeseries())
+
+    def prepare_timeseries(self):
+        return self.binarizer(shorten_movie(self.make_timeseries(), self.nshort))
+    
     def binarizer(self, im):
         #return im
         return im*percent_threshold(im, self.bin_thresh)
     
     def select(self):
+        self.bin_thresh = 20
         self.fig = figure()
         self.ax2 = subplot(122)
         self.ax1 = subplot(121); hold(True)
@@ -155,30 +172,16 @@ class ImgLineSect(ImageSequence):
 
     def show_timeseries(self):
         self.ax2.cla()
-        self.bin_thresh = 20
         self.bin_step = 0.5
         self.nshort = 1
-        ser = self.make_timeseries()
         self.pl2 = self.ax2.imshow(
-            self.binarizer(shorten_movie(ser,self.nshort)),
-            extent = (0, ser.shape[1], 0, self.Nf*self.dt),
+            self.prepare_timeseries(),
+            extent = (0, int(eu_dist(*self.endpoints)),
+                      0, self.Nf*self.dt),
             interpolation='nearest')
         
     def get_timeview(self):
         return self.make_timeview()
-
-def best (scoref, lst):
-    n,winner = 0, lst[0]
-    for i, item in enumerate(lst):
-        if  scoref(item, winner): n, winner = i, item
-    return n,winner
-
-def min1(scoref, lst):
-    return best(lambda x,y: x < y, map(scoref, lst))
-
-def nearest_item_ind(items, xy, fn = lambda a: a):
-    "Index of nearest item from collection. collection, position, selector"
-    return min1(lambda p: eu_dist(fn(p), xy), items)
 
 
 class ImgPointSelect(ImageSequence):
