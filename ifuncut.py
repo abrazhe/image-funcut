@@ -57,6 +57,9 @@ def percent_threshold(mat, thresh,
     val = (maxv-minv) * thresh/100.0
     return func(mat,val)
 
+def threshold(mat, thresh, func=lambda a,b: a>b):
+    return func(mat, thresh)
+
 def times_std(mat, n, func=lambda a,b: a>b):
     x = numpy.std(mat)
     return func(mat, x*n)
@@ -253,25 +256,38 @@ class ImgPointSelect(ImageSequence):
     def make_cwt(self, freqs,
                  ch = None,
                  wavelet=pycwt.Morlet()):
-        self.wcoefs =  [pycwt.cwt_f(v, freqs, 1.0/self.dt, wavelet) for v
-                     in self.get_timeseries(ch)]
+        self.wcoefs =  [pycwt.cwt_f(v/std(v), freqs, 1.0/self.dt,
+                                    wavelet)\
+                        for v in self.get_timeseries(ch)]
         return self.wcoefs
 
     def show_spectrograms(self,
                           freqs = None,#arange(0.1, 5, 0.005),
-                          ch = None):
+                          ch = None,
+                          vmin = None,
+                          vmax = None,
+                          ):
         figure()
         if freqs is None:
-            freqs = arange(2.0/(self.Nf*self.dt),
+            freqs = arange(3.0/(self.Nf*self.dt),
                            0.5/self.dt, 0.005)
+        self.freqs = freqs
         t = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
         extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
         self.make_cwt(freqs, ch=ch)
         for i in xrange(L):
             subplot(L,1,i+1);
-            imshow(EDS(self.wcoefs[i]), extent=extent,
-                   cmap = matplotlib.cm.jet)
+            esurf = EDS(self.wcoefs[i]) 
+            imshow(esurf, extent=extent,
+                   vmin = vmin, vmax=vmax,
+                   cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
+            colorbar()
+            contour(esurf, [3.0], extent=extent, cmap=matplotlib.cm.gray)
+            #contourf(esurf, [1, 2, 3, 5,10],
+            #         extent=extent, cmap=matplotlib.cm.gray)
+
+
         
             
             
