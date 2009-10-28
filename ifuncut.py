@@ -224,6 +224,8 @@ class ImgPointSelect(ImageSequence):
         self.points = []
         self.fig = figure()
         self.ax1 = axes()
+        if ch is None: ch=self.ch
+        title("Channel: %s" % ('red', 'green')[ch] )
         self.pl = self.ax1.imshow(self.mean(ch),
                                   aspect='equal',
                                   cmap=matplotlib.cm.gray)
@@ -246,9 +248,11 @@ class ImgPointSelect(ImageSequence):
         figure()
         t = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
-        print ch
+        if ch is None: ch=self.ch
         for i in xrange(L):
             subplot(L,1,i+1);
+            if i == 0:
+                title("Channel: %s" % ('red', 'green')[ch])
             p = self.points[i]
             x = self.make_timeview(p, ch)
             plot(t, x, color=p.get_facecolor())
@@ -265,49 +269,47 @@ class ImgPointSelect(ImageSequence):
                           freqs = None,#arange(0.1, 5, 0.005),
                           ch = None,
                           vmin = None,
-                          vmax = None,
-                          ):
+                          vmax = None):
         figure()
         if freqs is None:
             freqs = arange(3.0/(self.Nf*self.dt),
                            0.5/self.dt, 0.005)
         self.freqs = freqs
-        t = arange(0,self.Nf*self.dt, self.dt)
+        self.time = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
         extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
         self.make_cwt(freqs, ch=ch)
+        f1 = lambda x: 1.5*2.0**0.5/x
+        f2 = lambda x: self.time[-1] + f1(-x)
+
+        if ch is None: ch=self.ch
+
         for i in xrange(L):
             subplot(L,1,i+1);
+            if i == 0:
+                title("Channel: %s" % ('red', 'green')[ch] )
+                    
             esurf = EDS(self.wcoefs[i]) 
             imshow(esurf, extent=extent,
                    vmin = vmin, vmax=vmax,
                    cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
+            try:
+                fill_betweenx(freqs,0,f1(freqs), alpha=0.5, color='black')
+                fill_betweenx(freqs,f2(freqs),self.Nf*self.dt,
+                          alpha=0.5, color='black')
+            except:
+                print("Can't use fill_betweenx function: update maptlotlib?")
+
             colorbar()
-            contour(esurf, [3.0], extent=extent, cmap=matplotlib.cm.gray)
-            #contourf(esurf, [1, 2, 3, 5,10],
-            #         extent=extent, cmap=matplotlib.cm.gray)
 
-
-        
+            # Show 95% confidence level (against white noise, v=3 \sigma^2)
+            contour(esurf, [3.0], extent=extent,
+                    cmap=matplotlib.cm.gray)
+        xlabel('time, s'); ylabel('Freq., Hz')
             
             
                 
                     
-def EDS(x, f0=1.5):
-    return (x.real**2 + x.imag**2)/f0
-
-def crossw(x,y):
-    return x*y.conjugate()
-
-def coherence(x,y,f0=1.5):
-    return abs(crossw(x,y))**2/(abs(x)*abs(y))
-
-def cphase(x,y):
-    d = crossw(x,y)
-    return arctan2(d.imag, d.real)
-
-def cwt_phase(x):
-    return arctan2(x.imag, x.real)
 
             
         
