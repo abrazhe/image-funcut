@@ -3,6 +3,7 @@
 import os
 import numpy
 import glob
+from itertools import combinations
 from pylab import *
 from iwavelets import pycwt
 from swan_gui import swan
@@ -20,6 +21,13 @@ def nearest_item_ind(items, xy, fn = lambda a: a):
     "Index of nearest item from collection. collection, position, selector"
     return min1(lambda p: eu_dist(fn(p), xy), items)
 
+def allpairs0(seq):
+    return list(combinations(seq,2))
+
+def allpairs(seq):
+    if len(seq) <= 1: return []
+    else:
+        return [[seq[0], s] for s in seq[1:]] + allpairs(seq[1:])
 
 
 def eu_dist(p1,p2):
@@ -188,7 +196,7 @@ class ImgLineSect(ImageSequence):
             interpolation='nearest')
         
     def get_timeview(self):
-        return self.make_timeview()
+        return self.make_timeseries()
 
 
 class ImgPointSelect(ImageSequence):
@@ -200,7 +208,7 @@ class ImgPointSelect(ImageSequence):
             x,y = round(event.xdata), round(event.ydata)
             if event.button in [1]:
                 self.points.append(Circle((x,y), 5, alpha = 0.5,
-                                          color=[rand(),rand(),rand()]))
+                                          color=[rand()*rand(), rand(),rand()]))
                 self.ax1.add_patch(self.points[-1])
             else:
                 n,p = nearest_item_ind(self.points, (x,y), lambda p: p.center)
@@ -236,13 +244,16 @@ class ImgPointSelect(ImageSequence):
                                         self.onscroll)
             self.connected = True
 
-    def make_timeview(self, point, ch=None):
+    def make_timeview(self, point, ch=None, normp=False):
         fn = in_circle(point.center, point.radius)
         X,Y = meshgrid(*map(range, (self.shape)))
-        return array([mean(frame[fn(X,Y)]) for frame in self.ch_view(ch)])
-    
-    def get_timeseries(self, ch=None):
-        return (self.make_timeview(p, ch) for p in self.points)
+        v = array([mean(frame[fn(X,Y)]) for frame in \
+                   self.ch_view(ch)])
+        if normp: return v/numpy.std(v)
+        else: return v
+        
+    def get_timeseries(self, ch=None, normp=False):
+        return (self.make_timeview(p, ch, normp) for p in self.points)
 
     def show_timeseries(self, ch=None):
         figure()
@@ -260,27 +271,48 @@ class ImgPointSelect(ImageSequence):
     def make_cwt(self, freqs,
                  ch = None,
                  wavelet=pycwt.Morlet()):
-        self.wcoefs =  [pycwt.cwt_f(v/std(v), freqs, 1.0/self.dt,
+        self.wcoefs =  [pycwt.cwt_f(v, freqs, 1.0/self.dt,
                                     wavelet)\
-                        for v in self.get_timeseries(ch)]
+                        for v in self.get_timeseries(ch,normp=True)]
         return self.wcoefs
 
+    def cone_infl(self,freqs, wavelet):
+        try:
+            fill_betweenx(freqs,0,wavelet.cone(freqs),
+                          alpha=0.5, color='black')
+            fill_betweenx(freqs,
+                          self.time[-1]+wavelet.cone(-freqs),
+                          self.time[-1],
+                          alpha=0.5, color='black')
+        except:
+            print("Can't use fill_betweenx function: update\
+            maptlotlib?")
+
+    def specgram(self,esurf,vmin=None,vmax=None):
+        imshow(esurf, extent=self.extent,
+               vmin = vmin, vmax=vmax,
+               cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
+    def confidence_contour(self, esurf, L=3.0):
+        # Show 95% confidence level (against white noise, v=3 \sigma^2)
+        contour(esurf, [3.0], extent=self.extent,
+                cmap=matplotlib.cm.gray)
+
+    def default_freqs(self):
+        return arange(3.0/(self.Nf*self.dt),
+                      0.5/self.dt, 0.005)
     def show_spectrograms(self,
                           freqs = None,#arange(0.1, 5, 0.005),
                           ch = None,
+                          wavelet = pycwt.Morlet(),
                           vmin = None,
                           vmax = None):
         figure()
-        if freqs is None:
-            freqs = arange(3.0/(self.Nf*self.dt),
-                           0.5/self.dt, 0.005)
+        if freqs is None: freqs = self.default_freqs()
         self.freqs = freqs
         self.time = arange(0,self.Nf*self.dt, self.dt)
         L = len(self.points)
-        extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        self.make_cwt(freqs, ch=ch)
-        f1 = lambda x: 1.5*2.0**0.5/x
-        f2 = lambda x: self.time[-1] + f1(-x)
+        self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
+        self.make_cwt(freqs, ch=ch, wavelet=wavelet)
 
         if ch is None: ch=self.ch
 
@@ -289,23 +321,49 @@ class ImgPointSelect(ImageSequence):
             if i == 0:
                 title("Channel: %s" % ('red', 'green')[ch] )
                     
-            esurf = EDS(self.wcoefs[i]) 
-            imshow(esurf, extent=extent,
-                   vmin = vmin, vmax=vmax,
-                   cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
-            try:
-                fill_betweenx(freqs,0,f1(freqs), alpha=0.5, color='black')
-                fill_betweenx(freqs,f2(freqs),self.Nf*self.dt,
-                          alpha=0.5, color='black')
-            except:
-                print("Can't use fill_betweenx function: update maptlotlib?")
-
+            esurf = pycwt.eds(self.wcoefs[i],wavelet.f0)
+            self.specgram(esurf,vmin,vmax)
             colorbar()
+            self.cone_infl(freqs, wavelet)
+            self.confidence_contour(esurf)
 
-            # Show 95% confidence level (against white noise, v=3 \sigma^2)
-            contour(esurf, [3.0], extent=extent,
-                    cmap=matplotlib.cm.gray)
+            
         xlabel('time, s'); ylabel('Freq., Hz')
+
+    def setup_freqs(self,freqs):
+        if freqs is None:
+            if hasattr(self,'freqs'):
+                freqs = self.freqs
+            else:
+                freqs = self.default_freqs()
+                self.freqs = freqs
+        return freqs
+
+    def show_xwt(self, freqs=None, ch=None,
+                 func = pycwt.wtc_f,
+                 wavelet=pycwt.Morlet()):
+
+        freqs = self.setup_freqs(freqs)
+        
+        self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
+        self.time = arange(0,self.Nf*self.dt, self.dt) #codeduplicate
+
+        #if not (hasattr(self, 'wcoefs') and len(self.wcoefs) == L):
+        #    self.make_cwt(freqs, ch=ch, wavelet=wavelet)
+
+        for p in allpairs0(self.points):
+            s1 = self.make_timeview(p[0],ch,True)
+            s2 = self.make_timeview(p[1],ch,True)
+            #absxwt = pycwt.absxwt_f(s1,s2,freqs,1./self.dt,wavelet)
+            absxwt = func(s1,s2, freqs,1.0/self.dt,wavelet)
+            figure();
+            ax1= subplot(211);
+            plot(self.time,s1,color=p[0].get_facecolor())
+            plot(self.time,s2,color=p[1].get_facecolor())
+            subplot(212, sharex = ax1);
+            self.specgram(absxwt)
+            self.cone_infl(freqs,wavelet)
+            self.confidence_contour(absxwt,2.0)
             
             
                 
