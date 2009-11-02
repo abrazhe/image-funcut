@@ -198,17 +198,32 @@ class ImgLineSect(ImageSequence):
     def get_timeview(self):
         return self.make_timeseries()
 
+import itertools
+
+def ar1(alpha = 0.74):
+    prev = randn()
+    while True:
+        res = prev*alpha + randn()
+        prev = res
+        yield res
+
+def color_walker():
+    red, green, blue = ar1(), ar1(), ar1()
+    while True:
+        yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
+
 
 class ImgPointSelect(ImageSequence):
     verbose = True
     connected = False
+    cw = color_walker()
     def onclick(self,event):
         tb = get_current_fig_manager().toolbar
         if event.inaxes == self.ax1 and tb.mode=='':
             x,y = round(event.xdata), round(event.ydata)
             if event.button in [1]:
                 self.points.append(Circle((x,y), 5, alpha = 0.5,
-                                          color=[rand()*rand(), rand(),rand()]))
+                                          color=self.cw.next()))
                 self.ax1.add_patch(self.points[-1])
             else:
                 n,p = nearest_item_ind(self.points, (x,y), lambda p: p.center)
@@ -267,6 +282,7 @@ class ImgPointSelect(ImageSequence):
             p = self.points[i]
             x = self.make_timeview(p, ch)
             plot(t, x, color=p.get_facecolor())
+            xlim((0,t[-1]))
 
     def make_cwt(self, freqs,
                  ch = None,
@@ -339,31 +355,31 @@ class ImgPointSelect(ImageSequence):
                 self.freqs = freqs
         return freqs
 
-    def show_xwt(self, freqs=None, ch=None,
-                 func = pycwt.wtc_f,
-                 wavelet=pycwt.Morlet()):
-
+    def show_xwt_roi(self, p1,p2,freqs=None, ch=None,
+                     func = pycwt.wtc_f,
+                     wavelet = pycwt.Morlet()):
+        "show cross wavelet spectrum or wavelet coherence for two ROI"
         freqs = self.setup_freqs(freqs)
-        
         self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
         self.time = arange(0,self.Nf*self.dt, self.dt) #codeduplicate
 
-        #if not (hasattr(self, 'wcoefs') and len(self.wcoefs) == L):
-        #    self.make_cwt(freqs, ch=ch, wavelet=wavelet)
+        s1 = self.make_timeview(p1,ch,True)
+        s2 = self.make_timeview(p2,ch,True)
+        res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
+        figure();
+        ax1= subplot(211);
+        plot(self.time,s1,color=p1.get_facecolor())
+        plot(self.time,s2,color=p2.get_facecolor())
+        subplot(212, sharex = ax1);
+        self.specgram(res)
+        self.cone_infl(freqs,wavelet)
+        self.confidence_contour(res,2.0)
+
+    def show_xwt(self, **kwargs):
         for p in allpairs0(self.points):
-            s1 = self.make_timeview(p[0],ch,True)
-            s2 = self.make_timeview(p[1],ch,True)
-            #absxwt = pycwt.absxwt_f(s1,s2,freqs,1./self.dt,wavelet)
-            absxwt = func(s1,s2, freqs,1.0/self.dt,wavelet)
-            figure();
-            ax1= subplot(211);
-            plot(self.time,s1,color=p[0].get_facecolor())
-            plot(self.time,s2,color=p[1].get_facecolor())
-            subplot(212, sharex = ax1);
-            self.specgram(absxwt)
-            self.cone_infl(freqs,wavelet)
-            self.confidence_contour(absxwt,2.0)
+            self.show_xwt_roi(p[0],p[1],**kwargs)
+           
             
             
                 
