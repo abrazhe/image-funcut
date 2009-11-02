@@ -103,7 +103,7 @@ def rezip(a):
     return zip(*a)
 
 def shorten_movie(m,n):
-    return array([mean(m[i:i+3,:],0) for i in xrange(0,len(m), n)])
+    return array([mean(m[i:i+n,:],0) for i in xrange(0,len(m), n)])
 
 
 class ImgLineSect(ImageSequence):
