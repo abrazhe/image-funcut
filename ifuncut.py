@@ -246,7 +246,7 @@ class ImgPointSelect(ImageSequence):
 
     def make_timeview(self, point, ch=None, normp=False):
         fn = in_circle(point.center, point.radius)
-        X,Y = meshgrid(*map(range, (self.shape)))
+        X,Y = meshgrid(*map(range, self.shape[::-1]))
         v = array([mean(frame[fn(X,Y)]) for frame in \
                    self.ch_view(ch)])
         if normp: return v/numpy.std(v)
@@ -257,7 +257,7 @@ class ImgPointSelect(ImageSequence):
 
     def show_timeseries(self, ch=None):
         figure()
-        t = arange(0,self.Nf*self.dt, self.dt)
+        t = arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
         L = len(self.points)
         if ch is None: ch=self.ch
         for i in xrange(L):
@@ -309,7 +309,7 @@ class ImgPointSelect(ImageSequence):
         figure()
         if freqs is None: freqs = self.default_freqs()
         self.freqs = freqs
-        self.time = arange(0,self.Nf*self.dt, self.dt)
+        self.time = arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
         L = len(self.points)
         self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
         self.make_cwt(freqs, ch=ch, wavelet=wavelet)
