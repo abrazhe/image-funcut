@@ -5,7 +5,7 @@ import numpy
 import glob
 from itertools import combinations
 from pylab import *
-from iwavelets import pycwt
+from swan_wt import pycwt
 from swan_gui import swan
 
 def best (scoref, lst):
