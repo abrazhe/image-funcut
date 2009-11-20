@@ -78,6 +78,19 @@ def image_names(pat):
     x.sort()
     return x
 
+def cone_infl(freqs, wavelet, endtime):
+    try:
+        fill_betweenx(freqs,0,wavelet.cone(freqs),
+                      alpha=0.5, color='black')
+        fill_betweenx(freqs,
+                      endtime+wavelet.cone(-freqs),
+                      endtime,
+                      alpha=0.5, color='black')
+    except:
+        print("Can't use fill_betweenx function: update\
+        maptlotlib?")
+
+
 class ImageSequence:
     def __init__(self, pat, channel=0, dt = 0.15):
         self.pat = pat
@@ -316,6 +329,7 @@ class ImgPointSelect(ImageSequence):
     def default_freqs(self):
         return arange(3.0/(self.Nf*self.dt),
                       0.5/self.dt, 0.005)
+
     def show_spectrograms(self,
                           freqs = None,#arange(0.1, 5, 0.005),
                           ch = None,
