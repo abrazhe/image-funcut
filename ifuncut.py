@@ -5,8 +5,11 @@ import numpy
 import glob
 from itertools import combinations
 from pylab import *
+from pylab import mpl
 from swan import pycwt
 
+mpl.rcParams['image.aspect'] = 'auto'
+mpl.rcParams['image.origin'] = 'lower'
 
 def best (scoref, lst):
     n,winner = 0, lst[0]
