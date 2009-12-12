@@ -256,7 +256,7 @@ class ImgPointSelect(ImageSequence):
                 p.set_radius(max(0.1,r-step))
             draw()
             
-    def select(self, ch):
+    def select(self, ch=None):
         self.points = []
         self.fig = figure()
         self.ax1 = axes()
@@ -264,6 +264,7 @@ class ImgPointSelect(ImageSequence):
         title("Channel: %s" % ('red', 'green')[ch] )
         self.pl = self.ax1.imshow(self.mean(ch),
                                   aspect='equal',
+                                  origin='low',
                                   cmap=matplotlib.cm.gray)
         if True or self.connected is False:
             self.fig.canvas.mpl_connect('button_press_event',
