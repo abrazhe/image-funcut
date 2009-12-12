@@ -110,7 +110,8 @@ class ImageSequence:
     def show(self, ch=0):
         self.fig = figure()
         self.ax = axes()
-        self.pl = imshow(self.mean(ch), aspect='equal', cmap=matplotlib.cm.gray)
+        self.pl = imshow(self.mean(ch), origin='low',
+                         aspect='equal', cmap=matplotlib.cm.gray)
 
 def rezip(a):
     return zip(*a)
@@ -182,6 +183,7 @@ class ImgLineSect(ImageSequence):
         self.ax1 = subplot(121); hold(True)
         self.pl = self.ax1.imshow(self.mean(ch),
                                   aspect='equal',
+                                  origin = 'low',
                                   cmap=matplotlib.cm.gray)
         self.pl2 = None
         self.pl_seg = None
@@ -204,6 +206,7 @@ class ImgLineSect(ImageSequence):
         self.nshort = 1
         self.pl2 = self.ax2.imshow(
             self.prepare_timeseries(),
+            origin='low',
             extent = (0, int(eu_dist(*self.endpoints)),
                       0, self.Nf*self.dt),
             interpolation='nearest')
@@ -320,6 +323,7 @@ class ImgPointSelect(ImageSequence):
 
     def specgram(self,esurf,vmin=None,vmax=None):
         imshow(esurf, extent=self.extent,
+               origin='low',
                vmin = vmin, vmax=vmax,
                cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
     def confidence_contour(self, esurf, L=3.0):
