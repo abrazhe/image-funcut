@@ -305,7 +305,7 @@ class ImgPointSelect(ImageSequence):
                  ch = None,
                  wavelet=pycwt.Morlet()):
         self.wcoefs =  [pycwt.cwt_f(v, freqs, 1.0/self.dt,
-                                    wavelet)\
+                                    wavelet, 'cpd')\
                         for v in self.get_timeseries(ch,normp=True)]
         return self.wcoefs
 
