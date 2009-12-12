@@ -5,8 +5,8 @@ import numpy
 import glob
 from itertools import combinations
 from pylab import *
-from swan_wt import pycwt
-from swan_gui import swan
+from swan import pycwt
+
 
 def best (scoref, lst):
     n,winner = 0, lst[0]
