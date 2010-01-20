@@ -12,10 +12,12 @@ mpl.rcParams['image.aspect'] = 'auto'
 mpl.rcParams['image.origin'] = 'lower'
 
 def best (scoref, lst):
-    n,winner = 0, lst[0]
-    for i, item in enumerate(lst):
-        if  scoref(item, winner): n, winner = i, item
-    return n,winner
+    if len(lst) > 0:
+        n,winner = 0, lst[0]
+        for i, item in enumerate(lst):
+            if  scoref(item, winner): n, winner = i, item
+            return n,winner
+    else: return -1,None
 
 def min1(scoref, lst):
     return best(lambda x,y: x < y, map(scoref, lst))
@@ -44,8 +46,8 @@ def line_from_points(p1,p2):
     b = p1[1] - p1[0]*k
     return lambda x: k*x + b
 
-def in_circle(xy, radius):
-    return lambda x,y: eu_dist((x,y), xy) < radius
+def in_circle(coords, radius):
+    return lambda x,y: eu_dist((x,y), coords) < radius
 
 def in_ellipse1(f1,f2):
     return lambda x,y: \
@@ -95,20 +97,26 @@ def cone_infl(freqs, wavelet, endtime):
 
 
 class ImageSequence:
-    def __init__(self, pat, channel=0, dt = 0.15):
-        self.pat = pat
+    "Base Class for image sequence"
+    def __init__(self, pattern, channel=0, dt = 0.15):
         self.ch = channel
         self.dt = dt
-        self.d = [imread(f) for f in image_names(pat)]
+        #self.d = array([imread(f) for f in image_names(pattern)])
+        self.d = [imread(f) for f in image_names(pattern)]
         self.Nf = len(self.d)
         self.shape = self.d[0].shape[:-1]
 
     def ch_view(self, ch=None):
         if ch is None: ch=self.ch
-        return (d[:,:,ch] for d in self.d)
+#        return self.d[:,:,:,ch]
+        return array([d[:,:,ch] for d in self.d])
+
+    def get_time(self):
+        return arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
+
 
     def mean(self, ch=0):
-        return numpy.mean(list(self.ch_view(ch)), axis=0)
+        return numpy.mean(self.ch_view(ch), axis=0)
 
     def show(self, ch=0):
         self.fig = figure()
@@ -120,7 +128,7 @@ def rezip(a):
     return zip(*a)
 
 def shorten_movie(m,n):
-    return array([mean(m[i:i+n,:],0) for i in xrange(0,len(m), n)])
+    return array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
 
 
 class ImgLineSect(ImageSequence):
@@ -231,6 +239,117 @@ def color_walker():
     while True:
         yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
 
+def struct_circle(circ):
+    return {'center': circ.center,
+            'radius': circ.radius,
+            'alpha': circ.get_alpha(),
+            'label': circ.get_label(),
+            'color': circ.get_facecolor()}
+
+def circle_from_struct(circ_props):
+    return Circle(circ_props['center'], circ_props['radius'],
+                  alpha=circ_props['alpha'],
+                  label = circ_props['label'],
+                  color = circ_props['color'])
+    pass
+
+import pickle
+import random
+
+vowels = "aeiouy"
+consonants = "qwrtpsdfghjklzxcvbnm"
+
+
+def rand_tag():
+    return ''.join((random.choice(consonants),
+                    random.choice(vowels),
+                    random.choice(consonants)))
+
+def unique_tag(tags, max_tries = 1e4):
+    n = 0
+    while n < max_tries:
+        tag = rand_tag()
+        if not tag in tags:
+            return tag
+    return "Err"
+
+
+class DraggableCircle():
+    "Draggable Circle ROI"
+    def __init__ (self, circ, parent = None):
+        self.circ = circ
+        self.parent = parent
+        self.press = None
+
+    def connect(self):
+        "connect all the needed events"
+        self.cidpress = \
+        self.circ.figure.canvas.mpl_connect('button_press_event',
+                                            self.on_press)
+        self.cidrelease = \
+        self.circ.figure.canvas.mpl_connect('button_release_event',
+                                            self.on_release)
+
+        self.cidscroll = \
+        self.circ.figure.canvas.mpl_connect('scroll_event',
+                                            self.on_scroll)
+
+        self.cidmotion = \
+        self.circ.figure.canvas.mpl_connect('motion_notify_event',
+                                            self.on_motion)
+
+    def disconnect(self):
+        "Disconnect stored connections"
+        map(self.circ.figure.canvas.mpl_disconnect,
+            (self.cidpress, self.cidrelease, self.cidscroll,
+             self.cidmotion))
+
+    def on_scroll(self, event):
+        if event.inaxes != self.circ.axes : return
+        contains, attrd = self.circ.contains(event)
+        if not contains : return 
+        step = 1
+        r = self.circ.get_radius()
+        if event.button in ['up']:
+            self.circ.set_radius(r+step)
+        else:
+            self.circ.set_radius(max(0.1,r-step))
+        self.circ.figure.canvas.draw()
+        return 
+
+    def on_press(self, event):
+        if event.inaxes != self.circ.axes: return
+
+        contains, attrd = self.circ.contains(event)
+        if not contains: return
+        x0,y0 = self.circ.center
+        if event.button is 1:
+            self.press = x0, y0, event.xdata, event.ydata
+        elif event.button is 2:
+            self.parent.show_timeseries([self.circ.get_label()])
+            
+        elif event.button is 3:
+            p = self.parent.drcs.pop(self.circ.get_label())
+            self.circ.remove()
+            self.disconnect()
+            legend()
+            self.circ.figure.canvas.draw()
+
+    def on_motion(self, event):
+        "Move the ROI if the mouse is over it"
+        if self.press is None: return
+        if event.inaxes != self.circ.axes: return
+        x0, y0, xpress, ypress = self.press
+        dx = event.xdata - xpress
+        dy = event.ydata - ypress
+        self.circ.center = (x0+dx, y0+dy)
+        self.circ.figure.canvas.draw()
+
+    def on_release(self, event):
+        "On release reset the press data"
+        self.press = None
+        self.circ.figure.canvas.draw()
+
 
 class ImgPointSelect(ImageSequence):
     verbose = True
@@ -238,32 +357,52 @@ class ImgPointSelect(ImageSequence):
     cw = color_walker()
     def onclick(self,event):
         tb = get_current_fig_manager().toolbar
-        if event.inaxes == self.ax1 and tb.mode=='':
-            x,y = round(event.xdata), round(event.ydata)
-            if event.button in [1]:
-                self.points.append(Circle((x,y), 5, alpha = 0.5,
-                                          color=self.cw.next()))
-                self.ax1.add_patch(self.points[-1])
-            else:
-                n,p = nearest_item_ind(self.points, (x,y), lambda p: p.center)
-                p = self.points.pop(n)
-                p.remove()
-            draw()
-    def onscroll(self, event):
-        if event.inaxes == self.ax1:
-            step = 1
-            x,y = round(event.xdata), round(event.ydata)
-            n,p = nearest_item_ind(self.points, (x,y), lambda p: p.center)
-            p = self.points[n]
-            r = p.get_radius()
-            if event.button in ['up']:
-                p.set_radius(r+step)
-            else:
-                p.set_radius(max(0.1,r-step))
-            draw()
+        if event.inaxes != self.ax1 or tb.mode != '': return
+
+        x,y = round(event.xdata), round(event.ydata)
+        if event.button is 1 and \
+           not self.any_roi_contains(event):
             
-    def select(self, ch=None):
-        self.points = []
+            label = unique_tag(self.roi_labels())
+            c = Circle((x,y), 5, alpha = 0.5,
+                       label = label,
+                       color=self.cw.next())
+            c.figure = self.fig
+            drc = DraggableCircle(c, self)
+            drc.connect()
+            self.drcs[label]=drc
+            
+            self.ax1.add_patch(c)
+        legend()
+        draw()
+
+    def any_roi_contains(self,event):
+        "Checks if event is contained by any ROI"
+        if len(self.drcs) < 1 : return False
+        return reduce(lambda x,y: x or y,
+                      [roi.circ.contains(event)[0]
+                       for roi in self.drcs.values()])
+    
+    def roi_labels(self):
+        return self.drcs.keys()
+    
+    def save_rois(self, fname):
+        "Saves picked ROIs to a file"
+        pickle.dump(map(struct_circle, [x.circ for x in self.drcs.values()]),
+                    file(fname, 'w'))
+
+    def load_rois(self, fname):
+        "Load stored ROIs from a file"
+        circles = map(circle_from_struct, pickle.load(file(fname)))
+        map(self.ax1.add_patch, circles) # add points to the axes
+        self.drcs = dict([(c.get_label(), DraggableCircle(c,self))
+                          for c in circles])
+        legend()
+        draw() # redraw the axes
+        return
+
+    def pick_rois(self, ch=None, points = []):
+        self.drcs = {}
         self.fig = figure()
         self.ax1 = axes()
         if ch is None: ch=self.ch
@@ -275,42 +414,51 @@ class ImgPointSelect(ImageSequence):
         if True or self.connected is False:
             self.fig.canvas.mpl_connect('button_press_event',
                                         self.onclick)
-            self.fig.canvas.mpl_connect('scroll_event',
-                                        self.onscroll)
+            #self.fig.canvas.mpl_connect('pick_event', self.onpick)
             self.connected = True
 
-    def make_timeview(self, point, ch=None, normp=False):
-        fn = in_circle(point.center, point.radius)
+    def roi_timeview(self, roi, ch=None, normp=False):
+        "Returns timeseries from a single ROI"
+        fn = in_circle(roi.center, roi.radius)
         X,Y = meshgrid(*map(range, self.shape[::-1]))
-        v = array([mean(frame[fn(X,Y)]) for frame in \
-                   self.ch_view(ch)])
+        v = array([mean(frame[fn(X,Y)])
+                   for frame in self.ch_view(ch)])
         if normp: return v/numpy.std(v)
         else: return v
         
-    def get_timeseries(self, ch=None, normp=False):
-        return (self.make_timeview(p, ch, normp) for p in self.points)
+    def get_all_timeseries(self, ch=None, normp=False):
+        return (self.roi_timeview(p.circ, ch, normp)
+                for p in  self.drcs.values())
 
-    def show_timeseries(self, ch=None):
-        figure()
-        t = arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
-        L = len(self.points)
+
+    def show_timeseries(self, rois=None, ch=None, normp=False):
+        t = self.get_time()
         if ch is None: ch=self.ch
-        for i in xrange(L):
-            subplot(L,1,i+1);
-            if i == 0:
-                title("Channel: %s" % ('red', 'green')[ch])
-            p = self.points[i]
-            x = self.make_timeview(p, ch)
-            plot(t, x, color=p.get_facecolor())
-            xlim((0,t[-1]))
+        if rois == None:
+            rois = self.drcs.keys()
 
-    def make_cwt(self, freqs,
+        L = len(rois)
+        if L < 1 : return
+
+        fig = figure(figsize=(8,4.5), dpi=80)
+        for i, roi_label in enumerate(rois):
+            roi = self.drcs[roi_label].circ
+            ax = fig.add_subplot(L,1,i+1)
+            ax.plot(t,
+                    self.roi_timeview(roi),
+                    color = roi.get_facecolor())
+            ax.set_ylabel(roi.get_label())
+            xlim((0,t[-1]))
+            if i == L-1:
+                ax.set_xlabel("time, sec")
+        fig.show()
+
+    def roi_cwt(self, roi,
+                 freqs,
                  ch = None,
                  wavelet=pycwt.Morlet()):
-        self.wcoefs =  [pycwt.cwt_f(v, freqs, 1.0/self.dt,
-                                    wavelet, 'cpd')\
-                        for v in self.get_timeseries(ch,normp=True)]
-        return self.wcoefs
+        return pycwt.cwt_f(self.roi_timeview(roi,ch,normp=True),
+                           freqs, 1.0/self.dt, wavelet, 'cpd')
 
     def cone_infl(self,freqs, wavelet):
         try:
@@ -331,7 +479,7 @@ class ImgPointSelect(ImageSequence):
                cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
     def confidence_contour(self, esurf, L=3.0):
         # Show 95% confidence level (against white noise, v=3 \sigma^2)
-        contour(esurf, [3.0], extent=self.extent,
+        contour(esurf, [L], extent=self.extent,
                 cmap=matplotlib.cm.gray)
 
     def default_freqs(self):
@@ -339,34 +487,43 @@ class ImgPointSelect(ImageSequence):
                       0.5/self.dt, 0.005)
 
     def show_spectrograms(self,
+                          rois = None,
                           freqs = None,#arange(0.1, 5, 0.005),
                           ch = None,
                           wavelet = pycwt.Morlet(),
                           vmin = None,
                           vmax = None):
-        figure()
+        fig = figure()
+        if rois is None: rois = self.drcs.keys()
         if freqs is None: freqs = self.default_freqs()
         self.freqs = freqs
-        self.time = arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
-        L = len(self.points)
+        self.time = self.get_time()
         self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        self.make_cwt(freqs, ch=ch, wavelet=wavelet)
+        #self.make_all_cwt(freqs, ch=ch, wavelet=wavelet)
 
         if ch is None: ch=self.ch
 
-        for i in xrange(L):
-            subplot(L,1,i+1);
+        L = len(rois)
+        if L < 1: return
+        
+        for i,roi_label in enumerate(rois):
+            roi = self.drcs[roi_label].circ
+            ax = fig.add_subplot(L,1,i+1);
             if i == 0:
-                title("Channel: %s" % ('red', 'green')[ch] )
-                    
-            esurf = pycwt.eds(self.wcoefs[i],wavelet.f0)
+                ax.set_title("Channel: %s" % ('red', 'green')[ch] )
+            elif i == L-1:
+                ax.set_xlabel("time, sec")
+
+            wcoefs = self.roi_cwt(roi, freqs, ch, wavelet) 
+            esurf = pycwt.eds(wcoefs, wavelet.f0)
             self.specgram(esurf,vmin,vmax)
             colorbar()
             self.cone_infl(freqs, wavelet)
             self.confidence_contour(esurf)
+            ax.set_ylabel(roi_label)
 
             
-        xlabel('time, s'); ylabel('Freq., Hz')
+        #xlabel('time, s'); ylabel('Freq., Hz')
 
     def setup_freqs(self,freqs):
         if freqs is None:
@@ -377,30 +534,33 @@ class ImgPointSelect(ImageSequence):
                 self.freqs = freqs
         return freqs
 
-    def show_xwt_roi(self, p1,p2,freqs=None, ch=None,
+    def show_xwt_roi(self, roi1, roi2, freqs=None, ch=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROI"
         freqs = self.setup_freqs(freqs)
         self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        self.time = arange(0,self.Nf*self.dt, self.dt) #codeduplicate
+        self.time = self.get_time()
 
-        s1 = self.make_timeview(p1,ch,True)
-        s2 = self.make_timeview(p2,ch,True)
+        s1 = self.roi_timeview(roi1,ch,True)
+        s2 = self.roi_timeview(roi2,ch,True)
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
         figure();
         ax1= subplot(211);
-        plot(self.time,s1,color=p1.get_facecolor())
-        plot(self.time,s2,color=p2.get_facecolor())
+        plot(self.time,s1,color=roi1.get_facecolor(),
+             label=roi1.get_label())
+        plot(self.time,s2,color=roi2.get_facecolor(),
+             label = roi2.get_label())
+        legend()
         subplot(212, sharex = ax1);
         self.specgram(res)
         self.cone_infl(freqs,wavelet)
         self.confidence_contour(res,2.0)
 
     def show_xwt(self, **kwargs):
-        for p in allpairs0(self.points):
-            self.show_xwt_roi(p[0],p[1],**kwargs)
+        for p in allpairs0(self.drcs.values()):
+            self.show_xwt_roi(p[0].circ,p[1].circ,**kwargs)
            
             
             
