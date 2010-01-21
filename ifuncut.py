@@ -49,9 +49,9 @@ def line_from_points(p1,p2):
 def in_circle(coords, radius):
     return lambda x,y: eu_dist((x,y), coords) < radius
 
-def in_ellipse1(f1,f2):
-    return lambda x,y: \
-           (eu_dist((x,y), f1) + eu_dist((x,y), f2)) < eu_dist(f1,f2)
+#def in_ellipse1(f1,f2):
+#    return lambda x,y: \
+#           (eu_dist((x,y), f1) + eu_dist((x,y), f2)) < eu_dist(f1,f2)
 
 def extract_line(data, xind, f):
     return array([data[int(i),int(f(i))] for i in xind])
@@ -71,9 +71,17 @@ def percent_threshold(mat, thresh,
     return func(mat,val)
 
 def threshold(mat, thresh, func=lambda a,b: a>b):
+    """
+    Given a matrix M, a value V and a function f, return a matrix X of Booleans
+    where each element is f M(i,j) v -> X(i,j).
+
+    By default, `f a b -> True if a > b, False otherwise`
+    i.e. `lambda a,b: a>b`
+    """
     return func(mat, thresh)
 
 def times_std(mat, n, func=lambda a,b: a>b):
+    "Same as threshold, but threshold value is times S.D. of the matrix"
     x = numpy.std(mat)
     return func(mat, x*n)
 
@@ -84,6 +92,7 @@ def image_names(pat):
     return x
 
 def cone_infl(freqs, wavelet, endtime):
+    "Draw shaded regions on edges of a spectrogram to mark edge errors"
     try:
         fill_betweenx(freqs,0,wavelet.cone(freqs),
                       alpha=0.5, color='black')
@@ -98,7 +107,14 @@ def cone_infl(freqs, wavelet, endtime):
 
 class ImageSequence:
     "Base Class for image sequence"
-    def __init__(self, pattern, channel=0, dt = 0.15):
+    def __init__(self, pattern, channel=0, dt = 0.16):
+        """
+        Creates an instance. Image files must be in RGB format
+        - pattern: a string like "/path/to/files/*.tif"
+        - channel: an integer, 0--2, sets default channel. 0 is red, 1 is green
+        and 2 is blue.
+        - dt: a float, specifies time delay between the frames
+        """
         self.ch = channel
         self.dt = dt
         #self.d = array([imread(f) for f in image_names(pattern)])
@@ -107,18 +123,33 @@ class ImageSequence:
         self.shape = self.d[0].shape[:-1]
 
     def ch_view(self, ch=None):
+        """
+        Returns values for a given color channel in the image sequence (stack)
+        as a 3D array.
+        """
         if ch is None: ch=self.ch
 #        return self.d[:,:,:,ch]
         return array([d[:,:,ch] for d in self.d])
 
     def get_time(self):
+        """
+        Return a vector of time values, calculated from sampling interval and
+        number of frames
+        """
         return arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
 
 
     def mean(self, ch=0):
+        """
+        Returns 'mean frame' along the sequence in a given color channel as a
+        2D numpy array
+        """
         return numpy.mean(self.ch_view(ch), axis=0)
 
     def show(self, ch=0):
+        """
+        Shows a mean frame along the sequence
+        """
         self.fig = figure()
         self.ax = axes()
         self.pl = imshow(self.mean(ch), origin='low',
@@ -280,6 +311,7 @@ class DraggableCircle():
         self.circ = circ
         self.parent = parent
         self.press = None
+        self.connect()
 
     def connect(self):
         "connect all the needed events"
@@ -369,7 +401,7 @@ class ImgPointSelect(ImageSequence):
                        color=self.cw.next())
             c.figure = self.fig
             drc = DraggableCircle(c, self)
-            drc.connect()
+            #drc.connect()
             self.drcs[label]=drc
             
             self.ax1.add_patch(c)
