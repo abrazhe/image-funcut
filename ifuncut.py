@@ -416,6 +416,7 @@ class ImgPointSelect(ImageSequence):
                        for roi in self.drcs.values()])
     
     def roi_labels(self):
+        "List of labels for all ROIs"
         return self.drcs.keys()
     
     def save_rois(self, fname):
@@ -434,6 +435,7 @@ class ImgPointSelect(ImageSequence):
         return
 
     def pick_rois(self, ch=None, points = []):
+        "Start picking up ROIs"
         self.drcs = {}
         self.fig = figure()
         self.ax1 = axes()
@@ -457,6 +459,14 @@ class ImgPointSelect(ImageSequence):
                    for frame in self.ch_view(ch)])
         if normp: return v/numpy.std(v)
         else: return v
+        
+    def list_rois_timeseries_from_labels(self, roi_labels, **keywords):
+        "Returns timeseres for a list of roi labels"
+        return [self.roi_timeseries_from_label(label, **keywords)
+                for label in roi_labels]
+    
+    def roi_timeseries_from_label(self, roilabel, **keywords):
+        return self.roi_timeview(self.drcs[roilabel].circ, **keywords)
         
     def get_all_timeseries(self, ch=None, normp=False):
         return (self.roi_timeview(p.circ, ch, normp)
