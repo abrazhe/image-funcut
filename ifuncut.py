@@ -329,12 +329,15 @@ class DraggableCircle():
         self.cidmotion = \
         self.circ.figure.canvas.mpl_connect('motion_notify_event',
                                             self.on_motion)
+        self.cidtype = \
+        self.circ.figure.canvas.mpl_connect('key_press_event',
+                                            self.on_type)             
 
     def disconnect(self):
         "Disconnect stored connections"
         map(self.circ.figure.canvas.mpl_disconnect,
             (self.cidpress, self.cidrelease, self.cidscroll,
-             self.cidmotion))
+             self.cidmotion, self.cidtype))
 
     def on_scroll(self, event):
         if event.inaxes != self.circ.axes : return
@@ -347,11 +350,21 @@ class DraggableCircle():
         else:
             self.circ.set_radius(max(0.1,r-step))
         self.circ.figure.canvas.draw()
-        return 
+        return
+
+    def on_type(self, event):
+        if event.inaxes != self.circ.axes: return
+        contains, attrd = self.circ.contains(event)
+        if not contains: return
+        if event.key == 't':
+            self.parent.show_timeseries([self.circ.get_label()])
+        elif event.key == 'w':
+            self.parent.show_spectrograms([self.circ.get_label()])
+                                        
+
 
     def on_press(self, event):
         if event.inaxes != self.circ.axes: return
-
         contains, attrd = self.circ.contains(event)
         if not contains: return
         x0,y0 = self.circ.center
