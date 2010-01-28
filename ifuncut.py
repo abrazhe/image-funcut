@@ -1,12 +1,16 @@
 #!/usr/bin/python
 
 import os
-import numpy
+import numpy as np
 import glob
 from itertools import combinations
 from pylab import *
 from pylab import mpl
 from swan import pycwt
+
+from imfun import aux_utils as aux
+
+from imfun.aux_utils import ifnot
 
 mpl.rcParams['image.aspect'] = 'auto'
 mpl.rcParams['image.origin'] = 'lower'
@@ -65,8 +69,8 @@ def extract_line2(data, p1, p2):
 
 def percent_threshold(mat, thresh,
                       func = lambda a,b: a>b):
-    minv = numpy.min(mat)
-    maxv = numpy.max(mat)
+    minv = np.min(mat)
+    maxv = np.max(mat)
     val = (maxv-minv) * thresh/100.0
     return func(mat,val)
 
@@ -82,28 +86,15 @@ def threshold(mat, thresh, func=lambda a,b: a>b):
 
 def times_std(mat, n, func=lambda a,b: a>b):
     "Same as threshold, but threshold value is times S.D. of the matrix"
-    x = numpy.std(mat)
+    x = np.std(mat)
     return func(mat, x*n)
 
 
-def image_names(pat):
+def file_names(pat):
+    "Returns a sorted list of file names matching a pattern"
     x = glob.glob(pat)
     x.sort()
     return x
-
-def cone_infl(freqs, wavelet, endtime):
-    "Draw shaded regions on edges of a spectrogram to mark edge errors"
-    try:
-        fill_betweenx(freqs,0,wavelet.cone(freqs),
-                      alpha=0.5, color='black')
-        fill_betweenx(freqs,
-                      endtime+wavelet.cone(-freqs),
-                      endtime,
-                      alpha=0.5, color='black')
-    except:
-        print("Can't use fill_betweenx function: update\
-        maptlotlib?")
-
 
 class ImageSequence:
     "Base Class for image sequence"
@@ -117,8 +108,8 @@ class ImageSequence:
         """
         self.ch = channel
         self.dt = dt
-        #self.d = array([imread(f) for f in image_names(pattern)])
-        self.d = [imread(f) for f in image_names(pattern)]
+        #self.d = array([imread(f) for f in file_names(pattern)])
+        self.d = [imread(f) for f in file_names(pattern)]
         self.Nf = len(self.d)
         self.shape = self.d[0].shape[:-1]
 
@@ -144,7 +135,7 @@ class ImageSequence:
         Returns 'mean frame' along the sequence in a given color channel as a
         2D numpy array
         """
-        return numpy.mean(self.ch_view(ch), axis=0)
+        return np.mean(self.ch_view(ch), axis=0)
 
     def show(self, ch=0):
         """
@@ -306,6 +297,7 @@ def unique_tag(tags, max_tries = 1e4):
 
 
 class DraggableCircle():
+    verbose = True
     "Draggable Circle ROI"
     def __init__ (self, circ, parent = None):
         self.circ = circ
@@ -356,10 +348,19 @@ class DraggableCircle():
         if event.inaxes != self.circ.axes: return
         contains, attrd = self.circ.contains(event)
         if not contains: return
-        if event.key == 't':
-            self.parent.show_timeseries([self.circ.get_label()])
-        elif event.key == 'w':
-            self.parent.show_spectrograms([self.circ.get_label()])
+        if self.verbose:
+            print event.key
+        tags = [self.circ.get_label()]
+        if event.key in ['t', '1']:
+            self.parent.show_timeseries(tags)
+        if event.key in ['T', '!']:
+            self.parent.show_timeseries(tags, normp=True)
+        elif event.key in ['w', '2']:
+            self.parent.show_spectrograms(tags)
+        elif event.key in ['W', '3']:
+            self.parent.show_wmps(tags)
+        elif event.key in ['4']:
+            self.parent.show_ffts(tags)
                                         
 
 
@@ -470,7 +471,7 @@ class ImgPointSelect(ImageSequence):
         X,Y = meshgrid(*map(range, self.shape[::-1]))
         v = array([mean(frame[fn(X,Y)])
                    for frame in self.ch_view(ch)])
-        if normp: return v/numpy.std(v)
+        if normp: return (v-np.mean(v))/np.std(v)
         else: return v
         
     def list_rois_timeseries_from_labels(self, roi_labels, **keywords):
@@ -481,32 +482,53 @@ class ImgPointSelect(ImageSequence):
     def roi_timeseries_from_label(self, roilabel, **keywords):
         return self.roi_timeview(self.drcs[roilabel].circ, **keywords)
         
-    def get_all_timeseries(self, ch=None, normp=False):
-        return (self.roi_timeview(p.circ, ch, normp)
-                for p in  self.drcs.values())
-
-
-    def show_timeseries(self, rois=None, ch=None, normp=False):
-        t = self.get_time()
-        if ch is None: ch=self.ch
-        if rois == None:
+    def get_timeseries(self, rois=None, ch=None, normp=False):
+        if not rois:
             rois = self.drcs.keys()
+        return [self.roi_timeview(p.circ, ch, normp)
+                for p in  rois]
 
-        L = len(rois)
-        if L < 1 : return
 
-        fig = figure(figsize=(8,4.5), dpi=80)
-        for i, roi_label in enumerate(rois):
-            roi = self.drcs[roi_label].circ
-            ax = fig.add_subplot(L,1,i+1)
-            ax.plot(t,
-                    self.roi_timeview(roi),
-                    color = roi.get_facecolor())
-            ax.set_ylabel(roi.get_label())
+    def show_timeseries(self, rois = None, **keywords):
+        t = self.get_time()
+        for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
+            ax.plot(t, x, color = roi.get_facecolor())
             xlim((0,t[-1]))
-            if i == L-1:
-                ax.set_xlabel("time, sec")
-        fig.show()
+
+    def show_ffts(self, rois = None, **keywords):
+        L = self.Nf
+        freqs = fftfreq(L, self.dt)[1:L/2]
+        for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
+            y = abs(fft(x))[1:L/2]
+            ax.plot(freqs, y**2)
+
+    def show_spectrograms(self, rois = None, freqs = None,
+                          wavelet = pycwt.Morlet(),
+                          vmin = None,
+                          vmax = None,
+                          **keywords):
+        keywords.update({'rois':rois, 'normp':True})
+        fs = 1.0/self.dt
+        freqs = ifnot(freqs, self.default_freqs())
+        for x,tag,roi,ax in self.roi_show_iterator(**keywords):
+            aux.wavelet_specgram(x, freqs, fs, ax,
+                                wavelet, vmin=vmin, vmax=vmax)
+
+    def show_wmps(self, rois = None, freqs = None,
+                  wavelet = pycwt.Morlet(),
+                  vmin = None,
+                  vmax = None,
+                  **keywords):
+        "show mean wavelet power spectra"
+        keywords.update({'rois':rois, 'normp':True})
+        fs = 1.0/self.dt
+        freqs = ifnot(freqs, self.default_freqs())
+        for x,tag,roi,ax in self.roi_show_iterator(**keywords):
+            cwt = pycwt.cwt_f(x, freqs, 1./self.dt, wavelet, 'zpd')
+            eds = pycwt.eds(cwt, wavelet.f0)
+            ax.plot(freqs, np.mean(eds, 1))
+
+
 
     def roi_cwt(self, roi,
                  freqs,
@@ -515,70 +537,27 @@ class ImgPointSelect(ImageSequence):
         return pycwt.cwt_f(self.roi_timeview(roi,ch,normp=True),
                            freqs, 1.0/self.dt, wavelet, 'cpd')
 
-    def cone_infl(self,freqs, wavelet):
-        try:
-            fill_betweenx(freqs,0,wavelet.cone(freqs),
-                          alpha=0.5, color='black')
-            fill_betweenx(freqs,
-                          self.time[-1]+wavelet.cone(-freqs),
-                          self.time[-1],
-                          alpha=0.5, color='black')
-        except:
-            print("Can't use fill_betweenx function: update\
-            maptlotlib?")
-
-    def specgram(self,esurf,vmin=None,vmax=None):
-        imshow(esurf, extent=self.extent,
-               origin='low',
-               vmin = vmin, vmax=vmax,
-               cmap = matplotlib.cm.jet, alpha=0.95, hold=True)
-    def confidence_contour(self, esurf, L=3.0):
-        # Show 95% confidence level (against white noise, v=3 \sigma^2)
-        contour(esurf, [L], extent=self.extent,
-                cmap=matplotlib.cm.gray)
 
     def default_freqs(self):
         return arange(3.0/(self.Nf*self.dt),
                       0.5/self.dt, 0.005)
 
-    def show_spectrograms(self,
-                          rois = None,
-                          freqs = None,#arange(0.1, 5, 0.005),
-                          ch = None,
-                          wavelet = pycwt.Morlet(),
-                          vmin = None,
-                          vmax = None):
-        fig = figure()
-        if rois is None: rois = self.drcs.keys()
-        if freqs is None: freqs = self.default_freqs()
-        self.freqs = freqs
-        self.time = self.get_time()
-        self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        #self.make_all_cwt(freqs, ch=ch, wavelet=wavelet)
-
-        if ch is None: ch=self.ch
-
-        L = len(rois)
-        if L < 1: return
-        
-        for i,roi_label in enumerate(rois):
-            roi = self.drcs[roi_label].circ
-            ax = fig.add_subplot(L,1,i+1);
-            if i == 0:
-                ax.set_title("Channel: %s" % ('red', 'green')[ch] )
-            elif i == L-1:
-                ax.set_xlabel("time, sec")
-
-            wcoefs = self.roi_cwt(roi, freqs, ch, wavelet) 
-            esurf = pycwt.eds(wcoefs, wavelet.f0)
-            self.specgram(esurf,vmin,vmax)
-            colorbar()
-            self.cone_infl(freqs, wavelet)
-            self.confidence_contour(esurf)
-            ax.set_ylabel(roi_label)
-
-            
-        #xlabel('time, s'); ylabel('Freq., Hz')
+    def roi_show_iterator(self, rois = None,
+                              ch = None, normp=False):
+            ch = ifnot(ch, self.ch)
+            rois = ifnot(rois, self.drcs.keys())
+            L = len(rois)
+            if L < 1: return
+            fig = figure(figsize=(8,4.5), dpi=80)
+            for i, roi_label in enumerate(rois):
+                roi = self.drcs[roi_label].circ
+                ax = fig.add_subplot(L,1,i+1)
+                x = self.roi_timeview(roi, ch, normp=normp)
+                if i == L-1:
+                    ax.set_xlabel("time, sec")
+                ax.set_ylabel(roi_label)
+                yield x, roi_label, roi, ax
+            fig.show()
 
     def setup_freqs(self,freqs):
         if freqs is None:
@@ -608,8 +587,8 @@ class ImgPointSelect(ImageSequence):
         plot(self.time,s2,color=roi2.get_facecolor(),
              label = roi2.get_label())
         legend()
-        subplot(212, sharex = ax1);
-        self.specgram(res)
+        ax2 = subplot(212, sharex = ax1);
+        specgram(res,self.extent, ax2)
         self.cone_infl(freqs,wavelet)
         self.confidence_contour(res,2.0)
 
