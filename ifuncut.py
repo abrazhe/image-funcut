@@ -1,16 +1,21 @@
 #!/usr/bin/python
 
 import os
-import numpy as np
+import sys
 import glob
 from itertools import combinations
+
+import numpy as np
 from pylab import *
 from pylab import mpl
+
 from swan import pycwt
-
 from imfun import aux_utils as aux
-
 from imfun.aux_utils import ifnot
+
+from scipy import signal
+
+
 
 mpl.rcParams['image.aspect'] = 'auto'
 mpl.rcParams['image.origin'] = 'lower'
@@ -118,9 +123,40 @@ class ImageSequence:
         Returns values for a given color channel in the image sequence (stack)
         as a 3D array.
         """
-        if ch is None: ch=self.ch
+        ch = ifnot(ch, self.ch)
 #        return self.d[:,:,:,ch]
         return array([d[:,:,ch] for d in self.d])
+
+    def aliased_pix_iter(self, ch=None, alias=1):
+        arr = self.ch_view(ch)
+        ch = ifnot(ch, self.ch)
+        nrows,ncols = self.shape
+        for i in range(alias,nrows-alias):
+            for j in range(alias,ncols-alias):
+                x = arr[:,i-alias:i+alias+1,j-alias:j+alias+1]
+                yield asarray([mean(subframe) for subframe in x]), i, j
+
+    def aliased_pix_iter2(self, ch=None, alias=1):
+        #arr = self.ch_view(ch)
+        ch = ifnot(ch, self.ch)
+        nrows,ncols = self.shape
+
+        kern = ones((3,3))/8.0
+        kern[1,1] = 0.25
+        
+        arr = asarray([signal.convolve2d(m[:,:,ch], kern)[1:-1,1:-1] for m in self.d ])
+        for i in range(nrows):
+            for j in range(ncols):
+                yield arr[:,i,j], i, j
+
+
+    def simple_pix_iter(self, ch=None):
+        arr = self.ch_view(ch)
+        nrows,ncols = self.shape
+        for i in range(nrows):
+            for j in range(ncols):
+                yield arr[:,i,j], i, j
+
 
     def get_time(self):
         """
@@ -474,17 +510,16 @@ class ImgPointSelect(ImageSequence):
         if normp: return (v-np.mean(v))/np.std(v)
         else: return v
         
-    def list_rois_timeseries_from_labels(self, roi_labels, **keywords):
+    def list_roi_timeseries_from_labels(self, roi_labels, **keywords):
         "Returns timeseres for a list of roi labels"
         return [self.roi_timeseries_from_label(label, **keywords)
                 for label in roi_labels]
     
-    def roi_timeseries_from_label(self, roilabel, **keywords):
-        return self.roi_timeview(self.drcs[roilabel].circ, **keywords)
+    def roi_timeseries_from_label(self, tag, **keywords):
+        return self.roi_timeview(self.drcs[tag].circ, **keywords)
         
     def get_timeseries(self, rois=None, ch=None, normp=False):
-        if not rois:
-            rois = self.drcs.keys()
+        rois = ifnot(rois, self.drcs.keys())
         return [self.roi_timeview(p.circ, ch, normp)
                 for p in  rois]
 
@@ -558,6 +593,61 @@ class ImgPointSelect(ImageSequence):
                 ax.set_ylabel(roi_label)
                 yield x, roi_label, roi, ax
             fig.show()
+
+    def wfnmap(self,extent, nfreqs = 16,
+               wavelet = pycwt.Morlet(),
+               func = np.mean, 
+               ch=None,
+               alias=-1):
+        """
+        Wavelet-based 'functional' map of the frame sequence
+
+        Arguments
+        ----------
+
+        *extent* is the window of the form
+        (start-time, stop-time, low-frequency, high-frequency)
+
+        *nfreqs* -- how many different frequencies in the
+        given range (default 16)
+
+        *wavelet* -- wavelet object (default pycwt.Morlet())
+
+        *func* -- function to apply to the wavelet spectrogram within the window
+        of interest. Default, np.mean
+
+        *ch* -- color channel / default, reads the self.ch
+
+        *alias* -- if 0, no alias, if <0, then each frame is filtered, if >0,
+        average +- pixels, -1 by default
+        """
+        out = ones(self.shape)
+        total = self.shape[0]*self.shape[1]
+        k = 0
+        freqs = linspace(*extent[2:], num=nfreqs)
+        pix_iter = None
+
+        if alias < 0:
+            pix_iter = self.aliased_pix_iter2(ch,alias)
+        elif alias == 0:
+            pix_iter = self.simple_pix_iter(ch)
+        elif alias >0:
+            pix_iter = self.aliased_pix_iter(ch,alias)
+        
+        #pix_iter = alias > 0 and self.aliased_pix_iter(ch,alias)\
+        #           or self.simple_pix_iter(ch)
+        start,stop = [int(a/self.dt) for a in extent[:2]]
+        for s,i,j in pix_iter:
+            s = (s-mean(s))/std(s)**2
+            cwt = pycwt.cwt_f(s, freqs, 1./self.dt, wavelet, 'zpd')
+            eds = pycwt.eds(cwt, wavelet.f0)
+            x=func(eds[:,start:stop])
+            #print "\n", start,stop,eds.shape, "\n"
+            out[i,j] = x
+            k+= 1
+            if self.verbose:
+                sys.stderr.write("\rpixel %05d of %05d"%(k,total))
+        return out
 
     def setup_freqs(self,freqs):
         if freqs is None:
