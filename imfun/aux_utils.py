@@ -8,6 +8,30 @@ import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
+def best (scoref, lst):
+    if len(lst) > 0:
+        n,winner = 0, lst[0]
+        for i, item in enumerate(lst):
+            if  scoref(item, winner): n, winner = i, item
+            return n,winner
+    else: return -1,None
+
+def min1(scoref, lst):
+    return best(lambda x,y: x < y, map(scoref, lst))
+
+def allpairs0(seq):
+    return list(combinations(seq,2))
+
+def allpairs(seq):
+    if len(seq) <= 1: return []
+    else:
+        return [[seq[0], s] for s in seq[1:]] + allpairs(seq[1:])
+
+def norm1(m1, m2):
+    "out=(m1-m2)/m2"
+    return (m1-m2)/m2
+
+
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
     _rgbswan_data =  swancmap.get_rgbswan_data2()
