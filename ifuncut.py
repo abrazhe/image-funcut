@@ -3,6 +3,7 @@
 import os
 import sys
 import glob
+import time 
 from itertools import combinations
 
 import numpy as np
@@ -20,28 +21,12 @@ from scipy import signal
 mpl.rcParams['image.aspect'] = 'auto'
 mpl.rcParams['image.origin'] = 'lower'
 
-def best (scoref, lst):
-    if len(lst) > 0:
-        n,winner = 0, lst[0]
-        for i, item in enumerate(lst):
-            if  scoref(item, winner): n, winner = i, item
-            return n,winner
-    else: return -1,None
 
-def min1(scoref, lst):
-    return best(lambda x,y: x < y, map(scoref, lst))
 
 def nearest_item_ind(items, xy, fn = lambda a: a):
     "Index of nearest item from collection. collection, position, selector"
-    return min1(lambda p: eu_dist(fn(p), xy), items)
+    return aux.min1(lambda p: eu_dist(fn(p), xy), items)
 
-def allpairs0(seq):
-    return list(combinations(seq,2))
-
-def allpairs(seq):
-    if len(seq) <= 1: return []
-    else:
-        return [[seq[0], s] for s in seq[1:]] + allpairs(seq[1:])
 
 
 def eu_dist(p1,p2):
@@ -58,9 +43,6 @@ def line_from_points(p1,p2):
 def in_circle(coords, radius):
     return lambda x,y: eu_dist((x,y), coords) < radius
 
-#def in_ellipse1(f1,f2):
-#    return lambda x,y: \
-#           (eu_dist((x,y), f1) + eu_dist((x,y), f2)) < eu_dist(f1,f2)
 
 def extract_line(data, xind, f):
     return array([data[int(i),int(f(i))] for i in xind])
@@ -127,6 +109,15 @@ class ImageSequence:
 #        return self.d[:,:,:,ch]
         return array([d[:,:,ch] for d in self.d])
 
+    def bmask_timeseries(self, mask, ch=None):
+        """
+        Given a binary mask (matrix of True or False values, with dimensions equal
+        to the dimensions of frames), return 1D timeseries, where each value is
+        an averaged value for each freame where mask is True.
+        """
+        ch = ifnot(ch, self.ch)
+        return array([mean(m[mask,ch]) for m in self.d])
+
     def aliased_pix_iter(self, ch=None, alias=1):
         arr = self.ch_view(ch)
         ch = ifnot(ch, self.ch)
@@ -136,13 +127,14 @@ class ImageSequence:
                 x = arr[:,i-alias:i+alias+1,j-alias:j+alias+1]
                 yield asarray([mean(subframe) for subframe in x]), i, j
 
-    def aliased_pix_iter2(self, ch=None, alias=1):
+    def aliased_pix_iter2(self, ch=None, kern=None):
         #arr = self.ch_view(ch)
         ch = ifnot(ch, self.ch)
         nrows,ncols = self.shape
 
-        kern = ones((3,3))/8.0
-        kern[1,1] = 0.25
+        if kern is None:
+            kern = 0.1*ones((3,3))
+            kern[1,1] = 0.2
         
         arr = asarray([signal.convolve2d(m[:,:,ch], kern)[1:-1,1:-1] for m in self.d ])
         for i in range(nrows):
@@ -166,17 +158,43 @@ class ImageSequence:
         return arange(0,self.Nf*self.dt, self.dt)[:self.Nf]
 
 
-    def mean(self, ch=0):
+    def mean(self, ch=None):
         """
         Returns 'mean frame' along the sequence in a given color channel as a
         2D numpy array
         """
+        ch = ifnot(ch, self.ch)
         return np.mean(self.ch_view(ch), axis=0)
 
-    def show(self, ch=0):
+    def frame_view(self, ch=None):
+        """
+        Shows the data frame by frame
+        """
+        ch = ifnot(ch, self.ch)
+        self.figf = figure()
+        self.axf = axes()
+        self.plf = self.axf.imshow(self.d[0][:,:,ch], origin='low',
+                                   aspect = 'equal', cmap=mpl.cm.gray)
+        self.frame_index = 0
+        def onscroll(event):
+            if event.button in ('4','down'):
+                self.frame_index -= 1
+            elif event.button in ('5','up'):
+                self.frame_index += 1
+            self.frame_index = self.frame_index%self.Nf
+            ind = self.frame_index
+            self.plf.set_data(self.d[ind][:,:,ch])
+            self.axf.set_xlabel('%03d'%ind)
+            draw()
+
+        self.figf.canvas.mpl_connect('scroll_event', onscroll)
+        
+
+    def show(self, ch=None):
         """
         Shows a mean frame along the sequence
         """
+        ch = ifnot(ch, self.ch)
         self.fig = figure()
         self.ax = axes()
         self.pl = imshow(self.mean(ch), origin='low',
@@ -618,16 +636,18 @@ class ImgPointSelect(ImageSequence):
 
         *ch* -- color channel / default, reads the self.ch
 
-        *alias* -- if 0, no alias, if <0, then each frame is filtered, if >0,
-        average +- pixels, -1 by default
+        *alias* -- if 0, no alias, then each frame is filtered, if >0,
+        average +- pixels, if an array, use this as akernel to convolve each
+        frame with; see aliased_pix_iter2 for default kernel
         """
-        out = ones(self.shape)
+        tick = time.clock()
+        out = ones(self.shape, np.float64)
         total = self.shape[0]*self.shape[1]
         k = 0
         freqs = linspace(*extent[2:], num=nfreqs)
         pix_iter = None
 
-        if alias < 0:
+        if type(alias) == np.ndarray or alias is None:
             pix_iter = self.aliased_pix_iter2(ch,alias)
         elif alias == 0:
             pix_iter = self.simple_pix_iter(ch)
@@ -638,15 +658,17 @@ class ImgPointSelect(ImageSequence):
         #           or self.simple_pix_iter(ch)
         start,stop = [int(a/self.dt) for a in extent[:2]]
         for s,i,j in pix_iter:
-            s = (s-mean(s))/std(s)**2
+            s = s-mean(s)
             cwt = pycwt.cwt_f(s, freqs, 1./self.dt, wavelet, 'zpd')
-            eds = pycwt.eds(cwt, wavelet.f0)
+            eds = pycwt.eds(cwt, wavelet.f0)/std(s)**2
             x=func(eds[:,start:stop])
             #print "\n", start,stop,eds.shape, "\n"
             out[i,j] = x
             k+= 1
             if self.verbose:
                 sys.stderr.write("\rpixel %05d of %05d"%(k,total))
+        if self.verbose:
+            sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
         return out
 
     def setup_freqs(self,freqs):
@@ -683,7 +705,7 @@ class ImgPointSelect(ImageSequence):
         self.confidence_contour(res,2.0)
 
     def show_xwt(self, **kwargs):
-        for p in allpairs0(self.drcs.values()):
+        for p in aux.allpairs0(self.drcs.values()):
             self.show_xwt_roi(p[0].circ,p[1].circ,**kwargs)
            
             
