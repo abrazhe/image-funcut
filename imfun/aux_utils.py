@@ -1,5 +1,8 @@
 # Auxilary utils for image-funcut
 
+from itertools import combinations
+
+
 from swan import pycwt
 from swan.gui import swancmap
 
@@ -83,3 +86,36 @@ def ifnot(a, b):
     "if a is not None, return a, else return b"
     if a == None: return b
     else: return a
+
+def default_freqs(Ns, f_s, num=100):
+    """
+    Return default frequencies vector
+    -- Ns:  number of samples in data vector
+    -- f_s: sampling frequency
+    -- num: number of frequencies required
+    """
+    T = Ns/f_s
+    return pl.linspace(4/T, f_s/2, num=num)
+
+
+import string
+
+class Struct:
+    def __init__(self,**kwds):
+        self.__dict__.update(kwds)
+
+def lasaf_line_atof(str, sep=';'):
+    replacer = lambda s: string.replace(s, ',', '.')
+    strlst = map(replacer, str.split(sep))
+    return map(np.float, strlst)
+
+def read_lasaf_txt(fname):
+    lines = [s.strip() for s in file(fname).readlines()]
+    channel = lines[0]
+    keys = lines[1].strip().split(';')
+    data = np.asarray(map(lasaf_line_atof, lines[2:]))
+    dt = data[1:,0]-data[:-1,0]
+    j = pl.find(dt>1)[0] + 1
+    f_s = 1./np.mean(dt[dt<1])
+    return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
+
