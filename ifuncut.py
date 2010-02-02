@@ -700,17 +700,20 @@ class ImgPointSelect(ImageSequence):
         s2 = self.roi_timeview(roi2,ch,True)
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
+        t = self.get_time()
+
         figure();
         ax1= subplot(211);
-        plot(self.time,s1,color=roi1.get_facecolor(),
+        plot(t,s1,color=roi1.get_facecolor(),
              label=roi1.get_label())
-        plot(self.time,s2,color=roi2.get_facecolor(),
+        plot(t,s2,color=roi2.get_facecolor(),
              label = roi2.get_label())
         legend()
         ax2 = subplot(212, sharex = ax1);
-        specgram(res,self.extent, ax2)
-        self.cone_infl(freqs,wavelet)
-        self.confidence_contour(res,2.0)
+        ext = (t[0], t[-1], freqs[0], freqs[-1])
+        ax2.imshow(res, extent = ext, cmap = aux.swanrgb())
+        #self.cone_infl(freqs,wavelet)
+        #self.confidence_contour(res,2.0)
 
     def ffnmap(self, fspan, ch=None, alias = None, func=np.mean):
         tick = time.clock()
