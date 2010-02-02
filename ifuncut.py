@@ -85,15 +85,15 @@ def file_names(pat):
 
 class ImageSequence:
     "Base Class for image sequence"
-    def __init__(self, pattern, channel=0, dt = 0.16):
+    def __init__(self, pattern, ch=0, dt = 0.16):
         """
         Creates an instance. Image files must be in RGB format
         - pattern: a string like "/path/to/files/*.tif"
-        - channel: an integer, 0--2, sets default channel. 0 is red, 1 is green
+        - ch: an integer, 0--2, sets default channel. 0 is red, 1 is green
         and 2 is blue.
         - dt: a float, specifies time delay between the frames
         """
-        self.ch = channel
+        self.ch = ch
         self.dt = dt
         #self.d = array([imread(f) for f in file_names(pattern)])
         self.d = [imread(f) for f in file_names(pattern)]
@@ -127,16 +127,24 @@ class ImageSequence:
                 x = arr[:,i-alias:i+alias+1,j-alias:j+alias+1]
                 yield asarray([mean(subframe) for subframe in x]), i, j
 
+    def default_kernel(self):
+        """
+        Default kernel for aliased_pix_iter2
+        Used in 2D convolution of each frame in the sequence
+        """
+        kern = ones((3,3))
+        kern[1,1] = 8.0
+        return kern/sum(kern)
+
     def aliased_pix_iter2(self, ch=None, kern=None):
         #arr = self.ch_view(ch)
         ch = ifnot(ch, self.ch)
         nrows,ncols = self.shape
 
-        if kern is None:
-            kern = 0.1*ones((3,3))
-            kern[1,1] = 0.2
+        kern = ifnot(kern, self.default_kernel())
         
-        arr = asarray([signal.convolve2d(m[:,:,ch], kern)[1:-1,1:-1] for m in self.d ])
+        arr = asarray([signal.convolve2d(m[:,:,ch], kern)[1:-1,1:-1]
+                       for m in self.d ])
         for i in range(nrows):
             for j in range(ncols):
                 yield arr[:,i,j], i, j
@@ -616,7 +624,7 @@ class ImgPointSelect(ImageSequence):
                wavelet = pycwt.Morlet(),
                func = np.mean, 
                ch=None,
-               alias=-1):
+               alias=None):
         """
         Wavelet-based 'functional' map of the frame sequence
 
@@ -703,6 +711,27 @@ class ImgPointSelect(ImageSequence):
         specgram(res,self.extent, ax2)
         self.cone_infl(freqs,wavelet)
         self.confidence_contour(res,2.0)
+
+    def ffnmap(self, fspan, ch=None, alias = None, func=np.mean):
+        tick = time.clock()
+        out = ones(self.shape, np.float64)
+        total = self.shape[0]*self.shape[1]
+        k = 0
+        freqs = fftfreq(self.Nf, self.dt)
+        pix_iter = self.aliased_pix_iter2(ch, alias)
+        fstart,fstop = fspan
+        fmask = (freqs >= fstart)*(freqs < fstop)
+        for s,i,j in pix_iter:
+            s = s-mean(s)
+            s_hat = fft(s)
+            x = (abs(s_hat)/std(s))**2
+            out[i,j] = func(x[fmask])
+            k+=1
+            if self.verbose:
+                sys.stderr.write("\rpixel %05d of %05d"%(k,total))
+        if self.verbose:
+            sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+        return out
 
     def show_xwt(self, **kwargs):
         for p in aux.allpairs0(self.drcs.values()):
