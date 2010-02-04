@@ -65,6 +65,7 @@ def cone_infl(freqs, extent, wavelet, ax):
 def wavelet_specgram(signal, freqs, f_s, ax,
                      wavelet = pycwt.Morlet(),
                      padding = 'zpd',
+                     cax = None,
                      vmin=None, vmax=None,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
@@ -76,7 +77,10 @@ def wavelet_specgram(signal, freqs, f_s, ax,
                    vmin = vmin, vmax = vmax,
                    cmap = swanrgb(),
                    alpha = 0.95)
-    pl.colorbar(im, ax=ax)
+    if not cax:
+        pl.colorbar(im, ax=ax)
+    else:
+        pl.colorbar(im, cax = cax)
     cone_infl(freqs, extent, wavelet, ax)
     if confidence_level:
         confidence_contour(eds, extent, ax, confidence_level)
@@ -95,7 +99,7 @@ def default_freqs(Ns, f_s, num=100):
     -- num: number of frequencies required
     """
     T = Ns/f_s
-    return pl.linspace(4/T, f_s/2, num=num)
+    return pl.linspace(8/T, f_s/2, num=num)
 
 
 import string
@@ -109,13 +113,13 @@ def lasaf_line_atof(str, sep=';'):
     strlst = map(replacer, str.split(sep))
     return map(np.float, strlst)
 
-def read_lasaf_txt(fname):
+def read_lasaf_txt(fname, time_sep = 0.5):
     lines = [s.strip() for s in file(fname).readlines()]
     channel = lines[0]
     keys = lines[1].strip().split(';')
     data = np.asarray(map(lasaf_line_atof, lines[2:]))
     dt = data[1:,0]-data[:-1,0]
-    j = pl.find(dt>1)[0] + 1
+    j = pl.find(dt>time_sep)[0] + 1
     f_s = 1./np.mean(dt[dt<1])
     return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
 
