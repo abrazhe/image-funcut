@@ -546,8 +546,23 @@ class ImgPointSelect(ImageSequence):
         
     def get_timeseries(self, rois=None, ch=None, normp=False):
         rois = ifnot(rois, self.drcs.keys())
-        return [self.roi_timeview(p.circ, ch, normp)
+        return [self.roi_timeview(self.drcs[p].circ, ch, normp)
                 for p in  rois]
+
+    def save_time_series_to_file(self, fname, ch=None, normp = False):
+        ch = ifnot(ch, self.ch)
+        rois = self.drcs.keys()
+        t = self.get_time()
+        ts = self.get_timeseries(ch=ch, normp=normp)
+        fd = file(fname, 'w')
+        out_string = "Channel %d\n" % ch
+        out_string += "Time\t" + '\t'.join(rois) + '\n'
+        for k in xrange(self.Nf):
+            out_string += "%e\t"%t[k]
+            out_string += '\t'.join(["%e"%a[k] for a in ts])
+            out_string += '\n'
+        fd.write(out_string)
+        fd.close()
 
 
     def show_timeseries(self, rois = None, **keywords):
