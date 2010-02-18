@@ -133,7 +133,7 @@ class ImageSequence:
         Used in 2D convolution of each frame in the sequence
         """
         kern = ones((3,3))
-        kern[1,1] = 8.0
+        kern[1,1] = 3.0
         return kern/sum(kern)
 
     def aliased_pix_iter2(self, ch=None, kern=None):
@@ -586,9 +586,12 @@ class ImgPointSelect(ImageSequence):
         keywords.update({'rois':rois, 'normp':True})
         fs = 1.0/self.dt
         freqs = ifnot(freqs, self.default_freqs())
+        axlist = []
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
             aux.wavelet_specgram(x, freqs, fs, ax,
                                 wavelet, vmin=vmin, vmax=vmax)
+            axlist.appen(ax)
+        return axlist
 
     def show_wmps(self, rois = None, freqs = None,
                   wavelet = pycwt.Morlet(),
