@@ -102,6 +102,16 @@ def default_freqs(Ns, f_s, num=100):
     return pl.linspace(8/T, f_s/2, num=num)
 
 
+def alias_freq(f, fs):
+    if f < 0.5*fs:
+        return f
+    elif 0.5*fs < f < fs:
+        return fs - f
+    else:
+        return alias_freq(f%fs, fs)
+
+## This is for reading Leica txt files
+## todo: move to readleicaxml?
 import string
 
 class Struct:
