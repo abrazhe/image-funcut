@@ -110,6 +110,27 @@ def alias_freq(f, fs):
     else:
         return alias_freq(f%fs, fs)
 
+
+
+def plot_spectrogram_with_ts(signal, f_s, vmax, freqs = None,
+                             lc = 'b',
+                             title_string = ''):
+    "Create a figure of a signal, spectrogram and a colorbar"
+    Ns = len(signal)*1.0
+    if freqs is None: freqs = default_freqs(Ns, f_s,512)
+    tvec = np.arange(0, Ns/f_s, 1./f_s)
+
+    fig,axlist = setup_axes1()
+
+    axlist[1].plot(tvec, signal,'-',color=lc)
+    wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,
+                     cax = axlist[2])
+    axlist[0].set_title(title_string)
+    return fig
+
+
+
+
 ## This is for reading Leica txt files
 ## todo: move to readleicaxml?
 import string
