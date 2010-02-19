@@ -3,7 +3,8 @@
 import os
 import sys
 import glob
-import time 
+import time
+import pylab as pl
 from itertools import combinations
 
 import numpy as np
@@ -458,6 +459,8 @@ class DraggableCircle():
         self.press = None
         self.circ.figure.canvas.draw()
 
+    def get_color(self):
+        return self.circ.get_facecolor()
 
 class ImgPointSelect(ImageSequence):
     verbose = True
@@ -590,8 +593,46 @@ class ImgPointSelect(ImageSequence):
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
             aux.wavelet_specgram(x, freqs, fs, ax,
                                 wavelet, vmin=vmin, vmax=vmax)
-            axlist.appen(ax)
+            axlist.append(ax)
         return axlist
+
+    def setup_axes1(self, figsize = (12,6)):
+        "Set up axes for a plot with signal, spectrogram and a colorbar"
+        fig = figure(figsize = figsize)
+        ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
+        ax.append(fig.add_axes((0.08, 0.04, 0.8, 0.3), sharex=ax[0]))
+        ax.append(fig.add_axes((0.9, 0.4, 0.02, 0.5), 
+                               xticklabels=[], 
+                               yticklabels=[]))
+        return fig,ax
+
+    
+    def show_spectrogram_with_ts(self,
+                                 roilabel,
+                                 freqs=None,
+                                 wavelet = pycwt.Morlet(),
+                                 title_string = None,
+                                 vmin = None,
+                                 vmax = None,
+                                 **keywords):
+        "Create a figure of a signal, spectrogram and a colorbar"
+        signal = self.get_timeseries([roilabel],normp=True)[0]
+        Ns = len(signal)
+        f_s = 1/self.dt
+        if freqs is None: freqs = self.default_freqs()
+        title_string = ifnot(title_string, roilabel)
+        tvec = np.arange(0, Ns*self.dt, self.dt)
+        L = min(Ns,len(tvec))
+        tvec,signal = tvec[:L],signal[:L]
+        lc = self.drcs[roilabel].get_color()
+        fig,axlist = self.setup_axes1()
+        axlist[1].plot(tvec, signal,'-',color=lc)
+        axlist[1].set_xlabel('time, s')
+        aux.wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,
+                             cax = axlist[2])
+        axlist[0].set_title(title_string)
+        axlist[0].set_ylabel('Frequency, Hz')
+        return fig
 
     def show_wmps(self, rois = None, freqs = None,
                   wavelet = pycwt.Morlet(),
@@ -607,19 +648,9 @@ class ImgPointSelect(ImageSequence):
             eds = pycwt.eds(cwt, wavelet.f0)
             ax.plot(freqs, np.mean(eds, 1))
 
-
-
-    def roi_cwt(self, roi,
-                 freqs,
-                 ch = None,
-                 wavelet=pycwt.Morlet()):
-        return pycwt.cwt_f(self.roi_timeview(roi,ch,normp=True),
-                           freqs, 1.0/self.dt, wavelet, 'cpd')
-
-
-    def default_freqs(self):
-        return arange(3.0/(self.Nf*self.dt),
-                      0.5/self.dt, 0.005)
+    def default_freqs(self, nfreqs = 1024):
+        return linspace(4.0/(self.Nf*self.dt),
+                      0.5/self.dt, num=nfreqs)
 
     def roi_show_iterator(self, rois = None,
                               ch = None, normp=False):
