@@ -134,7 +134,7 @@ class ImageSequence:
         Used in 2D convolution of each frame in the sequence
         """
         kern = ones((3,3))
-        kern[1,1] = 3.0
+        kern[1,1] = 2.0
         return kern/sum(kern)
 
     def aliased_pix_iter2(self, ch=None, kern=None):
@@ -536,7 +536,10 @@ class ImgPointSelect(ImageSequence):
         X,Y = meshgrid(*map(range, self.shape[::-1]))
         v = array([mean(frame[fn(X,Y)])
                    for frame in self.ch_view(ch)])
-        if normp: return (v-np.mean(v))/np.std(v)
+        if normp:
+            Lnorm = type(normp) is int and normp or len(v)
+            #return (v-np.mean(v))/np.std(v[:Lnorm])
+            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
         else: return v
         
     def list_roi_timeseries_from_labels(self, roi_labels, **keywords):
@@ -614,9 +617,10 @@ class ImgPointSelect(ImageSequence):
                                  title_string = None,
                                  vmin = None,
                                  vmax = None,
+                                 normp = True,
                                  **keywords):
         "Create a figure of a signal, spectrogram and a colorbar"
-        signal = self.get_timeseries([roilabel],normp=True)[0]
+        signal = self.get_timeseries([roilabel],normp=normp)[0]
         Ns = len(signal)
         f_s = 1/self.dt
         if freqs is None: freqs = self.default_freqs()
@@ -671,7 +675,8 @@ class ImgPointSelect(ImageSequence):
 
     def wfnmap(self,extent, nfreqs = 16,
                wavelet = pycwt.Morlet(),
-               func = np.mean, 
+               func = np.mean,
+               normL = None,
                ch=None,
                alias=None):
         """
@@ -691,6 +696,8 @@ class ImgPointSelect(ImageSequence):
         *func* -- function to apply to the wavelet spectrogram within the window
         of interest. Default, np.mean
 
+        *normL* -- length of normalizing part (baseline) of the time series
+
         *ch* -- color channel / default, reads the self.ch
 
         *alias* -- if 0, no alias, then each frame is filtered, if >0,
@@ -703,6 +710,7 @@ class ImgPointSelect(ImageSequence):
         k = 0
         freqs = linspace(*extent[2:], num=nfreqs)
         pix_iter = None
+        normL = ifnot(normL, self.Nf)
 
         if type(alias) == np.ndarray or alias is None:
             pix_iter = self.aliased_pix_iter2(ch,alias)
@@ -711,13 +719,11 @@ class ImgPointSelect(ImageSequence):
         elif alias >0:
             pix_iter = self.aliased_pix_iter(ch,alias)
         
-        #pix_iter = alias > 0 and self.aliased_pix_iter(ch,alias)\
-        #           or self.simple_pix_iter(ch)
         start,stop = [int(a/self.dt) for a in extent[:2]]
         for s,i,j in pix_iter:
-            s = s-mean(s)
+            s = s-mean(s[:normL])
             cwt = pycwt.cwt_f(s, freqs, 1./self.dt, wavelet, 'zpd')
-            eds = pycwt.eds(cwt, wavelet.f0)/std(s)**2
+            eds = pycwt.eds(cwt, wavelet.f0)/std(s[:normL])**2
             x=func(eds[:,start:stop])
             #print "\n", start,stop,eds.shape, "\n"
             out[i,j] = x
