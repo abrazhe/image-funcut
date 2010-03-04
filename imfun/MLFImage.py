@@ -32,8 +32,8 @@ class MLF_Image():
     def read_value(self, pos):
         return long(read_at(self.fid, pos, 1, np.short))
 
-    def read_frame(self, pos, **kwargs):
-        arr = read_at(self.fid, pos, self.dim, **kwargs)
+    def read_frame(self, pos=0, seek_opt=1):
+        arr = read_at(self.fid, pos, self.dim, seek_opt=seek_opt)
         return arr.reshape((self.ydim,self.xdim))
 
     def frame_iter(self):
@@ -41,6 +41,7 @@ class MLF_Image():
         self.fid.seek(mlfdescr['data_start'])
         shift = self.xdim*self.ydim
         while frame_count < self.nframes:
-            flux_frame = self.read_frame(0,seek_opt=1) # seek from current
-            dc_frame = self.read_frame(0, seek_opt=1) # seek from current
+            flux_frame = self.read_frame() # seek from current
+            dc_frame = self.read_frame() # seek from current
+            frame_count += 1
             yield flux_frame, dc_frame

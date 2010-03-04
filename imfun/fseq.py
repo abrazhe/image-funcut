@@ -101,3 +101,15 @@ class FSeq_npy(FSeq_glob):
     loadfn= lambda self,y: np.load(y)
 
 
+from imfun.MLFImage import MLF_Image
+
+class FSeq_mlf(FrameSequence):
+    def __init__(self, fname):
+        self.mlfimg = MLF_Image(fname)
+        self.dt = self.mlfimg.dt/1000.0
+    def frames(self):
+        return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
+    def shape(self):
+        return self.mlfimg.ydim,self.mlfimg.xdim
+    def length(self):
+        return self.mlfimg.nframes
