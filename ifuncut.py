@@ -25,7 +25,10 @@ mpl.rcParams['image.origin'] = 'lower'
 
 
 def nearest_item_ind(items, xy, fn = lambda a: a):
-    "Index of nearest item from collection. Arguments: collection, position, selector"
+    """
+    Index of nearest item from collection. Arguments: collection, position,
+    selector
+    """
     return aux.min1(lambda p: eu_dist(fn(p), xy), items)
 
 
@@ -460,7 +463,6 @@ class ImgPointSelect():
 
     def __init__(self, fseq):
         self.fseq = fseq
-        self.ch = fseq.ch
         self.dt = fseq.dt
         self._Nf = None
         pass
@@ -523,7 +525,7 @@ class ImgPointSelect():
         self.drcs = {}
         self.fig = figure()
         self.ax1 = axes()
-        if self.fseq.ch:
+        if hasattr(self.fseq, 'ch'):
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
                                   aspect='equal',
@@ -562,7 +564,6 @@ class ImgPointSelect():
         return arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, normp = False):
-        ch = ifnot(ch, self.ch)
         rois = self.drcs.keys()
         ts = self.get_timeseries(normp=normp)
         t = self.timevec()        
@@ -584,7 +585,7 @@ class ImgPointSelect():
             xlim((0,t[-1]))
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
-        freqs = fftfreq(L, self.dt)[1:L/2]
+        freqs = fftfreq(int(L), self.dt)[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             y = abs(fft(x))[1:L/2]
             ax.plot(freqs, y**2)
