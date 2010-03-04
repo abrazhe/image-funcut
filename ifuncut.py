@@ -25,13 +25,16 @@ mpl.rcParams['image.origin'] = 'lower'
 
 
 def nearest_item_ind(items, xy, fn = lambda a: a):
-    "Index of nearest item from collection. collection, position, selector"
+    "Index of nearest item from collection. Arguments: collection, position, selector"
     return aux.min1(lambda p: eu_dist(fn(p), xy), items)
 
 
 
 def eu_dist(p1,p2):
     return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+def square_distance(p1,p2):
+    return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
 
 
 def line_from_points(p1,p2):
@@ -42,7 +45,7 @@ def line_from_points(p1,p2):
     return lambda x: k*x + b
 
 def in_circle(coords, radius):
-    return lambda x,y: eu_dist((x,y), coords) < radius
+    return lambda x,y: square_distance((x,y), coords) < radius**2
 
 
 def extract_line(data, xind, f):
@@ -118,15 +121,6 @@ class ImageSequence:
         """
         ch = ifnot(ch, self.ch)
         return array([mean(m[mask,ch]) for m in self.d])
-
-    def aliased_pix_iter(self, ch=None, alias=1):
-        arr = self.ch_view(ch)
-        ch = ifnot(ch, self.ch)
-        nrows,ncols = self.shape
-        for i in range(alias,nrows-alias):
-            for j in range(alias,ncols-alias):
-                x = arr[:,i-alias:i+alias+1,j-alias:j+alias+1]
-                yield asarray([mean(subframe) for subframe in x]), i, j
 
     def default_kernel(self):
         """
@@ -588,8 +582,9 @@ class ImgPointSelect(ImageSequence):
                           wavelet = pycwt.Morlet(),
                           vmin = None,
                           vmax = None,
+                          normp= True,
                           **keywords):
-        keywords.update({'rois':rois, 'normp':True})
+        keywords.update({'rois':rois, 'normp':normp})
         fs = 1.0/self.dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
