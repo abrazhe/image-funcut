@@ -88,7 +88,7 @@ def file_names(pat):
     return x
 
 class ImageSequence:
-    "Base Class for image sequence"
+    "Base (old) Class for image sequence"
     def __init__(self, pattern, ch=0, dt = 0.16):
         """
         Creates an instance. Image files must be in RGB format
@@ -111,13 +111,13 @@ class ImageSequence:
         """
         ch = ifnot(ch, self.ch)
 #        return self.d[:,:,:,ch]
-        return array([d[:,:,ch] for d in self.d])
+        return asarray([d[:,:,ch] for d in self.d])
 
     def bmask_timeseries(self, mask, ch=None):
         """
         Given a binary mask (matrix of True or False values, with dimensions equal
         to the dimensions of frames), return 1D timeseries, where each value is
-        an averaged value for each freame where mask is True.
+        an averaged value for each frame where mask is True.
         """
         ch = ifnot(ch, self.ch)
         return array([mean(m[mask,ch]) for m in self.d])
@@ -131,7 +131,7 @@ class ImageSequence:
         kern[1,1] = 2.0
         return kern/sum(kern)
 
-    def aliased_pix_iter2(self, ch=None, kern=None):
+    def aliased_pix_iter(self, ch=None, kern=None):
         #arr = self.ch_view(ch)
         ch = ifnot(ch, self.ch)
         nrows,ncols = self.shape
@@ -605,8 +605,7 @@ class ImgPointSelect(ImageSequence):
         return fig,ax
 
     
-    def show_spectrogram_with_ts(self,
-                                 roilabel,
+    def show_spectrogram_with_ts(self, roilabel,
                                  freqs=None,
                                  wavelet = pycwt.Morlet(),
                                  title_string = None,
@@ -695,9 +694,9 @@ class ImgPointSelect(ImageSequence):
 
         *ch* -- color channel / default, reads the self.ch
 
-        *alias* -- if 0, no alias, then each frame is filtered, if >0,
-        average +- pixels, if an array, use this as akernel to convolve each
-        frame with; see aliased_pix_iter2 for default kernel
+        *alias* -- if 0, no alias, then each frame is filtered, if an array,
+        use this as a kernel to convolve each frame with; see aliased_pix_iter
+        for default kernel
         """
         tick = time.clock()
         out = ones(self.shape, np.float64)
@@ -708,11 +707,9 @@ class ImgPointSelect(ImageSequence):
         normL = ifnot(normL, self.Nf)
 
         if type(alias) == np.ndarray or alias is None:
-            pix_iter = self.aliased_pix_iter2(ch,alias)
+            pix_iter = self.aliased_pix_iter(ch,alias)
         elif alias == 0:
             pix_iter = self.simple_pix_iter(ch)
-        elif alias >0:
-            pix_iter = self.aliased_pix_iter(ch,alias)
         
         start,stop = [int(a/self.dt) for a in extent[:2]]
         for s,i,j in pix_iter:
@@ -729,20 +726,11 @@ class ImgPointSelect(ImageSequence):
             sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
         return out
 
-    def setup_freqs(self,freqs):
-        if freqs is None:
-            if hasattr(self,'freqs'):
-                freqs = self.freqs
-            else:
-                freqs = self.default_freqs()
-                self.freqs = freqs
-        return freqs
-
     def show_xwt_roi(self, roi1, roi2, freqs=None, ch=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROI"
-        freqs = self.setup_freqs(freqs)
+        freqs = ifnot(freqs, self.default_freqs())
         self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
         self.time = self.get_time()
 
@@ -766,12 +754,19 @@ class ImgPointSelect(ImageSequence):
         #self.confidence_contour(res,2.0)
 
     def ffnmap(self, fspan, ch=None, alias = None, func=np.mean):
+        """
+        Fourier-based functional mapping
+        fspan : a range of frequencies in Hz, e.g. (1.0, 1.5)
+        ch    : colour channel
+        alias : a kernel to convolve each frame with
+        func  : range reducing function. np.mean by default, may be np.sum as well
+        """
         tick = time.clock()
         out = ones(self.shape, np.float64)
         total = self.shape[0]*self.shape[1]
         k = 0
         freqs = fftfreq(self.Nf, self.dt)
-        pix_iter = self.aliased_pix_iter2(ch, alias)
+        pix_iter = self.aliased_pix_iter(ch, alias)
         fstart,fstop = fspan
         fmask = (freqs >= fstart)*(freqs < fstop)
         for s,i,j in pix_iter:
