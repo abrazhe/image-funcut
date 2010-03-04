@@ -453,10 +453,22 @@ class DraggableCircle():
     def get_color(self):
         return self.circ.get_facecolor()
 
-class ImgPointSelect(ImageSequence):
+class ImgPointSelect():
     verbose = True
     connected = False
     cw = color_walker()
+
+    def __init__(self, fseq):
+        self.fseq = fseq
+        self.ch = fseq.ch
+        self.dt = fseq.dt
+        self._Nf = None
+        pass
+
+    def length(self):
+        if self._Nf is None:
+            self._Nf = self.fseq.length()
+        return self._Nf
     
     def onclick(self,event):
         tb = get_current_fig_manager().toolbar
@@ -492,7 +504,8 @@ class ImgPointSelect(ImageSequence):
     
     def save_rois(self, fname):
         "Saves picked ROIs to a file"
-        pickle.dump(map(struct_circle, [x.circ for x in self.drcs.values()]),
+        pickle.dump(map(struct_circle,
+                        [x.circ for x in self.drcs.values()]),
                     file(fname, 'w'))
 
     def load_rois(self, fname):
@@ -505,14 +518,14 @@ class ImgPointSelect(ImageSequence):
         draw() # redraw the axes
         return
 
-    def pick_rois(self, ch=None, points = []):
+    def pick_rois(self, points = []):
         "Start picking up ROIs"
         self.drcs = {}
         self.fig = figure()
         self.ax1 = axes()
-        if ch is None: ch=self.ch
-        title("Channel: %s" % ('red', 'green')[ch] )
-        self.pl = self.ax1.imshow(self.mean(ch),
+        if self.fseq.ch:
+            title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
+        self.pl = self.ax1.imshow(self.fseq.mean_frame(),
                                   aspect='equal',
                                   origin='low',
                                   cmap=matplotlib.cm.gray)
@@ -522,40 +535,41 @@ class ImgPointSelect(ImageSequence):
             #self.fig.canvas.mpl_connect('pick_event', self.onpick)
             self.connected = True
 
-    def roi_timeview(self, roi, ch=None, normp=False):
-        "Returns timeseries from a single ROI"
+    def roi_timeview(self, tag, normp=False):
+        roi = self.drcs[tag].circ
         fn = in_circle(roi.center, roi.radius)
-        X,Y = meshgrid(*map(range, self.shape[::-1]))
-        v = array([mean(frame[fn(X,Y)])
-                   for frame in self.ch_view(ch)])
+        shape = self.fseq.shape()
+        X,Y = meshgrid(*map(range, shape))
+        v = self.fseq.mask_reduce(fn(X,Y))
         if normp:
             Lnorm = type(normp) is int and normp or len(v)
-            #return (v-np.mean(v))/np.std(v[:Lnorm])
             return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
         else: return v
+        return 
         
     def list_roi_timeseries_from_labels(self, roi_labels, **keywords):
         "Returns timeseres for a list of roi labels"
         return [self.roi_timeseries_from_label(label, **keywords)
                 for label in roi_labels]
     
-    def roi_timeseries_from_label(self, tag, **keywords):
-        return self.roi_timeview(self.drcs[tag].circ, **keywords)
-        
-    def get_timeseries(self, rois=None, ch=None, normp=False):
+    def get_timeseries(self, rois=None, normp=False):
         rois = ifnot(rois, self.drcs.keys())
-        return [self.roi_timeview(self.drcs[p].circ, ch, normp)
-                for p in  rois]
+        return [self.roi_timeview(r, normp)
+                for r in  rois]
 
-    def save_time_series_to_file(self, fname, ch=None, normp = False):
+    def timevec(self):
+        dt,Nf = self.dt, self.length()
+        return arange(0,Nf*dt, dt)[:Nf]
+
+    def save_time_series_to_file(self, fname, normp = False):
         ch = ifnot(ch, self.ch)
         rois = self.drcs.keys()
-        t = self.get_time()
-        ts = self.get_timeseries(ch=ch, normp=normp)
+        ts = self.get_timeseries(normp=normp)
+        t = self.timevec()        
         fd = file(fname, 'w')
         out_string = "Channel %d\n" % ch
         out_string += "Time\t" + '\t'.join(rois) + '\n'
-        for k in xrange(self.Nf):
+        for k in xrange(self.length()):
             out_string += "%e\t"%t[k]
             out_string += '\t'.join(["%e"%a[k] for a in ts])
             out_string += '\n'
@@ -564,13 +578,12 @@ class ImgPointSelect(ImageSequence):
 
 
     def show_timeseries(self, rois = None, **keywords):
-        t = self.get_time()
+        t = self.timevec()
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             ax.plot(t, x, color = roi.get_facecolor())
             xlim((0,t[-1]))
-
     def show_ffts(self, rois = None, **keywords):
-        L = self.Nf
+        L = self.length()
         freqs = fftfreq(L, self.dt)[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             y = abs(fft(x))[1:L/2]
@@ -601,7 +614,6 @@ class ImgPointSelect(ImageSequence):
                                xticklabels=[], 
                                yticklabels=[]))
         return fig,ax
-
     
     def show_spectrogram_with_ts(self, roilabel,
                                  freqs=None,
@@ -615,9 +627,9 @@ class ImgPointSelect(ImageSequence):
         signal = self.get_timeseries([roilabel],normp=normp)[0]
         Ns = len(signal)
         f_s = 1/self.dt
-        if freqs is None: freqs = self.default_freqs()
+        freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roilabel)
-        tvec = np.arange(0, Ns*self.dt, self.dt)
+        tvec = self.timevec()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.drcs[roilabel].get_color()
@@ -645,12 +657,11 @@ class ImgPointSelect(ImageSequence):
             ax.plot(freqs, np.mean(eds, 1))
 
     def default_freqs(self, nfreqs = 1024):
-        return linspace(4.0/(self.Nf*self.dt),
+        return linspace(4.0/(self.length()*self.dt),
                       0.5/self.dt, num=nfreqs)
 
     def roi_show_iterator(self, rois = None,
-                              ch = None, normp=False):
-            ch = ifnot(ch, self.ch)
+                              normp=False):
             rois = ifnot(rois, self.drcs.keys())
             L = len(rois)
             if L < 1: return
@@ -658,7 +669,7 @@ class ImgPointSelect(ImageSequence):
             for i, roi_label in enumerate(rois):
                 roi = self.drcs[roi_label].circ
                 ax = fig.add_subplot(L,1,i+1)
-                x = self.roi_timeview(roi, ch, normp=normp)
+                x = self.roi_timeview(roi_label, normp=normp)
                 if i == L-1:
                     ax.set_xlabel("time, sec")
                 ax.set_ylabel(roi_label)
@@ -669,8 +680,7 @@ class ImgPointSelect(ImageSequence):
                wavelet = pycwt.Morlet(),
                func = np.mean,
                normL = None,
-               ch=None,
-               alias=None):
+               kern=None):
         """
         Wavelet-based 'functional' map of the frame sequence
 
@@ -690,24 +700,23 @@ class ImgPointSelect(ImageSequence):
 
         *normL* -- length of normalizing part (baseline) of the time series
 
-        *ch* -- color channel / default, reads the self.ch
-
-        *alias* -- if 0, no alias, then each frame is filtered, if an array,
+        *kern* -- if 0, no alias, then each frame is filtered, if an array,
         use this as a kernel to convolve each frame with; see aliased_pix_iter
         for default kernel
         """
         tick = time.clock()
-        out = ones(self.shape, np.float64)
-        total = self.shape[0]*self.shape[1]
+        shape = self.fseq.shape()
+        out = ones(shape, np.float64)
+        total = shape[0]*shape[1]
         k = 0
         freqs = linspace(*extent[2:], num=nfreqs)
         pix_iter = None
-        normL = ifnot(normL, self.Nf)
+        normL = ifnot(normL, self.length())
 
-        if type(alias) == np.ndarray or alias is None:
-            pix_iter = self.aliased_pix_iter(ch,alias)
-        elif alias == 0:
-            pix_iter = self.simple_pix_iter(ch)
+        if type(kern) == np.ndarray or kern is None:
+            pix_iter = self.fseq.conv_pix_iter(kern)
+        elif kern <= 0:
+            pix_iter = self.pix_iter()
         
         start,stop = [int(a/self.dt) for a in extent[:2]]
         for s,i,j in pix_iter:
@@ -729,11 +738,10 @@ class ImgPointSelect(ImageSequence):
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROI"
         freqs = ifnot(freqs, self.default_freqs())
-        self.extent=[0,self.Nf*self.dt, freqs[0], freqs[-1]]
-        self.time = self.get_time()
+        self.extent=[0,self.length()*self.dt, freqs[0], freqs[-1]]
 
-        s1 = self.roi_timeview(roi1,ch,True)
-        s2 = self.roi_timeview(roi2,ch,True)
+        s1 = self.roi_timeview(roi1,True)
+        s2 = self.roi_timeview(roi2,True)
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
         t = self.get_time()
@@ -751,20 +759,20 @@ class ImgPointSelect(ImageSequence):
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 
-    def ffnmap(self, fspan, ch=None, alias = None, func=np.mean):
+    def ffnmap(self, fspan, kern = None, func=np.mean):
         """
         Fourier-based functional mapping
         fspan : a range of frequencies in Hz, e.g. (1.0, 1.5)
-        ch    : colour channel
-        alias : a kernel to convolve each frame with
+        kern  : a kernel to convolve each frame with
         func  : range reducing function. np.mean by default, may be np.sum as well
         """
         tick = time.clock()
-        out = ones(self.shape, np.float64)
-        total = self.shape[0]*self.shape[1]
+        shape = self.fseq.shape()
+        out = ones(shape, np.float64)
+        total = shape[0]*shape[1]
         k = 0
-        freqs = fftfreq(self.Nf, self.dt)
-        pix_iter = self.aliased_pix_iter(ch, alias)
+        freqs = fftfreq(self.length(), self.dt)
+        pix_iter = self.fseq.conv_pix_iter(kern)
         fstart,fstop = fspan
         fmask = (freqs >= fstart)*(freqs < fstop)
         for s,i,j in pix_iter:
@@ -783,34 +791,7 @@ class ImgPointSelect(ImageSequence):
         for p in aux.allpairs0(self.drcs.values()):
             self.show_xwt_roi(p[0].circ,p[1].circ,**kwargs)
 
-class newImgPointSelect(ImgPointSelect):
 
-    def pick_rois(self, points = []):
-        "Start picking up ROIs"
-        self.drcs = {}
-        self.fig = figure()
-        self.ax1 = axes()
-        self.pl = self.ax1.imshow(self.fseq.mean_frame(),
-                                  aspect='equal',
-                                  origin='low',
-                                  cmap=matplotlib.cm.gray)
-        if True or self.connected is False:
-            self.fig.canvas.mpl_connect('button_press_event',
-                                        self.onclick)
-            #self.fig.canvas.mpl_connect('pick_event', self.onpick)
-            self.connected = True
-
-    def roi_timeview(self, roi, ch=None, normp=False):
-        fn = in_circle(roi.center, roi.radius)
-        shape = self.fseq.shape()
-        X,Y = meshgrid(*map(range, shape))
-        v = self.fseq.mask_reduce(fn(X,Y))
-        if normp:
-            Lnorm = type(normp) is int and normp or len(v)
-            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
-        else: return v
-        pass
-           
             
             
                 
