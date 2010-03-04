@@ -65,16 +65,19 @@ class FrameSequence():
             pass
         return k+1
 
-    def pix_iter(self, maxN, fn = lambda x:x):
+    def pix_iter(self, maxN=None, fn = lambda x:x):
         arr = self.as3darray(maxN,fn)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
-            for column in range(columns):
-                yield arr[:,i,j], i, j
+            for col in range(ncols):
+                yield arr[:,row,col], row, col
 
-    def conv_pix_iter(self, kern = default_kernel()):
-        fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
-        return pix_iter(self, maxN, fn)
+    def conv_pix_iter(self, kern = default_kernel(), maxN=None):
+        if kern is None: kern = default_kernel()
+        def testf(a):
+            return signal.convolve2d(a, kern)[1:-1,1:-1]
+        #fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
+        return self.pix_iter(maxN, testf)
 
     def shape(self,):
         return self.frames().next().shape
