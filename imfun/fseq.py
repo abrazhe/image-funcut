@@ -28,12 +28,12 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
         return  itt.imap(getter, iter_files(pattern, loadfn))
 
 
-def default_kernel(self):
+def default_kernel():
     """
-    Default kernel for aliased_pix_iter2
+    Default kernel for conv_pix_iter
     Used in 2D convolution of each frame in the sequence
     """
-    kern = ones((3,3))
+    kern = np.ones((3,3))
     kern[1,1] = 2.0
     return kern/sum(kern)
 
@@ -65,15 +65,16 @@ class FrameSequence():
             pass
         return k+1
 
-    def simple_pix_iter(self, maxN, fn = lambda x:x):
+    def pix_iter(self, maxN, fn = lambda x:x):
         arr = self.as3darray(maxN,fn)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
             for column in range(columns):
                 yield arr[:,i,j], i, j
+
     def conv_pix_iter(self, kern = default_kernel()):
         fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
-        return simple_pix_iter(self, maxN, fn)
+        return pix_iter(self, maxN, fn)
 
     def shape(self,):
         return self.frames().next().shape

@@ -340,9 +340,8 @@ consonants = "qwrtpsdfghjklzxcvbnm"
 
 
 def rand_tag():
-    return ''.join((random.choice(consonants),
-                    random.choice(vowels),
-                    random.choice(consonants)))
+    return ''.join(map(random.choice,
+                       (consonants, vowels, consonants)))
 
 def unique_tag(tags, max_tries = 1e4):
     n = 0
@@ -419,8 +418,6 @@ class DraggableCircle():
         elif event.key in ['4']:
             self.parent.show_ffts(tags)
                                         
-
-
     def on_press(self, event):
         if event.inaxes != self.circ.axes: return
         contains, attrd = self.circ.contains(event)
@@ -460,6 +457,7 @@ class ImgPointSelect(ImageSequence):
     verbose = True
     connected = False
     cw = color_walker()
+    
     def onclick(self,event):
         tb = get_current_fig_manager().toolbar
         if event.inaxes != self.ax1 or tb.mode != '': return
@@ -784,6 +782,34 @@ class ImgPointSelect(ImageSequence):
     def show_xwt(self, **kwargs):
         for p in aux.allpairs0(self.drcs.values()):
             self.show_xwt_roi(p[0].circ,p[1].circ,**kwargs)
+
+class newImgPointSelect(ImgPointSelect):
+
+    def pick_rois(self, points = []):
+        "Start picking up ROIs"
+        self.drcs = {}
+        self.fig = figure()
+        self.ax1 = axes()
+        self.pl = self.ax1.imshow(self.fseq.mean_frame(),
+                                  aspect='equal',
+                                  origin='low',
+                                  cmap=matplotlib.cm.gray)
+        if True or self.connected is False:
+            self.fig.canvas.mpl_connect('button_press_event',
+                                        self.onclick)
+            #self.fig.canvas.mpl_connect('pick_event', self.onpick)
+            self.connected = True
+
+    def roi_timeview(self, roi, ch=None, normp=False):
+        fn = in_circle(roi.center, roi.radius)
+        shape = self.fseq.shape()
+        X,Y = meshgrid(*map(range, shape))
+        v = self.fseq.mask_reduce(fn(X,Y))
+        if normp:
+            Lnorm = type(normp) is int and normp or len(v)
+            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
+        else: return v
+        pass
            
             
             
