@@ -104,6 +104,7 @@ class FSeq_npy(FSeq_glob):
 from imfun.MLFImage import MLF_Image
 
 class FSeq_mlf(FrameSequence):
+    "Class for MLF multi-frame images"
     def __init__(self, fname):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
@@ -113,3 +114,21 @@ class FSeq_mlf(FrameSequence):
         return self.mlfimg.ydim,self.mlfimg.xdim
     def length(self):
         return self.mlfimg.nframes
+
+import PIL.Image as Image
+import matplotlib.image as mpl_img
+class FSeq_multiff(FrameSequence):
+    "Class for multi-frame tiff files"
+    def __init__(self, fname, dt=1.0):
+        self.dt = dt
+        self.im = Image.open(fname)
+    def frames(self):
+        count = 0
+        while True:
+            try:
+                self.im.seek(count)
+                count += 1
+                yield mpl_img.pil_to_array(self.im)
+            except EOFError:
+                break
+            
