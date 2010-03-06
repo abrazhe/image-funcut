@@ -58,7 +58,8 @@ def extract_line(data, xind, f):
 def extract_line2(data, p1, p2):
     L = int(eu_dist(p1,p2))
     f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
-    return array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)] for i in range(L)])
+    return array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
+                  for i in range(L)])
 
 
 def percent_threshold(mat, thresh,
