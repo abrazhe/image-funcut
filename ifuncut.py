@@ -351,6 +351,7 @@ def unique_tag(tags, max_tries = 1e4):
     n = 0
     while n < max_tries:
         tag = rand_tag()
+        n += 1
         if not tag in tags:
             return tag
     return "Err"
@@ -682,7 +683,8 @@ class ImgPointSelect():
                wavelet = pycwt.Morlet(),
                func = np.mean,
                normL = None,
-               kern=None):
+               kern=None,
+               **kwargs):
         """
         Wavelet-based 'functional' map of the frame sequence
 
@@ -707,7 +709,9 @@ class ImgPointSelect():
         for default kernel
         """
         tick = time.clock()
-        shape = self.fseq.shape()
+        
+        shape = self.fseq.shape(kwargs.has_key('sliceobj') and
+                                kwargs['sliceobj'] or None)
         out = ones(shape, np.float64)
         total = shape[0]*shape[1]
         k = 0
@@ -716,9 +720,9 @@ class ImgPointSelect():
         normL = ifnot(normL, self.length())
 
         if type(kern) == np.ndarray or kern is None:
-            pix_iter = self.fseq.conv_pix_iter(kern)
+            pix_iter = self.fseq.conv_pix_iter(kern,**kwargs)
         elif kern <= 0:
-            pix_iter = self.pix_iter()
+            pix_iter = self.pix_iter(**kwargs)
         
         start,stop = [int(a/self.dt) for a in extent[:2]]
         for s,i,j in pix_iter:

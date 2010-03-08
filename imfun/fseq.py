@@ -45,7 +45,10 @@ class FrameSequence():
 
     def frame_slices(self, sliceobj):
         "return iterator over subframes"
-        return (f[sliceobj] for f in self.frames())
+        if sliceobj:
+            return (f[sliceobj] for f in self.frames())
+        else:
+            return self.frames()
 
     def mean_frame(self,):
         frameit = itt.imap(np.float64, self.frames())
@@ -54,33 +57,41 @@ class FrameSequence():
             res += frame
         return res/(k+2)
 
-    def aslist(self, maxN = None, fn = lambda x: x):
-        return list(itt.islice(itt.imap(fn, self.frames()), maxN))
+    def aslist(self, maxN = None, fn = lambda x: x, sliceobj=None):
+        "returns a list of frames"
+        if sliceobj:
+            fiter = self.frame_slices(sliceobj)
+        else:
+            fiter = self.frames()
+        return list(itt.islice(itt.imap(fn, fiter), maxN))
 
-    def as3darray(self, maxN = None, fn = lambda x: x):
-        return np.asarray(self.aslist(maxN, fn))
+    def as3darray(self, *args, **kwargs):
+        return np.asarray(self.aslist(*args, **kwargs))
     
     def length(self):
         for k,_ in enumerate(self.frames()):
             pass
         return k+1
 
-    def pix_iter(self, maxN=None, fn = lambda x:x):
-        arr = self.as3darray(maxN,fn)
+    def pix_iter(self, maxN=None, fn = lambda x:x, sliceobj=None):
+        arr = self.as3darray(maxN,fn,sliceobj=sliceobj)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
             for col in range(ncols):
                 yield arr[:,row,col], row, col
 
-    def conv_pix_iter(self, kern = default_kernel(), maxN=None):
+    def conv_pix_iter(self, kern = default_kernel(),
+                      *args, **kwargs):
+                      #maxN=None, sliceobj=None):
         if kern is None: kern = default_kernel()
-        def testf(a):
+        def _fn(a):
             return signal.convolve2d(a, kern)[1:-1,1:-1]
         #fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
-        return self.pix_iter(maxN, testf)
+        kwargs.update({'fn':_fn})
+        return self.pix_iter(*args, **kwargs)
 
-    def shape(self,):
-        return self.frames().next().shape
+    def shape(self,sliceobj=None):
+        return self.frame_slices(sliceobj).next().shape
 
 class FSeq_glob(FrameSequence):
     def __init__(self, pattern, ch=0, dt = 1.0):
@@ -110,8 +121,8 @@ class FSeq_mlf(FrameSequence):
         self.dt = self.mlfimg.dt/1000.0
     def frames(self):
         return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
-    def shape(self):
-        return self.mlfimg.ydim,self.mlfimg.xdim
+#    def shape(self): # return it back afterwards
+#        return self.mlfimg.ydim,self.mlfimg.xdim
     def length(self):
         return self.mlfimg.nframes
 
