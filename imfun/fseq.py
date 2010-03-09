@@ -65,8 +65,17 @@ class FrameSequence():
             fiter = self.frames()
         return list(itt.islice(itt.imap(fn, fiter), maxN))
 
-    def as3darray(self, *args, **kwargs):
-        return np.asarray(self.aslist(*args, **kwargs))
+    def as3darray(self, maxN = None, fn = lambda x: x, sliceobj=None):
+        if sliceobj:
+            fiter = self.frame_slices(sliceobj)
+        else:
+            fiter = self.frames()
+        shape = self.shape(sliceobj)
+        out = np.zeros((self.length(), shape[0], shape[1]))
+        for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
+            out[k,:,:] = frame
+        return out
+        #return np.asarray(self.aslist(*args, **kwargs))
     
     def length(self):
         for k,_ in enumerate(self.frames()):
