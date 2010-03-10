@@ -6,7 +6,7 @@ import itertools as itt
 import numpy as np
 from scipy import signal
 
-from pylab import imread
+from matplotlib.pyplot import imread
 
 
 def sorted_file_names(pat):
