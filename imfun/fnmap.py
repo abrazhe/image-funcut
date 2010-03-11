@@ -8,9 +8,13 @@ def ifnot(a, b):
     if a == None: return b
     else: return a
 
+def isseq(obj):
+    return hasattr(obj, '__iter__')
 
 def cwtmap(fseq,
-           extent, nfreqs = 32,
+           tranges,
+           frange,
+           nfreqs = 32,
            wavelet = pycwt.Morlet(),
            func = np.mean,
            normL = None,
@@ -43,27 +47,37 @@ def cwtmap(fseq,
     tick = time.clock()
     L = fseq.length()
     shape = fseq.shape(kwargs.has_key('sliceobj') and
-                                kwargs['sliceobj'] or None)
-    out = np.ones(shape, np.float64)
+                       kwargs['sliceobj'] or None)
     total = shape[0]*shape[1]
     k = 0
-    freqs = np.linspace(*extent[2:], num=nfreqs)
+
     pix_iter = None
     normL = ifnot(normL, L)
+
+    if not isseq(tranges[0]):
+        tranges = (tranges,)
     
     if type(kern) == np.ndarray or kern is None:
         pix_iter = fseq.conv_pix_iter(kern,**kwargs)
     elif kern <= 0:
         pix_iter = pix_iter(**kwargs)
-        
-    start,stop = [int(a/fseq.dt) for a in extent[:2]]
+
+    freqs = np.linspace(*frange, num=nfreqs)
+
+    tstarts,tstops = [],[]
+
+    for tr in tranges:
+        tstarts.append(int(tr[0]/fseq.dt)) # This is disgusting that I write in such way
+        tstops.append(int(tr[1]/fseq.dt))
+
+    out = np.ones((len(tranges),)+shape, np.float64)
+
     for s,i,j in pix_iter:
         s = s-np.mean(s[:normL])
         cwt = pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd')
         eds = pycwt.eds(cwt, wavelet.f0)/np.std(s[:normL])**2
-        x=func(eds[:,start:stop])
-        #print "\n", start,stop,eds.shape, "\n"
-        out[i,j] = x
+        for tk, tr in enumerate(tranges):
+            out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])
         k+= 1
         if verbose:
             sys.stderr.write("\rpixel %05d of %05d"%(k,total))
