@@ -180,7 +180,7 @@ class ImageSequence:
         ch = ifnot(ch, self.ch)
         self.figf = figure()
         self.axf = axes()
-        self.plf = self.axf.imshow(self.d[0][:,:,ch], origin='low',
+        self.plf = self.axf.imshow(self.d[0][:,:,ch], 
                                    aspect = 'equal', cmap=mpl.cm.gray)
         self.frame_index = 0
         def onscroll(event):
@@ -204,7 +204,7 @@ class ImageSequence:
         ch = ifnot(ch, self.ch)
         self.fig = figure()
         self.ax = axes()
-        self.pl = imshow(self.mean(ch), origin='low',
+        self.pl = imshow(self.mean(ch), 
                          aspect='equal', cmap=matplotlib.cm.gray)
 
 def rezip(a):
@@ -277,7 +277,6 @@ class ImgLineSect(ImageSequence):
         self.ax1 = subplot(121); hold(True)
         self.pl = self.ax1.imshow(self.mean(ch),
                                   aspect='equal',
-                                  origin = 'low',
                                   cmap=matplotlib.cm.gray)
         self.pl2 = None
         self.pl_seg = None
@@ -531,7 +530,6 @@ class ImgPointSelect():
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
                                   aspect='equal',
-                                  origin='low',
                                   cmap=matplotlib.cm.gray)
         if True or self.connected is False:
             self.fig.canvas.mpl_connect('button_press_event',
@@ -591,6 +589,7 @@ class ImgPointSelect():
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             y = abs(fft(x))[1:L/2]
             ax.plot(freqs, y**2)
+        ax.set_xlabel("Frequency, Hz")
 
     def show_spectrograms(self, rois = None, freqs = None,
                           wavelet = pycwt.Morlet(),
@@ -658,6 +657,7 @@ class ImgPointSelect():
             cwt = pycwt.cwt_f(x, freqs, 1./self.dt, wavelet, 'zpd')
             eds = pycwt.eds(cwt, wavelet.f0)
             ax.plot(freqs, np.mean(eds, 1))
+        ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
         return linspace(4.0/(self.length()*self.dt),
