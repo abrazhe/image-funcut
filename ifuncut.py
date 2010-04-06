@@ -563,7 +563,7 @@ class ImgPointSelect():
         dt,Nf = self.dt, self.length()
         return arange(0,Nf*dt, dt)[:Nf]
 
-    def save_time_series_to_file(self, fname, normp = False):
+    def save_time_series_to_file(self, fname, ch, normp = False):
         rois = self.drcs.keys()
         ts = self.get_timeseries(normp=normp)
         t = self.timevec()        
