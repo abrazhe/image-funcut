@@ -308,6 +308,91 @@ class ImgLineSect(ImageSequence):
     def get_timeview(self):
         return self.make_timeseries()
 
+class LineScan():
+    def __init__(self):
+        pass
+    def connect(self):
+        "connect all the needed events"
+        self.cid = {
+            'press': self.figure.canvas.mpl_connect('button_press_event',
+                                                    self.on_press),
+            'release': self.figure.canvas.mpl_connect('button_release_event',
+                                                      self.on_release),
+            'motion': self.figure.canvas.mpl_connect('motion_notify_event',
+                                                     self.on_motion),
+            'type': self.figure.canvas.mpl_connect('key_press_event',
+                                                   self.on_type)
+            }
+    def disconnect(self):
+        map(self.figure.canvas.mpl_disconnect,
+            self.cid.values())
+     
+
+
+
+class ImgLineScan():
+    verbose=True
+    connected = False
+
+    def __init__(self, fseq):
+        self.fseq = fseq
+        self.dt = fseq.dt
+        self._Nf = None
+        self.lines = []
+        pass
+
+    def length(self):
+        if self._Nf is None:
+            self._Nf = self.fseq.length()
+        return self._Nf
+
+    def pick_lines(self, lines = []):
+        self.fig = pl.figure()
+        self.ax1 = self.fig.add_subplot(111)
+        if hasattr(self.fseq, 'ch'):
+            title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
+        self.image = self.ax1.imshow(self.fseq.mean_frame(),
+                                     aspect='equal',
+                                     cmap=matplotlib.cm.gray)
+        #self.curr_line_handle = ax1.plot([0],[0],'r-')
+        if self.connected is False:
+            self.pressed = None
+            self.fig.canvas.mpl_connect('button_press_event',self.on_press)
+            self.fig.canvas.mpl_connect('button_release_event',self.on_release)
+            self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
+            self.connected = True
+        pass
+
+    def on_press(self, event):
+        tb = get_current_fig_manager().toolbar
+        if event.inaxes !=self.ax1 or tb.mode != '':  return
+        p0 = event.xdata, event.ydata
+        self.pressed = p0
+        axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
+        self.curr_line_handle, = self.ax1.plot([0],[0],'r-')
+        axis(axrange)
+        print p0
+        pass
+    def on_motion(self, event):
+        if (self.pressed is None) or (event.inaxes != self.ax1):
+            return
+        pstop = event.xdata, event.ydata
+        self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
+        self.fig.canvas.draw() #todo BLIT!
+        #x0, y0, xpress, ypress = self.press
+        #dx = event.xdata - xpress
+        #dy = event.ydata - ypress
+        #self.circ.center = (x0+dx, y0+dy)
+        #self.circ.figure.canvas.draw()
+        
+    def on_release(self,event):
+        self.pressed = None
+        pass
+
+    
+
+        
+
 import itertools
 
 def ar1(alpha = 0.74):
