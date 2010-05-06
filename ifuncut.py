@@ -26,14 +26,15 @@ mpl.rcParams['image.origin'] = 'lower'
 
 def nearest_item_ind(items, xy, fn = lambda a: a):
     """
-    Index of nearest item from collection. Arguments: collection, position,
-    selector
+    Index of the nearest item from a collection.
+    Arguments: collection, position, selector
     """
     return aux.min1(lambda p: eu_dist(fn(p), xy), items)
 
 
 
 def eu_dist(p1,p2):
+    "Euler distance between two points"
     return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def square_distance(p1,p2):
