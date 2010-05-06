@@ -254,7 +254,7 @@ class ImgLineSect(ImageSequence):
                 axis([0, self.shape[0], 0, self.shape[1]])
                 self.show_timeseries()
             self.fig.canvas.draw()
-
+            
     def binarize_scroller(self, event):
         step = -self.bin_step
         if event.inaxes == self.ax2:

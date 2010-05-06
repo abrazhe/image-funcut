@@ -34,6 +34,11 @@ def norm1(m1, m2):
     "out=(m1-m2)/m2"
     return (m1-m2)/m2
 
+def ma2d(m, n):
+    "Moving average in 2d (for rows)"
+    for i in xrange(0,len(m)-n,):
+        yield np.mean(m[i:i+n,:],0)
+
 
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
