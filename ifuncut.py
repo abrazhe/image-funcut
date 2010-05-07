@@ -185,9 +185,9 @@ class ImageSequence:
                                    aspect = 'equal', cmap=mpl.cm.gray)
         self.frame_index = 0
         def onscroll(event):
-            if event.button in ('4','down'):
+            if event.button in (4,'4','down'):
                 self.frame_index -= 1
-            elif event.button in ('5','up'):
+            elif event.button in (5,'5','up'):
                 self.frame_index += 1
             self.frame_index = self.frame_index%self.Nf
             ind = self.frame_index
@@ -308,23 +308,87 @@ class ImgLineSect(ImageSequence):
     def get_timeview(self):
         return self.make_timeseries()
 
-class LineScan():
-    def __init__(self):
+class DraggableLine():
+    def __init__(self, line, parent,):
+        self.line = line
+        self.parent = parent
+        self.connect()
+        self.pressed = None
+        self.tag = line.get_label()
         pass
+    def event_ok(self, event):
+        return not event.inaxes !=self.line.axes or \
+               get_current_fig_manager().toolbar.mode !=''
+
+        
     def connect(self):
         "connect all the needed events"
+        cf = self.line.axes.figure.canvas.mpl_connect
         self.cid = {
-            'press': self.figure.canvas.mpl_connect('button_press_event',
-                                                    self.on_press),
-            'release': self.figure.canvas.mpl_connect('button_release_event',
-                                                      self.on_release),
-            'motion': self.figure.canvas.mpl_connect('motion_notify_event',
-                                                     self.on_motion),
-            'type': self.figure.canvas.mpl_connect('key_press_event',
-                                                   self.on_type)
+            'press': cf('button_press_event', self.on_press),
+            'release': cf('button_release_event', self.on_release),
+            'motion': cf('motion_notify_event', self.on_motion),
+            'type': cf('key_press_event', self.on_type)
             }
+    def endpoints(self):
+        return rezip(self.line.get_data())
+    def length(self):
+        return eu_dist(*self.endpoints())
+    def check_endpoints(self):
+        "Return endpoints in the correct order"
+        pts = self.endpoints()
+        if pts[0][0] > pts[1][0]:
+            return pts[::-1]
+        else:
+            return pts
+    def move(self,p):
+        dx = -self.pressed[0] + p[0]
+        dy = -self.pressed[1] + p[1]
+        x0, y0 = self.line.get_xdata(), self.line.get_ydata()
+        dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
+        if np.abs((dist1-dist2)/(dist1 + dist2)) > 0.25:
+            if dist1 < dist2:
+                dx,dy = array([dx, 0]), array([dy, 0])
+            else:
+                dx,dy = array([0, dx]), array([0, dy])
+        self.line.set_data((x0 + dx,y0 + dy))
+
+    def on_motion(self, event):
+        if not (self.event_ok(event) and self.pressed):
+            return
+        p = event.xdata,event.ydata
+        self.move(p)
+        self.pressed = p
+        self.line.axes.figure.canvas.draw()
+
+    def on_release(self, event):
+        if not self.event_ok(event):
+            return
+        self.pressed = None
+        self.line.axes.figure.canvas.draw()
+
+    def on_type(self, event):
+        "not implemented yet..."
+        pass
+
+    def on_press(self, event):
+        if not self.event_ok(event):
+            return
+        contains,_ = self.line.contains(event)
+        if not contains: return
+        if event.button == 3:
+            self.disconnect()
+            self.parent.lines.pop(self.tag)
+            self.line.remove()
+            self.line.axes.figure.canvas.draw()
+        elif event.button == 1:
+            self.pressed = event.xdata, event.ydata
+        elif event.button == 2:
+            self.parent.show_timeview(self.tag)
+
+        
     def disconnect(self):
-        map(self.figure.canvas.mpl_disconnect,
+        map(self.line.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
      
 
@@ -333,20 +397,26 @@ class LineScan():
 class ImgLineScan():
     verbose=True
     connected = False
-
-    def __init__(self, fseq):
+    cw = color_walker()
+    def __init__(self, fseq, min_length=5):
         self.fseq = fseq
         self.dt = fseq.dt
         self._Nf = None
-        self.lines = []
+        self.lines = {}
+        self.min_length = min_length
         pass
 
     def length(self):
         if self._Nf is None:
             self._Nf = self.fseq.length()
         return self._Nf
-
-    def pick_lines(self, lines = []):
+    def any_line_contains(self,event):
+        "Checks if event is contained by any ROI"
+        if len(self.lines) < 1 : return False
+        return reduce(lambda x,y: x or y,
+                      [line.line.contains(event)[0]
+                       for line in self.lines.values()])
+    def pick_lines(self,lines = {}):
         self.fig = pl.figure()
         self.ax1 = self.fig.add_subplot(111)
         if hasattr(self.fseq, 'ch'):
@@ -354,7 +424,6 @@ class ImgLineScan():
         self.image = self.ax1.imshow(self.fseq.mean_frame(),
                                      aspect='equal',
                                      cmap=matplotlib.cm.gray)
-        #self.curr_line_handle = ax1.plot([0],[0],'r-')
         if self.connected is False:
             self.pressed = None
             self.fig.canvas.mpl_connect('button_press_event',self.on_press)
@@ -363,31 +432,67 @@ class ImgLineScan():
             self.connected = True
         pass
 
+    def line_tags(self):
+        return self.lines.keys()
+
     def on_press(self, event):
-        tb = get_current_fig_manager().toolbar
-        if event.inaxes !=self.ax1 or tb.mode != '':  return
-        p0 = event.xdata, event.ydata
-        self.pressed = p0
+        if event.inaxes !=self.ax1 or \
+               self.any_line_contains(event) or \
+               event.button != 1 or \
+               get_current_fig_manager().toolbar.mode !='':
+            return
+        self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
-        self.curr_line_handle, = self.ax1.plot([0],[0],'r-')
-        axis(axrange)
-        print p0
-        pass
+        tag = unique_tag(self.line_tags())
+        self.curr_line_handle, = self.ax1.plot([0],[0],'-',
+                                               label = tag,
+                                               color=self.cw.next())
+        pl.axis(axrange)
+        return
+
     def on_motion(self, event):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
         pstop = event.xdata, event.ydata
         self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
         self.fig.canvas.draw() #todo BLIT!
-        #x0, y0, xpress, ypress = self.press
-        #dx = event.xdata - xpress
-        #dy = event.ydata - ypress
-        #self.circ.center = (x0+dx, y0+dy)
-        #self.circ.figure.canvas.draw()
         
     def on_release(self,event):
         self.pressed = None
-        pass
+        tag = self.curr_line_handle.get_label()
+        if len(self.curr_line_handle.get_xdata()) > 1:
+            newline = DraggableLine(self.curr_line_handle, self)
+            print newline.length()
+            if newline.length() > self.min_length:
+                self.lines[tag] = newline
+            else:
+                self.curr_line_handle.remove()
+        else:
+            self.curr_line_handle.remove()
+        if len(self.lines) > 0:
+            pl.legend()
+        self.fig.canvas.draw() #todo BLIT!
+        return
+
+    def get_timeview(self, tag):
+        if not tag in self.lines.keys():
+            print("Sorry, no line with this tag")
+            return None
+        line = self.lines[tag]
+        points = line.check_endpoints()
+        timeview = array([extract_line2(frame, *points) for frame in
+                          self.fseq.frames()])
+        return timeview
+
+
+    def show_timeview(self,tag):
+        timeview = self.get_timeview(tag)
+        if timeview is not None:
+            pl.figure();
+            pl.imshow(timeview, aspect='equal')
+            pl.title('Timeview for '+ tag)
+
+        
 
     
 
