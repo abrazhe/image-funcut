@@ -298,7 +298,28 @@ class DraggableLine():
             self.cid.values())
      
 
-
+def view_fseq_frames(fseq):
+    f = figure()
+    axf = axes()
+    frame_index = [0]
+    frames = fseq.aslist()
+    Nf = len(frames)
+    plf = axf.imshow(frames[0],
+                     aspect = 'equal', cmap=mpl.cm.gray)
+    def skip(event,n=1):
+        fi = frame_index[0]
+        key = hasattr(event, 'button') and event.button or event.key
+        if key in (4,'4','down'):
+            fi -= n
+        elif key in (5,'5','up'):
+            fi += n
+        fi = fi%Nf
+        plf.set_data(frames[fi])
+        axf.set_xlabel('%03d'%fi)
+        frame_index[0] = fi
+        f.canvas.draw()
+    f.canvas.mpl_connect('scroll_event',skip)
+    f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
 
 class ImgLineScan():
     verbose=True
@@ -368,7 +389,6 @@ class ImgLineScan():
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
             newline = DraggableLine(self.curr_line_handle, self)
-            print newline.length()
             if newline.length() > self.min_length:
                 self.lines[tag] = newline
             else:
@@ -388,14 +408,16 @@ class ImgLineScan():
         points = line.check_endpoints()
         timeview = array([extract_line2(frame, *points) for frame in
                           self.fseq.frames()])
-        return timeview
-
+        return timeview, points
 
     def show_timeview(self,tag):
-        timeview = self.get_timeview(tag)
+        timeview, points = self.get_timeview(tag)
         if timeview is not None:
             pl.figure();
-            pl.imshow(timeview, aspect='equal')
+            pl.imshow(timeview,
+                      extent=(0, timeview.shape[1], 0, self.fseq.dt*self.length()),
+                      aspect='equal')
+            pl.ylabel('time, sec')
             pl.title('Timeview for '+ tag)
 
         
