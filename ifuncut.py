@@ -858,25 +858,24 @@ class ImgPointSelect():
             sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
         return out
 
-    def show_xwt_roi(self, roi1, roi2, freqs=None, ch=None,
+    def show_xwt_roi(self, tag1, tag2, freqs=None, ch=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROI"
         freqs = ifnot(freqs, self.default_freqs())
         self.extent=[0,self.length()*self.dt, freqs[0], freqs[-1]]
 
-        s1 = self.roi_timeview(roi1,True)
-        s2 = self.roi_timeview(roi2,True)
+        s1 = self.roi_timeview(tag1,True)
+        s2 = self.roi_timeview(tag2,True)
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
         t = self.get_time()
 
         figure();
         ax1= subplot(211);
-        plot(t,s1,color=roi1.get_facecolor(),
-             label=roi1.get_label())
-        plot(t,s2,color=roi2.get_facecolor(),
-             label = roi2.get_label())
+        roi1,roi2 = self.drcs[tag1], self.drcs[tag2]
+        plot(t,s1,color=roi1.get_color(), label=tag1)
+        plot(t,s2,color=roi2.get_color(), label = tag2)
         legend()
         ax2 = subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
@@ -913,8 +912,8 @@ class ImgPointSelect():
         return out
 
     def show_xwt(self, **kwargs):
-        for p in aux.allpairs0(self.drcs.values()):
-            self.show_xwt_roi(p[0].circ,p[1].circ,**kwargs)
+        for p in aux.allpairs0(self.drcs.keys()):
+            self.show_xwt_roi(*p,**kwargs)
 
 
             
