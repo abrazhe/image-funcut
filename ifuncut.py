@@ -92,6 +92,12 @@ def file_names(pat):
     x.sort()
     return x
 
+def color_walker():
+    red, green, blue = ar1(), ar1(), ar1()
+    while True:
+        yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
+
+
 class ImageSequence:
     "Base (old) Class for image sequence"
     def __init__(self, pattern, ch=0, dt = 0.16):
@@ -435,10 +441,6 @@ def ar1(alpha = 0.74):
         prev = res
         yield res
 
-def color_walker():
-    red, green, blue = ar1(), ar1(), ar1()
-    while True:
-        yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
 
 def struct_circle(circ):
     return {'center': circ.center,
@@ -869,7 +871,7 @@ class ImgPointSelect():
         s2 = self.roi_timeview(tag2,True)
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
-        t = self.get_time()
+        t = self.timevec()
 
         figure();
         ax1= subplot(211);
