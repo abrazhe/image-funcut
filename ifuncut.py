@@ -258,7 +258,7 @@ class DraggableLine():
         dy = -self.pressed[1] + p[1]
         x0, y0 = self.line.get_xdata(), self.line.get_ydata()
         dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
-        if np.abs((dist1-dist2)/(dist1 + dist2)) > 0.25:
+        if np.abs((dist1-dist2)/(dist1 + dist2)) > 0.1:
             if dist1 < dist2:
                 dx,dy = array([dx, 0]), array([dy, 0])
             else:
@@ -289,8 +289,8 @@ class DraggableLine():
         contains,_ = self.line.contains(event)
         if not contains: return
         if event.button == 3:
-            self.disconnect()
             self.parent.lines.pop(self.tag)
+            self.disconnect()
             self.line.remove()
             self.line.axes.figure.canvas.draw()
         elif event.button == 1:
@@ -392,6 +392,8 @@ class ImgLineScan():
         
     def on_release(self,event):
         self.pressed = None
+        if not event.button == 1: return
+        if self.any_line_contains(event): return
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
             newline = DraggableLine(self.curr_line_handle, self)
