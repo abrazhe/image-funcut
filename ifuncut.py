@@ -23,6 +23,50 @@ mpl.rcParams['image.aspect'] = 'auto'
 mpl.rcParams['image.origin'] = 'lower'
 
 
+import itertools
+
+def ar1(alpha = 0.74):
+    prev = randn()
+    while True:
+        res = prev*alpha + randn()
+        prev = res
+        yield res
+
+
+def struct_circle(circ):
+    return {'center': circ.center,
+            'radius': circ.radius,
+            'alpha': circ.get_alpha(),
+            'label': circ.get_label(),
+            'color': circ.get_facecolor()}
+
+def circle_from_struct(circ_props):
+    return Circle(circ_props['center'], circ_props['radius'],
+                  alpha=circ_props['alpha'],
+                  label = circ_props['label'],
+                  color = circ_props['color'])
+    pass
+
+import pickle
+import random
+
+vowels = "aeiouy"
+consonants = "qwrtpsdfghjklzxcvbnm"
+
+
+def rand_tag():
+    return ''.join(map(random.choice,
+                       (consonants, vowels, consonants)))
+
+def unique_tag(tags, max_tries = 1e4):
+    n = 0
+    while n < max_tries:
+        tag = rand_tag()
+        n += 1
+        if not tag in tags:
+            return tag
+    return "Err"
+
 
 def nearest_item_ind(items, xy, fn = lambda a: a):
     """
@@ -105,90 +149,6 @@ def rezip(a):
 def shorten_movie(m,n):
     return array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
 
-class DraggableLine():
-    def __init__(self, line, parent,):
-        self.line = line
-        self.parent = parent
-        self.connect()
-        self.pressed = None
-        self.tag = line.get_label()
-        pass
-    def event_ok(self, event):
-        return not event.inaxes !=self.line.axes or \
-               get_current_fig_manager().toolbar.mode !=''
-
-        
-    def connect(self):
-        "connect all the needed events"
-        cf = self.line.axes.figure.canvas.mpl_connect
-        self.cid = {
-            'press': cf('button_press_event', self.on_press),
-            'release': cf('button_release_event', self.on_release),
-            'motion': cf('motion_notify_event', self.on_motion),
-            'type': cf('key_press_event', self.on_type)
-            }
-    def endpoints(self):
-        return rezip(self.line.get_data())
-    def length(self):
-        return eu_dist(*self.endpoints())
-    def check_endpoints(self):
-        "Return endpoints in the correct order"
-        pts = self.endpoints()
-        if pts[0][0] > pts[1][0]:
-            return pts[::-1]
-        else:
-            return pts
-    def move(self,p):
-        dx = -self.pressed[0] + p[0]
-        dy = -self.pressed[1] + p[1]
-        x0, y0 = self.line.get_xdata(), self.line.get_ydata()
-        dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
-        if np.abs((dist1-dist2)/(dist1 + dist2)) > 0.1:
-            if dist1 < dist2:
-                dx,dy = array([dx, 0]), array([dy, 0])
-            else:
-                dx,dy = array([0, dx]), array([0, dy])
-        self.line.set_data((x0 + dx,y0 + dy))
-
-    def on_motion(self, event):
-        if not (self.event_ok(event) and self.pressed):
-            return
-        p = event.xdata,event.ydata
-        self.move(p)
-        self.pressed = p
-        self.line.axes.figure.canvas.draw()
-
-    def on_release(self, event):
-        if not self.event_ok(event):
-            return
-        self.pressed = None
-        self.line.axes.figure.canvas.draw()
-
-    def on_type(self, event):
-        "not implemented yet..."
-        pass
-
-    def on_press(self, event):
-        if not self.event_ok(event):
-            return
-        contains,_ = self.line.contains(event)
-        if not contains: return
-        if event.button == 3:
-            self.parent.lines.pop(self.tag)
-            self.disconnect()
-            self.line.remove()
-            self.line.axes.figure.canvas.draw()
-        elif event.button == 1:
-            self.pressed = event.xdata, event.ydata
-        elif event.button == 2:
-            self.parent.show_timeview(self.tag)
-
-        
-    def disconnect(self):
-        map(self.line.axes.figure.canvas.mpl_disconnect,
-            self.cid.values())
-     
-
 def view_fseq_frames(fseq):
     f = figure()
     axf = axes()
@@ -212,6 +172,164 @@ def view_fseq_frames(fseq):
     f.canvas.mpl_connect('scroll_event',skip)
     f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
 
+
+class DraggableObj():
+    verbose = True
+    def __init__(self, obj, parent,):
+        self.obj = obj
+        self.parent = parent
+        self.connect()
+        self.pressed = None
+        self.tag = obj.get_label() # obj must support this
+        pass
+
+    def redraw(self):
+        self.obj.axes.figure.canvas.draw()
+
+    def event_ok(self, event, should_contain=False):
+        containsp = True
+        if should_contain:
+            containsp, _ = self.obj.contains(event)
+        return event.inaxes == self.obj.axes and \
+               containsp and \
+               get_current_fig_manager().toolbar.mode ==''
+
+    def connect(self):
+        "connect all the needed events"
+        cf = self.obj.axes.figure.canvas.mpl_connect
+        self.cid = {
+            'press': cf('button_press_event', self.on_press),
+            'release': cf('button_release_event', self.on_release),
+            'motion': cf('motion_notify_event', self.on_motion),
+            'scroll': cf('scroll_event', self.on_scroll),
+            'type': cf('key_press_event', self.on_type)
+            }
+    def on_scroll(self, event):
+        pass
+    def on_motion(self, event):
+        if not (self.event_ok(event, False) and self.pressed):
+            return
+        p = event.xdata,event.ydata
+        self.move(p)
+        #self.pressed = p
+        self.redraw()
+
+    def on_release(self, event):
+        if not self.event_ok(event):
+            return
+        self.pressed = None
+        self.redraw()
+
+    def on_type(self, event):
+        pass
+    
+    def on_press(self, event):
+        pass
+
+    def disconnect(self):
+        map(self.obj.axes.figure.canvas.mpl_disconnect,
+            self.cid.values())
+    def get_color(self):
+        return self.obj.get_facecolor()
+
+
+class DraggableLine(DraggableObj):
+    def endpoints(self):
+        return rezip(self.obj.get_data())
+    def length(self):
+        return eu_dist(*self.endpoints())
+    def check_endpoints(self):
+        "Return endpoints in the correct order"
+        pts = self.endpoints()
+        if pts[0][0] > pts[1][0]:
+            return pts[::-1]
+        else:
+            return pts
+    def move(self,p):
+        # xp,yp, x, y = self.pressed
+        xp,yp   = self.pressed
+        dx = p[0] - xp
+        dy = p[1] - yp
+        x0, y0 = self.obj.get_xdata(), self.obj.get_ydata()
+        dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
+        if dist1/(dist1 + dist2) < 0.05:
+            dx,dy = array([dx, 0]), array([dy, 0])
+        elif dist2/(dist1 + dist2) < 0.05:
+            dx,dy = array([0, dx]), array([0, dy])
+        self.obj.set_data((x0 + dx,y0 + dy))
+        self.pressed = p
+
+    def on_press(self, event):
+        if not self.event_ok(event, True):
+            return
+        if event.button == 3:
+            self.parent.lines.pop(self.tag) 
+            self.disconnect()
+            self.obj.remove()
+            self.redraw()
+        elif event.button == 1:
+            x, y = self.obj.get_xdata(), self.obj.get_ydata()
+            x0 = x[1] - x[0]
+            y0 = y[1] - y[0]
+            self.pressed = event.xdata, event.ydata
+        elif event.button == 2:
+            self.parent.show_timeview(self.tag)
+
+class DraggableCircle(DraggableObj):
+    "Draggable Circle ROI"
+    step = 1
+    def on_scroll(self, event):
+        if not self.event_ok(event, True): return
+        r = self.obj.get_radius()
+        if event.button in ['up']:
+            self.obj.set_radius(r+self.step)
+        else:
+            self.obj.set_radius(max(0.1,r-self.step))
+        self.redraw()
+        return
+
+    def on_type(self, event):
+        if not self.event_ok(event, True): return
+        if self.verbose:
+            print event.key
+        tags = [self.tag]
+        if event.key in ['t', '1']:
+            self.parent.show_timeseries(tags)
+        if event.key in ['T', '!']:
+            self.parent.show_timeseries(tags, normp=True)
+        elif event.key in ['w', '2']:
+            self.parent.show_spectrograms(tags)
+        elif event.key in ['W', '3']:
+            self.parent.show_wmps(tags)
+        elif event.key in ['4']:
+            self.parent.show_ffts(tags)
+                                        
+    def on_press(self, event):
+        if not self.event_ok(event, True): return
+        x0,y0 = self.obj.center
+        if event.button is 1:
+            self.pressed = event.xdata, event.ydata, x0, y0
+        elif event.button is 2:
+            self.parent.show_timeseries([self.tag])
+            
+        elif event.button is 3:
+            p = self.parent.drcs.pop(self.tag)
+            self.obj.remove()
+            self.disconnect()
+            legend()
+            self.redraw()
+
+    def move(self, p):
+        "Move the ROI if the mouse is over it"
+        xp,yp, x, y = self.pressed
+        dx = p[0] - xp
+        dy = p[1] - yp
+        self.obj.center = (x+dx, y+dy)
+        self.redraw()
+
+     
+
+
 class ImgLineScan():
     verbose=True
     connected = False
@@ -232,7 +350,7 @@ class ImgLineScan():
         "Checks if event is contained by any ROI"
         if len(self.lines) < 1 : return False
         return reduce(lambda x,y: x or y,
-                      [line.line.contains(event)[0]
+                      [line.obj.contains(event)[0]
                        for line in self.lines.values()])
     def pick_lines(self,lines = {}):
         self.fig = pl.figure()
@@ -313,157 +431,6 @@ class ImgLineScan():
             pl.ylabel('time, sec')
             pl.title('Timeview for '+ tag)
 
-        
-
-    
-
-        
-
-import itertools
-
-def ar1(alpha = 0.74):
-    prev = randn()
-    while True:
-        res = prev*alpha + randn()
-        prev = res
-        yield res
-
-
-def struct_circle(circ):
-    return {'center': circ.center,
-            'radius': circ.radius,
-            'alpha': circ.get_alpha(),
-            'label': circ.get_label(),
-            'color': circ.get_facecolor()}
-
-def circle_from_struct(circ_props):
-    return Circle(circ_props['center'], circ_props['radius'],
-                  alpha=circ_props['alpha'],
-                  label = circ_props['label'],
-                  color = circ_props['color'])
-    pass
-
-import pickle
-import random
-
-vowels = "aeiouy"
-consonants = "qwrtpsdfghjklzxcvbnm"
-
-
-def rand_tag():
-    return ''.join(map(random.choice,
-                       (consonants, vowels, consonants)))
-
-def unique_tag(tags, max_tries = 1e4):
-    n = 0
-    while n < max_tries:
-        tag = rand_tag()
-        n += 1
-        if not tag in tags:
-            return tag
-    return "Err"
-
-
-class DraggableCircle():
-    verbose = True
-    "Draggable Circle ROI"
-    def __init__ (self, circ, parent = None):
-        self.circ = circ
-        self.parent = parent
-        self.press = None
-        self.connect()
-
-    def connect(self):
-        "connect all the needed events"
-        self.cidpress = \
-        self.circ.figure.canvas.mpl_connect('button_press_event',
-                                            self.on_press)
-        self.cidrelease = \
-        self.circ.figure.canvas.mpl_connect('button_release_event',
-                                            self.on_release)
-
-        self.cidscroll = \
-        self.circ.figure.canvas.mpl_connect('scroll_event',
-                                            self.on_scroll)
-
-        self.cidmotion = \
-        self.circ.figure.canvas.mpl_connect('motion_notify_event',
-                                            self.on_motion)
-        self.cidtype = \
-        self.circ.figure.canvas.mpl_connect('key_press_event',
-                                            self.on_type)             
-
-    def disconnect(self):
-        "Disconnect stored connections"
-        map(self.circ.figure.canvas.mpl_disconnect,
-            (self.cidpress, self.cidrelease, self.cidscroll,
-             self.cidmotion, self.cidtype))
-
-    def on_scroll(self, event):
-        if event.inaxes != self.circ.axes : return
-        contains, attrd = self.circ.contains(event)
-        if not contains : return 
-        step = 1
-        r = self.circ.get_radius()
-        if event.button in ['up']:
-            self.circ.set_radius(r+step)
-        else:
-            self.circ.set_radius(max(0.1,r-step))
-        self.circ.figure.canvas.draw()
-        return
-
-    def on_type(self, event):
-        if event.inaxes != self.circ.axes: return
-        contains, attrd = self.circ.contains(event)
-        if not contains: return
-        if self.verbose:
-            print event.key
-        tags = [self.circ.get_label()]
-        if event.key in ['t', '1']:
-            self.parent.show_timeseries(tags)
-        if event.key in ['T', '!']:
-            self.parent.show_timeseries(tags, normp=True)
-        elif event.key in ['w', '2']:
-            self.parent.show_spectrograms(tags)
-        elif event.key in ['W', '3']:
-            self.parent.show_wmps(tags)
-        elif event.key in ['4']:
-            self.parent.show_ffts(tags)
-                                        
-    def on_press(self, event):
-        if event.inaxes != self.circ.axes: return
-        contains, attrd = self.circ.contains(event)
-        if not contains: return
-        x0,y0 = self.circ.center
-        if event.button is 1:
-            self.press = x0, y0, event.xdata, event.ydata
-        elif event.button is 2:
-            self.parent.show_timeseries([self.circ.get_label()])
-            
-        elif event.button is 3:
-            p = self.parent.drcs.pop(self.circ.get_label())
-            self.circ.remove()
-            self.disconnect()
-            legend()
-            self.circ.figure.canvas.draw()
-
-    def on_motion(self, event):
-        "Move the ROI if the mouse is over it"
-        if self.press is None: return
-        if event.inaxes != self.circ.axes: return
-        x0, y0, xpress, ypress = self.press
-        dx = event.xdata - xpress
-        dy = event.ydata - ypress
-        self.circ.center = (x0+dx, y0+dy)
-        self.circ.figure.canvas.draw()
-
-    def on_release(self, event):
-        "On release reset the press data"
-        self.press = None
-        self.circ.figure.canvas.draw()
-
-    def get_color(self):
-        return self.circ.get_facecolor()
 
 class ImgPointSelect():
     verbose = True
@@ -494,11 +461,11 @@ class ImgPointSelect():
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
-            drc = DraggableCircle(c, self)
-            #drc.connect()
-            self.drcs[label]=drc
-            
             self.ax1.add_patch(c)
+            print c.axes
+            self.drcs[label]= DraggableCircle(c, self)
+            #drc.connect()
+            
         legend()
         draw()
 
@@ -506,7 +473,7 @@ class ImgPointSelect():
         "Checks if event is contained by any ROI"
         if len(self.drcs) < 1 : return False
         return reduce(lambda x,y: x or y,
-                      [roi.circ.contains(event)[0]
+                      [roi.obj.contains(event)[0]
                        for roi in self.drcs.values()])
     
     def roi_labels(self):
@@ -516,7 +483,7 @@ class ImgPointSelect():
     def save_rois(self, fname):
         "Saves picked ROIs to a file"
         pickle.dump(map(struct_circle,
-                        [x.circ for x in self.drcs.values()]),
+                        [x.obj for x in self.drcs.values()]),
                     file(fname, 'w'))
 
     def load_rois(self, fname):
@@ -546,7 +513,7 @@ class ImgPointSelect():
             self.connected = True
 
     def roi_timeview(self, tag, normp=False):
-        roi = self.drcs[tag].circ
+        roi = self.drcs[tag].obj
         fn = in_circle(roi.center, roi.radius)
         shape = self.fseq.shape()
         X,Y = meshgrid(*map(range, shape))
@@ -678,7 +645,7 @@ class ImgPointSelect():
             if L < 1: return
             fig = figure(figsize=(8,4.5), dpi=80)
             for i, roi_label in enumerate(rois):
-                roi = self.drcs[roi_label].circ
+                roi = self.drcs[roi_label].obj
                 ax = fig.add_subplot(L,1,i+1)
                 x = self.roi_timeview(roi_label, normp=normp)
                 if i == L-1:
