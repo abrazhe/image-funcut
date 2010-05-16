@@ -204,14 +204,11 @@ class DraggableObj():
             'scroll': cf('scroll_event', self.on_scroll),
             'type': cf('key_press_event', self.on_type)
             }
-    def on_scroll(self, event):
-        pass
     def on_motion(self, event):
         if not (self.event_ok(event, False) and self.pressed):
             return
         p = event.xdata,event.ydata
         self.move(p)
-        #self.pressed = p
         self.redraw()
 
     def on_release(self, event):
@@ -219,6 +216,9 @@ class DraggableObj():
             return
         self.pressed = None
         self.redraw()
+
+    def on_scroll(self, event):
+        pass
 
     def on_type(self, event):
         pass
@@ -245,11 +245,9 @@ class DraggableLine(DraggableObj):
             return pts[::-1]
         else:
             return pts
-    def move(self,p):
-        # xp,yp, x, y = self.pressed
+    def move(self, p):
         xp,yp   = self.pressed
-        dx = p[0] - xp
-        dy = p[1] - yp
+        dx,dy = p[0] - xp, p[1] - yp
         x0, y0 = self.obj.get_xdata(), self.obj.get_ydata()
         dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
         if dist1/(dist1 + dist2) < 0.05:
@@ -320,15 +318,12 @@ class DraggableCircle(DraggableObj):
             self.redraw()
 
     def move(self, p):
-        "Move the ROI if the mouse is over it"
+        "Move the ROI when the mouse is pressed over it"
         xp,yp, x, y = self.pressed
         dx = p[0] - xp
         dy = p[1] - yp
         self.obj.center = (x+dx, y+dy)
         self.redraw()
-
-     
-
 
 class ImgLineScan():
     verbose=True
@@ -582,16 +577,6 @@ class ImgPointSelect():
             axlist.append(ax)
         return axlist
 
-    def setup_axes1(self, figsize = (12,6)):
-        "Set up axes for a plot with signal, spectrogram and a colorbar"
-        fig = figure(figsize = figsize)
-        ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
-        ax.append(fig.add_axes((0.08, 0.04, 0.8, 0.3), sharex=ax[0]))
-        ax.append(fig.add_axes((0.9, 0.4, 0.02, 0.5), 
-                               xticklabels=[], 
-                               yticklabels=[]))
-        return fig,ax
-    
     def show_spectrogram_with_ts(self, roilabel,
                                  freqs=None,
                                  wavelet = pycwt.Morlet(),
@@ -610,7 +595,7 @@ class ImgPointSelect():
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.drcs[roilabel].get_color()
-        fig,axlist = self.setup_axes1()
+        fig,axlist = aux.setup_axes1()
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
         aux.wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,

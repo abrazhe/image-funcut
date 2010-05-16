@@ -115,6 +115,16 @@ def alias_freq(f, fs):
     else:
         return alias_freq(f%fs, fs)
 
+def setup_axes1(figsize = (12,6)):
+    "Set up axes for a plot with signal, spectrogram and a colorbar"
+    fig = pl.figure(figsize = figsize)
+    ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
+    ax.append(fig.add_axes((0.08, 0.04, 0.8, 0.3), sharex=ax[0]))
+    ax.append(fig.add_axes((0.9, 0.4, 0.02, 0.5), 
+                           xticklabels=[], 
+                           yticklabels=[]))
+    return fig,ax
+
 
 
 def plot_spectrogram_with_ts(signal, f_s, vmax, freqs = None,
