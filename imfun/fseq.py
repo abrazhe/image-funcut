@@ -78,9 +78,10 @@ class FrameSequence():
         #return np.asarray(self.aslist(*args, **kwargs))
     
     def length(self):
-        for k,_ in enumerate(self.frames()):
-            pass
-        return k+1
+        k = 0
+        for _ in self.frames():
+            k+=1
+        return k
 
     def pix_iter(self, maxN=None, fn = lambda x:x, sliceobj=None):
         arr = self.as3darray(maxN,fn,sliceobj=sliceobj)
