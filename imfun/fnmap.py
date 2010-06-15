@@ -84,3 +84,49 @@ def cwtmap(fseq,
     if verbose:
         sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
     return out
+
+def fftmap(fseq, frange, kern = None, func=np.mean,
+           normL = None,
+           verbose = True,
+           **kwargs):
+        """
+        Fourier-based functional mapping
+        frange : a range of frequencies in Hz, e.g. (1.0, 1.5)
+        kern  : a kernel to convolve each frame with
+        func  : range reducing function. np.mean by default, may be np.sum as well
+        """
+        tick = time.clock()
+
+        L = fseq.length()
+
+        shape = fseq.shape(kwargs.has_key('sliceobj') and
+                           kwargs['sliceobj'] or None)
+
+        total = shape[0]*shape[1]
+        
+
+        out = np.ones(shape, np.float64)
+
+        k = 0
+        freqs = np.fft.fftfreq(L, fseq.dt)
+
+        pix_iter = None
+        if type(kern) == np.ndarray or kern is None:
+            pix_iter = fseq.conv_pix_iter(kern,**kwargs)
+        elif kern <= 0:
+            pix_iter = pix_iter(**kwargs)
+        normL = ifnot(normL, L)
+        
+        fstart,fstop = frange
+        fmask = (freqs >= fstart)*(freqs < fstop)
+        for s,i,j in pix_iter:
+            s = s-np.mean(s[:normL])
+            s_hat = np.fft.fft(s)
+            x = (abs(s_hat)/np.std(s[:normL]))**2
+            out[i,j] = func(x[fmask])
+            k+=1
+            if verbose:
+                sys.stderr.write("\rpixel %05d of %05d"%(k,total))
+        if verbose:
+            sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+        return out
