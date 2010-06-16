@@ -26,6 +26,7 @@ mpl.rcParams['image.origin'] = 'lower'
 import itertools
 
 def ar1(alpha = 0.74):
+    "Simple auto-regression model"
     prev = randn()
     while True:
         res = prev*alpha + randn()
@@ -33,19 +34,18 @@ def ar1(alpha = 0.74):
         yield res
 
 
-def struct_circle(circ):
-    return {'center': circ.center,
-            'radius': circ.radius,
-            'alpha': circ.get_alpha(),
-            'label': circ.get_label(),
-            'color': circ.get_facecolor()}
-
 def circle_from_struct(circ_props):
-    return Circle(circ_props['center'], circ_props['radius'],
-                  alpha=circ_props['alpha'],
-                  label = circ_props['label'],
-                  color = circ_props['color'])
-    pass
+    cp = circ_props.copy()
+    _  = cp.pop('func')
+    center = cp.pop('center')
+    return Circle(center, **cp)
+
+def line_from_struct(line_props):
+    lp = line_props.copy()
+    _ = lp.pop('func')
+    xdata, ydata = lp.pop('xdata'), lp.pop('ydata')
+    return Line2D(xdata, ydata,**lp)
+
 
 import pickle
 import random
@@ -217,14 +217,11 @@ class DraggableObj():
         self.pressed = None
         self.redraw()
 
-    def on_scroll(self, event):
-        pass
+    def on_scroll(self, event): pass
 
-    def on_type(self, event):
-        pass
+    def on_type(self, event): pass
     
-    def on_press(self, event):
-        pass
+    def on_press(self, event): pass
 
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
@@ -233,7 +230,7 @@ class DraggableObj():
         return self.obj.get_facecolor()
 
 
-class DraggableLine(DraggableObj):
+class LineScan(DraggableObj):
     def endpoints(self):
         return rezip(self.obj.get_data())
     def length(self):
@@ -261,7 +258,7 @@ class DraggableLine(DraggableObj):
         if not self.event_ok(event, True):
             return
         if event.button == 3:
-            self.parent.lines.pop(self.tag) 
+            self.parent.roi_objs.pop(self.tag) 
             self.disconnect()
             self.obj.remove()
             self.redraw()
@@ -271,9 +268,35 @@ class DraggableLine(DraggableObj):
             y0 = y[1] - y[0]
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
-            self.parent.show_timeview(self.tag)
+            self.show_timeview()
 
-class DraggableCircle(DraggableObj):
+    def get_timeview(self):
+        points = self.check_endpoints()
+        timeview = array([extract_line2(frame, *points) for frame in
+                          self.parent.fseq.frames()])
+        return timeview,points
+    def show_timeview(self):
+        timeview,points = self.get_timeview()
+        if timeview is not None:
+            pl.figure();
+            pl.imshow(timeview,
+                      extent=(0, timeview.shape[1], 0,
+                              self.parent.fseq.dt*self.parent.length()),
+                      aspect='equal')
+            pl.ylabel('time, sec')
+            pl.title('Timeview for '+ self.tag)
+
+    def to_struct(self):
+        l = self.obj
+        return {'func': line_from_struct,
+                'xdata': l.get_xdata(),
+                'ydata': l.get_ydata(),
+                'alpha': l.get_alpha(),
+                'label': l.get_label(),
+                'color': l.get_color(),}
+
+
+class CircleROI(DraggableObj):
     "Draggable Circle ROI"
     step = 1
     def on_scroll(self, event):
@@ -311,7 +334,7 @@ class DraggableCircle(DraggableObj):
             self.parent.show_timeseries([self.tag])
             
         elif event.button is 3:
-            p = self.parent.drcs.pop(self.tag)
+            p = self.parent.roi_objs.pop(self.tag)
             self.obj.remove()
             self.disconnect()
             legend()
@@ -325,56 +348,181 @@ class DraggableCircle(DraggableObj):
         self.obj.center = (x+dx, y+dy)
         self.redraw()
 
-class ImgLineScan():
-    verbose=True
+    def get_timeview(self, normp=False):
+        roi = self.obj
+        fn = in_circle(roi.center, roi.radius)
+        shape = self.parent.fseq.shape()
+        X,Y = meshgrid(*map(range, shape))
+        v = self.parent.fseq.mask_reduce(fn(X,Y))
+        if normp:
+            Lnorm = type(normp) is int and normp or len(v)
+            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
+        else: return v
+
+    def to_struct(self):
+        c = self.obj
+        return {'func' : circle_from_struct,
+                'center': c.center,
+                'radius': c.radius,
+                'alpha': c.get_alpha(),
+                'label': c.get_label(),
+                'color': c.get_facecolor(),}
+
+    
+
+## class ImgLineScan():
+##     verbose=True
+##     connected = False
+##     cw = color_walker()
+##     def __init__(self, fseq, min_length=5):
+##         self.fseq = fseq
+##         self.dt = fseq.dt
+##         self._Nf = None
+##         self.lines = {}
+##         self.min_length = min_length
+##         pass
+
+##     def length(self):
+##         if self._Nf is None:
+##             self._Nf = self.fseq.length()
+##         return self._Nf
+##     def any_line_contains(self,event):
+##         "Checks if event is contained by any ROI"
+##         if len(self.lines) < 1 : return False
+##         return reduce(lambda x,y: x or y,
+##                       [line.obj.contains(event)[0]
+##                        for line in self.lines.values()])
+##     def pick_lines(self,lines = {}):
+##         self.fig = pl.figure()
+##         self.ax1 = self.fig.add_subplot(111)
+##         if hasattr(self.fseq, 'ch'):
+##             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
+##         self.image = self.ax1.imshow(self.fseq.mean_frame(),
+##                                      aspect='equal',
+##                                      cmap=matplotlib.cm.gray)
+##         if self.connected is False:
+##             self.pressed = None
+##             self.fig.canvas.mpl_connect('button_press_event',self.on_press)
+##             self.fig.canvas.mpl_connect('button_release_event',self.on_release)
+##             self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
+##             self.connected = True
+##         pass
+
+##     def line_tags(self):
+##         return self.lines.keys()
+
+##     def on_press(self, event):
+##         if event.inaxes !=self.ax1 or \
+##                self.any_line_contains(event) or \
+##                event.button != 1 or \
+##                get_current_fig_manager().toolbar.mode !='':
+##             return
+##         self.pressed = event.xdata, event.ydata
+##         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
+##         tag = unique_tag(self.line_tags())
+##         self.curr_line_handle, = self.ax1.plot([0],[0],'-',
+##                                                label = tag,
+##                                                color=self.cw.next())
+##         pl.axis(axrange)
+##         return
+
+##     def on_motion(self, event):
+##         if (self.pressed is None) or (event.inaxes != self.ax1):
+##             return
+##         pstop = event.xdata, event.ydata
+##         self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
+##         self.fig.canvas.draw() #todo BLIT!
+        
+##     def on_release(self,event):
+##         self.pressed = None
+##         if not event.button == 1: return
+##         if self.any_line_contains(event): return
+##         tag = self.curr_line_handle.get_label()
+##         if len(self.curr_line_handle.get_xdata()) > 1:
+##             newline = DraggableLine(self.curr_line_handle, self)
+##             if newline.length() > self.min_length:
+##                 self.lines[tag] = newline
+##             else:
+##                 self.curr_line_handle.remove()
+##         else:
+##             self.curr_line_handle.remove()
+##         if len(self.lines) > 0:
+##             pl.legend()
+##         self.fig.canvas.draw() #todo BLIT!
+##         return
+
+##     def get_timeview(self, tag):
+##         if not tag in self.roi_objs.keys():
+##             print("Sorry, no line with this tag")
+##             return None
+##         line = self.roi_objs[tag]
+##         points = line.check_endpoints()
+##         timeview = array([extract_line2(frame, *points) for frame in
+##                           self.fseq.frames()])
+##         return timeview, points
+
+##     def show_timeview(self,tag):
+##         timeview, points = self.get_timeview(tag)
+##         if timeview is not None:
+##             pl.figure();
+##             pl.imshow(timeview,
+##                       extent=(0, timeview.shape[1], 0, self.fseq.dt*self.length()),
+##                       aspect='equal')
+##             pl.ylabel('time, sec')
+##             pl.title('Timeview for '+ tag)
+
+
+class ImgPointSelect():
+    verbose = True
     connected = False
     cw = color_walker()
-    def __init__(self, fseq, min_length=5):
+
+    def __init__(self, fseq):
         self.fseq = fseq
         self.dt = fseq.dt
         self._Nf = None
-        self.lines = {}
-        self.min_length = min_length
+        self.roi_objs = {}
+        self.min_length = 5
+
         pass
 
     def length(self):
         if self._Nf is None:
             self._Nf = self.fseq.length()
         return self._Nf
-    def any_line_contains(self,event):
-        "Checks if event is contained by any ROI"
-        if len(self.lines) < 1 : return False
-        return reduce(lambda x,y: x or y,
-                      [line.obj.contains(event)[0]
-                       for line in self.lines.values()])
-    def pick_lines(self,lines = {}):
-        self.fig = pl.figure()
-        self.ax1 = self.fig.add_subplot(111)
-        if hasattr(self.fseq, 'ch'):
-            title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
-        self.image = self.ax1.imshow(self.fseq.mean_frame(),
-                                     aspect='equal',
-                                     cmap=matplotlib.cm.gray)
-        if self.connected is False:
-            self.pressed = None
-            self.fig.canvas.mpl_connect('button_press_event',self.on_press)
-            self.fig.canvas.mpl_connect('button_release_event',self.on_release)
-            self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
-            self.connected = True
-        pass
 
-    def line_tags(self):
-        return self.lines.keys()
+    
+    
+    def onclick(self,event):
+        tb = get_current_fig_manager().toolbar
+        if event.inaxes != self.ax1 or tb.mode != '': return
+
+        x,y = round(event.xdata), round(event.ydata)
+        if event.button is 1 and \
+           not self.any_roi_contains(event):
+            
+            label = unique_tag(self.roi_tags())
+            c = Circle((x,y), 5, alpha = 0.5,
+                       label = label,
+                       color=self.cw.next())
+            c.figure = self.fig
+            self.ax1.add_patch(c)
+            print c.axes
+            self.roi_objs[label]= CircleROI(c, self)
+            #drc.connect()
+            
+        legend()
+        draw()
 
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
-               self.any_line_contains(event) or \
-               event.button != 1 or \
+               self.any_roi_contains(event) or \
+               event.button != 3 or \
                get_current_fig_manager().toolbar.mode !='':
             return
         self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
-        tag = unique_tag(self.line_tags())
+        tag = unique_tag(self.roi_tags())
         self.curr_line_handle, = self.ax1.plot([0],[0],'-',
                                                label = tag,
                                                color=self.cw.next())
@@ -390,108 +538,67 @@ class ImgLineScan():
         
     def on_release(self,event):
         self.pressed = None
-        if not event.button == 1: return
-        if self.any_line_contains(event): return
+        if not event.button == 3: return
+        if self.any_roi_contains(event): return
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
-            newline = DraggableLine(self.curr_line_handle, self)
+            newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
-                self.lines[tag] = newline
+                self.roi_objs[tag] = newline
             else:
                 self.curr_line_handle.remove()
         else:
             self.curr_line_handle.remove()
-        if len(self.lines) > 0:
+        if len(self.roi_objs) > 0:
             pl.legend()
         self.fig.canvas.draw() #todo BLIT!
         return
 
-    def get_timeview(self, tag):
-        if not tag in self.lines.keys():
-            print("Sorry, no line with this tag")
-            return None
-        line = self.lines[tag]
-        points = line.check_endpoints()
-        timeview = array([extract_line2(frame, *points) for frame in
-                          self.fseq.frames()])
-        return timeview, points
 
-    def show_timeview(self,tag):
-        timeview, points = self.get_timeview(tag)
-        if timeview is not None:
-            pl.figure();
-            pl.imshow(timeview,
-                      extent=(0, timeview.shape[1], 0, self.fseq.dt*self.length()),
-                      aspect='equal')
-            pl.ylabel('time, sec')
-            pl.title('Timeview for '+ tag)
+    ## def any_line_contains(self,event):
+    ##     "Checks if event is contained by any ROI"
+    ##     if len(self.roi_objs) < 1 : return False
+    ##     return reduce(lambda x,y: x or y,
+    ##                   [roi.obj.contains(event)[0]
+    ##                    for roi in self.roi_objs.values()])
 
-
-class ImgPointSelect():
-    verbose = True
-    connected = False
-    cw = color_walker()
-
-    def __init__(self, fseq):
-        self.fseq = fseq
-        self.dt = fseq.dt
-        self._Nf = None
-        pass
-
-    def length(self):
-        if self._Nf is None:
-            self._Nf = self.fseq.length()
-        return self._Nf
-    
-    def onclick(self,event):
-        tb = get_current_fig_manager().toolbar
-        if event.inaxes != self.ax1 or tb.mode != '': return
-
-        x,y = round(event.xdata), round(event.ydata)
-        if event.button is 1 and \
-           not self.any_roi_contains(event):
-            
-            label = unique_tag(self.roi_labels())
-            c = Circle((x,y), 5, alpha = 0.5,
-                       label = label,
-                       color=self.cw.next())
-            c.figure = self.fig
-            self.ax1.add_patch(c)
-            print c.axes
-            self.drcs[label]= DraggableCircle(c, self)
-            #drc.connect()
-            
-        legend()
-        draw()
 
     def any_roi_contains(self,event):
         "Checks if event is contained by any ROI"
-        if len(self.drcs) < 1 : return False
+        if len(self.roi_objs) < 1 : return False
         return reduce(lambda x,y: x or y,
                       [roi.obj.contains(event)[0]
-                       for roi in self.drcs.values()])
+                       for roi in self.roi_objs.values()])
     
-    def roi_labels(self):
-        "List of labels for all ROIs"
-        return self.drcs.keys()
+    def roi_tags(self):
+        "List of tags for all ROIs"
+        return self.roi_objs.keys()
     
     def save_rois(self, fname):
         "Saves picked ROIs to a file"
-        pickle.dump(map(struct_circle,
-                        [x.obj for x in self.drcs.values()]),
+        pickle.dump([x.to_struct() for x in self.roi_objs.values()],
                     file(fname, 'w'))
+#                     if isinstance(x, CircleROI)],
+
 
     def load_rois(self, fname):
         "Load stored ROIs from a file"
-        circles = map(circle_from_struct, pickle.load(file(fname)))
+        saved_rois = pickle.load(file(fname))
+        rois = [x['func'](x) for x in saved_rois]
+        circles = filter(lambda x: isinstance(x, Circle), rois)
+        lines = filter(lambda x: isinstance(x, Line2D), rois)
         map(self.ax1.add_patch, circles) # add points to the axes
-        self.drcs = dict([(c.get_label(), DraggableCircle(c,self))
-                          for c in circles])
+        map(self.ax1.add_line, lines) # add points to the axes
+        self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
+                                   for c in circles]))
+        self.roi_objs.update(dict([(l.get_label(), LineScan(l,self))
+                                   for l in lines]))
+
         legend()
         draw() # redraw the axes
         return
 
-    def pick_rois(self, points = []):
+    def pick_rois(self, roi_objs={}):
         "Start picking up ROIs"
         self.drcs = {}
         self.fig = figure()
@@ -502,39 +609,38 @@ class ImgPointSelect():
                                   aspect='equal',
                                   cmap=matplotlib.cm.gray)
         if True or self.connected is False:
+            self.pressed = None
             self.fig.canvas.mpl_connect('button_press_event',
                                         self.onclick)
+            self.fig.canvas.mpl_connect('button_press_event',self.on_press)
+            self.fig.canvas.mpl_connect('button_release_event',self.on_release)
+            self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
+            self.connected = True
+
             #self.fig.canvas.mpl_connect('pick_event', self.onpick)
             self.connected = True
 
-    def roi_timeview(self, tag, normp=False):
-        roi = self.drcs[tag].obj
-        fn = in_circle(roi.center, roi.radius)
-        shape = self.fseq.shape()
-        X,Y = meshgrid(*map(range, shape))
-        v = self.fseq.mask_reduce(fn(X,Y))
-        if normp:
-            Lnorm = type(normp) is int and normp or len(v)
-            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
-        else: return v
-        return 
         
-    def list_roi_timeseries_from_labels(self, roi_labels, **keywords):
+    def list_roi_timeseries_from_labels(self, roi_tags, **keywords):
         "Returns timeseres for a list of roi labels"
-        return [self.roi_timeseries_from_label(label, **keywords)
-                for label in roi_labels]
+        return [self.roi_timeseries_from_label(tag, **keywords)
+                for tag in roi_tags]
+
+    def isCircleROI(self,tag):
+        return isinstance(self.roi_objs[tag], CircleROI)
     
     def get_timeseries(self, rois=None, normp=False):
-        rois = ifnot(rois, self.drcs.keys())
-        return [self.roi_timeview(r, normp)
-                for r in  rois]
+        rois = ifnot(rois,
+                     filter(self.isCircleROI, self.roi_objs.keys()))
+        return [self.roi_objs[tag].get_timeview(normp)
+                for tag in  rois]
 
     def timevec(self):
         dt,Nf = self.dt, self.length()
         return arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, ch, normp = False):
-        rois = self.drcs.keys()
+        rois = filter(self.isCircleROI, self.roi_objs.keys())
         ts = self.get_timeseries(normp=normp)
         t = self.timevec()        
         fd = file(fname, 'w')
@@ -586,6 +692,9 @@ class ImgPointSelect():
                                  normp = True,
                                  **keywords):
         "Create a figure of a signal, spectrogram and a colorbar"
+        if not self.isCircleROI(roilabel):
+            print "This is not a circle ROI, exiting"
+            return
         signal = self.get_timeseries([roilabel],normp=normp)[0]
         Ns = len(signal)
         f_s = 1/self.dt
@@ -594,7 +703,7 @@ class ImgPointSelect():
         tvec = self.timevec()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
-        lc = self.drcs[roilabel].get_color()
+        lc = self.roi_objs[roilabel].get_color()
         fig,axlist = aux.setup_axes1()
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
@@ -625,14 +734,15 @@ class ImgPointSelect():
 
     def roi_show_iterator(self, rois = None,
                               normp=False):
-            rois = ifnot(rois, self.drcs.keys())
+            rois = ifnot(rois,
+                         filter(self.isCircleROI, self.roi_objs.keys()))
             L = len(rois)
             if L < 1: return
             fig = figure(figsize=(8,4.5), dpi=80)
             for i, roi_label in enumerate(rois):
-                roi = self.drcs[roi_label].obj
+                roi = self.roi_objs[roi_label].obj
                 ax = fig.add_subplot(L,1,i+1)
-                x = self.roi_timeview(roi_label, normp=normp)
+                x = self.roi_objs[roi_label].get_timeview(normp=normp)
                 if i == L-1:
                     ax.set_xlabel("time, sec")
                 ax.set_ylabel(roi_label)
@@ -643,19 +753,24 @@ class ImgPointSelect():
     def show_xwt_roi(self, tag1, tag2, freqs=None, ch=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
-        "show cross wavelet spectrum or wavelet coherence for two ROI"
+        "show cross wavelet spectrum or wavelet coherence for two ROIs"
         freqs = ifnot(freqs, self.default_freqs())
         self.extent=[0,self.length()*self.dt, freqs[0], freqs[-1]]
 
-        s1 = self.roi_timeview(tag1,True)
-        s2 = self.roi_timeview(tag2,True)
+        if not (self.isCircleROI(tag1) and self.isCircleROI(tag2)):
+            print "Both tags should be for CircleROIs"
+            return
+
+        s1 = self.roi_objs[tag1].get_timeview(True)
+        s2 = self.roi_objs[tag2].get_timeview(True)
+
         res = func(s1,s2, freqs,1.0/self.dt,wavelet)
 
         t = self.timevec()
 
         figure();
         ax1= subplot(211);
-        roi1,roi2 = self.drcs[tag1], self.drcs[tag2]
+        roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
         plot(t,s1,color=roi1.get_color(), label=tag1)
         plot(t,s2,color=roi2.get_color(), label = tag2)
         legend()
@@ -667,7 +782,7 @@ class ImgPointSelect():
 
 
     def show_xwt(self, **kwargs):
-        for p in aux.allpairs0(self.drcs.keys()):
+        for p in aux.allpairs0(filter(self.isCircleROI, self.roi_objs.keys())):
             self.show_xwt_roi(*p,**kwargs)
 
 
