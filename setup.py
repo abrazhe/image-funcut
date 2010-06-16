@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.3',
+      version = '0.0.4',
       py_modules = ['ifuncut',
                     'imfun.opt',
                     'imfun.readleicaxml',
