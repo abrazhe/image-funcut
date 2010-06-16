@@ -472,7 +472,7 @@ class CircleROI(DraggableObj):
 ##             pl.title('Timeview for '+ tag)
 
 
-class ImgPointSelect():
+class Picker():
     verbose = True
     connected = False
     cw = color_walker()
@@ -598,7 +598,7 @@ class ImgPointSelect():
         draw() # redraw the axes
         return
 
-    def pick_rois(self, roi_objs={}):
+    def start(self, roi_objs={}):
         "Start picking up ROIs"
         self.drcs = {}
         self.fig = figure()
