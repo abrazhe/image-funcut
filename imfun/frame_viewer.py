@@ -3,6 +3,7 @@ import matplotlib as mpl
 mpl.use('WXAgg')
 
 from imfun import fseq
+from imfun import interactive as interact
 
 
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg  as FigureCanvas
@@ -47,14 +48,16 @@ import os
 class Test(HasTraits):
     figure = Instance(Figure, ())
     max_frames = Int(100)
+    sampling_interval = Float(0.4)
     frame_index = Int(0)
     frames = None
     fig_dir = Directory("")
     load_btn = Button("Load images")
     color_channel = Enum([0,1,2])
-    glob = Str()
+    glob = Str("*.tif")
     view = View(Group(Group(Item('fig_dir'),
                             Item('glob'),
+                            Item('sampling_interval', label='Sampling interval'),
                             Item('color_channel'),
                             Item('load_btn', show_label=False)),
                       Item('figure', editor=MPLFigureEditor(),
@@ -74,17 +77,20 @@ class Test(HasTraits):
     def _frame_index_changed(self):
         if self.frames:
             self.pl.set_data(self.frames[self.frame_index])
-            self.figure.canvas.draw()
+            self.pl.axes.figure.canvas.draw()
 
     def _load_btn_fired(self):
         pattern = self.fig_dir + os.sep + self.glob
         print pattern
         self.fseq = fseq.FSeq_img(pattern, ch=self.color_channel)
-        self.frames = self.fseq.aslist()
+        self.frames = [self.fseq.mean_frame()] + self.fseq.aslist()
         Nf = len(self.frames)
-        self.pl = self.axes.imshow(self.fseq.mean_frame(), aspect='equal', cmap='gray')
-        self.figure.canvas.draw()
-        self.max_frames = Nf
+        #self.pl = self.axes.imshow(self.fseq.mean_frame(), aspect='equal',
+        #cmap='gray')
+        self.picker = interact.Picker(self.fseq)
+        _,self.pl = self.picker.start(ax=self.axes)
+        self.pl.axes.figure.canvas.draw()
+        self.max_frames = Nf-1
 
 def main():
     Test().configure_traits()
