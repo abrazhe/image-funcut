@@ -278,13 +278,14 @@ class LineScan(DraggableObj):
     def show_timeview(self):
         timeview,points = self.get_timeview()
         if timeview is not None:
-            pl.figure();
-            pl.imshow(timeview,
+            ax = pl.axes();
+            ax.imshow(timeview,
                       extent=(0, timeview.shape[1], 0,
                               self.parent.fseq.dt*self.parent.length()),
                       aspect='equal')
-            pl.ylabel('time, sec')
-            pl.title('Timeview for '+ self.tag)
+            ax.set_ylabel('time, sec')
+            ax.set_title('Timeview for '+ self.tag)
+            ax.figure.show()
 
     def to_struct(self):
         l = self.obj
@@ -337,7 +338,7 @@ class CircleROI(DraggableObj):
             p = self.parent.roi_objs.pop(self.tag)
             self.obj.remove()
             self.disconnect()
-            legend()
+            self.obj.axes.legend()
             self.redraw()
 
     def move(self, p):
@@ -367,109 +368,6 @@ class CircleROI(DraggableObj):
                 'alpha': c.get_alpha(),
                 'label': c.get_label(),
                 'color': c.get_facecolor(),}
-
-    
-
-## class ImgLineScan():
-##     verbose=True
-##     connected = False
-##     cw = color_walker()
-##     def __init__(self, fseq, min_length=5):
-##         self.fseq = fseq
-##         self.dt = fseq.dt
-##         self._Nf = None
-##         self.lines = {}
-##         self.min_length = min_length
-##         pass
-
-##     def length(self):
-##         if self._Nf is None:
-##             self._Nf = self.fseq.length()
-##         return self._Nf
-##     def any_line_contains(self,event):
-##         "Checks if event is contained by any ROI"
-##         if len(self.lines) < 1 : return False
-##         return reduce(lambda x,y: x or y,
-##                       [line.obj.contains(event)[0]
-##                        for line in self.lines.values()])
-##     def pick_lines(self,lines = {}):
-##         self.fig = pl.figure()
-##         self.ax1 = self.fig.add_subplot(111)
-##         if hasattr(self.fseq, 'ch'):
-##             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
-##         self.image = self.ax1.imshow(self.fseq.mean_frame(),
-##                                      aspect='equal',
-##                                      cmap=matplotlib.cm.gray)
-##         if self.connected is False:
-##             self.pressed = None
-##             self.fig.canvas.mpl_connect('button_press_event',self.on_press)
-##             self.fig.canvas.mpl_connect('button_release_event',self.on_release)
-##             self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
-##             self.connected = True
-##         pass
-
-##     def line_tags(self):
-##         return self.lines.keys()
-
-##     def on_press(self, event):
-##         if event.inaxes !=self.ax1 or \
-##                self.any_line_contains(event) or \
-##                event.button != 1 or \
-##                get_current_fig_manager().toolbar.mode !='':
-##             return
-##         self.pressed = event.xdata, event.ydata
-##         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
-##         tag = unique_tag(self.line_tags())
-##         self.curr_line_handle, = self.ax1.plot([0],[0],'-',
-##                                                label = tag,
-##                                                color=self.cw.next())
-##         pl.axis(axrange)
-##         return
-
-##     def on_motion(self, event):
-##         if (self.pressed is None) or (event.inaxes != self.ax1):
-##             return
-##         pstop = event.xdata, event.ydata
-##         self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
-##         self.fig.canvas.draw() #todo BLIT!
-        
-##     def on_release(self,event):
-##         self.pressed = None
-##         if not event.button == 1: return
-##         if self.any_line_contains(event): return
-##         tag = self.curr_line_handle.get_label()
-##         if len(self.curr_line_handle.get_xdata()) > 1:
-##             newline = DraggableLine(self.curr_line_handle, self)
-##             if newline.length() > self.min_length:
-##                 self.lines[tag] = newline
-##             else:
-##                 self.curr_line_handle.remove()
-##         else:
-##             self.curr_line_handle.remove()
-##         if len(self.lines) > 0:
-##             pl.legend()
-##         self.fig.canvas.draw() #todo BLIT!
-##         return
-
-##     def get_timeview(self, tag):
-##         if not tag in self.roi_objs.keys():
-##             print("Sorry, no line with this tag")
-##             return None
-##         line = self.roi_objs[tag]
-##         points = line.check_endpoints()
-##         timeview = array([extract_line2(frame, *points) for frame in
-##                           self.fseq.frames()])
-##         return timeview, points
-
-##     def show_timeview(self,tag):
-##         timeview, points = self.get_timeview(tag)
-##         if timeview is not None:
-##             pl.figure();
-##             pl.imshow(timeview,
-##                       extent=(0, timeview.shape[1], 0, self.fseq.dt*self.length()),
-##                       aspect='equal')
-##             pl.ylabel('time, sec')
-##             pl.title('Timeview for '+ tag)
 
 
 class Picker():
@@ -511,7 +409,7 @@ class Picker():
             self.roi_objs[label]= CircleROI(c, self)
             #drc.connect()
             
-        legend()
+        self.ax1.legend()
         draw()
 
     def on_press(self, event):
@@ -526,7 +424,7 @@ class Picker():
         self.curr_line_handle, = self.ax1.plot([0],[0],'-',
                                                label = tag,
                                                color=self.cw.next())
-        pl.axis(axrange)
+        self.ax1.axis(axrange)
         return
 
     def on_motion(self, event):
@@ -550,7 +448,7 @@ class Picker():
         else:
             self.curr_line_handle.remove()
         if len(self.roi_objs) > 0:
-            pl.legend()
+            self.ax1.legend()
         self.fig.canvas.draw() #todo BLIT!
         return
 
@@ -594,18 +492,20 @@ class Picker():
         self.roi_objs.update(dict([(l.get_label(), LineScan(l,self))
                                    for l in lines]))
 
-        legend()
+        self.ax1.legend()
         draw() # redraw the axes
         return
 
-    def start(self, roi_objs={}):
+    def start(self, roi_objs={}, ax=None):
         "Start picking up ROIs"
         self.drcs = {}
-        self.fig = figure()
-        self.ax1 = axes()
+        self.ax1 = ifnot(ax,axes())
+        self.fig = self.ax1.figure
+
         if hasattr(self.fseq, 'ch'):
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
+                                  interpolation = 'nearest',
                                   aspect='equal',
                                   cmap=matplotlib.cm.gray)
         if True or self.connected is False:
@@ -619,6 +519,7 @@ class Picker():
 
             #self.fig.canvas.mpl_connect('pick_event', self.onpick)
             self.connected = True
+        return self.ax1, self.pl
 
         
     def list_roi_timeseries_from_labels(self, roi_tags, **keywords):
