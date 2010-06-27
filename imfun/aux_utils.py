@@ -74,7 +74,7 @@ def wavelet_specgram(signal, freqs, f_s, ax,
                      vmin=None, vmax=None,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
-    eds = pycwt.eds(wcoefs, wavelet.f0)
+    eds = pycwt.eds(wcoefs, wavelet.fc)
     endtime = len(signal)/f_s
     extent=[0, endtime, freqs[0], freqs[-1]]
     im = ax.imshow(eds, extent = extent,
@@ -127,7 +127,7 @@ def setup_axes1(figsize = (12,6)):
 
 
 
-def plot_spectrogram_with_ts(signal, f_s, vmax, freqs = None,
+def plot_spectrogram_with_ts(signal, f_s, vmax=None, freqs = None,
                              lc = 'b',
                              title_string = ''):
     "Create a figure of a signal, spectrogram and a colorbar"
@@ -159,13 +159,17 @@ def lasaf_line_atof(str, sep=';'):
     strlst = map(replacer, str.split(sep))
     return map(np.float, strlst)
 
-def read_lasaf_txt(fname, time_sep = 0.5):
-    lines = [s.strip() for s in file(fname).readlines()]
-    channel = lines[0]
-    keys = lines[1].strip().split(';')
-    data = np.asarray(map(lasaf_line_atof, lines[2:]))
-    dt = data[1:,0]-data[:-1,0]
-    j = pl.find(dt>time_sep)[0] + 1
-    f_s = 1./np.mean(dt[dt<1])
-    return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
+def read_lasaf_txt(fname):
+    try:
+        lines = [s.strip() for s in file(fname).readlines()]
+        channel = lines[0]
+        keys = lines[1].strip().split(';')
+        data = np.asarray(map(lasaf_line_atof, lines[2:]))
+        dt = data[1:,0]-data[:-1,0]
+        j = pl.find(dt>=max(dt))[0] + 1
+        f_s = 1./np.mean(dt[dt<max(dt)])
+        return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
+    except Exception as inst:
+        print "%s: Exception"%fname, type(inst)
+        return None
 
