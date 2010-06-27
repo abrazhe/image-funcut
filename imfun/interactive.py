@@ -438,6 +438,7 @@ class Picker():
         self.pressed = None
         if not event.button == 3: return
         if self.any_roi_contains(event): return
+        if not hasattr(self, 'curr_line_handle'): return
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
             newline = LineScan(self.curr_line_handle, self)
@@ -605,10 +606,11 @@ class Picker():
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roilabel].get_color()
-        fig,axlist = aux.setup_axes1()
+        fig,axlist = aux.setup_axes1((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
         aux.wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,
+                             wavelet=wavelet,
                              cax = axlist[2])
         axlist[0].set_title(title_string)
         axlist[0].set_ylabel('Frequency, Hz')

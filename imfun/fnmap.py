@@ -85,6 +85,33 @@ def cwtmap(fseq,
         sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
     return out
 
+
+def loc_max_pos(v):
+    return [i for i in xrange(1,len(v)-1)
+            if v[i] > v[i-1] and v[i] > v[i+1]]
+
+def cwt_freqmap(fseq,
+                tranges,
+                frange,
+                nfreqs = 32,
+                **kwargs):
+    freqs = np.linspace(*frange, num=nfreqs)
+    def _highest_freq(arr):
+        ma = np.mean(arr,1)
+        #x = (ma>=np.max(ma)).nonzero()[0]
+        x = loc_max_pos(ma)
+        if x:
+            xma = ma[x]
+            xma1 = (xma>=np.max(xma)).nonzero()[0]
+            n = x[xma1]
+        else:
+            print "No local maxima. This shouldn't have happened!"
+            x = (ma>=np.max(ma)).nonzero()[0]
+            n = x[0]
+        return freqs[n]
+    return cwtmap(fseq,tranges,frange,nfreqs=nfreqs,func=_highest_freq,**kwargs)
+
+
 def fftmap(fseq, frange, kern = None, func=np.mean,
            normL = None,
            verbose = True,
@@ -103,7 +130,6 @@ def fftmap(fseq, frange, kern = None, func=np.mean,
                            kwargs['sliceobj'] or None)
 
         total = shape[0]*shape[1]
-        
 
         out = np.ones(shape, np.float64)
 
@@ -130,3 +156,81 @@ def fftmap(fseq, frange, kern = None, func=np.mean,
         if verbose:
             sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
         return out
+
+def contiguous_regions_2d(mask):
+    """
+    Given a binary 2d array, returns a sorted (by size) list of contiguous
+    regions (True everywhere)
+    TODO: make it possible to use user-defined funtion over an array instead of
+    just a binary mask
+
+    """
+    regions = []
+    rows,cols = mask.shape
+    visited = np.zeros(mask.shape, bool)
+    for r in xrange(rows):
+        for c in xrange(cols):
+            if mask[r,c] and not visited[r,c]:
+                reg = cont_searcher((r,c), mask, visited)
+                regions.append(reg)
+    regions.sort(key = lambda x: len(x), reverse=True)
+        
+    return map(lambda x: Region2D(x,mask.shape), regions)
+
+def cont_searcher(loc, arr, visited):
+    """
+    Auxilary function for contiguous_regions_2d, finds one contiguous region
+    starting from a non-False location
+    TODO: make it possible to use user-defined funtion over an array instead of
+    just a binary mask
+    """
+    acc = []
+    def _loop(loc, acc):
+        if arr[loc]:
+            if (not loc in acc):
+                acc.append(loc)
+                visited[loc] = True
+                for n in neighbours(loc):
+                    if valid_loc(n, arr.shape):
+                        _loop(n,acc)
+        else:
+            return
+    _loop(loc, acc)
+    return acc
+
+## def cont_searcher_rec(loc,arr,visited):
+##     if arr[loc] and (not loc in acc):
+##         visited[loc]=True # side-effect!
+##         return [loc] + [cont_searcher_rec(n) for n in neighbours(loc)
+##                         if valid_loc(n,arr.shape)]
+##     else:
+##         return []
+
+
+def neighbours(loc):
+    "list of adjacent locations"
+    r,c = loc
+    return [(r,c+1),(r,c-1),(r+1,c),(r-1,c)]
+            #(r-1,c-1), (r+1,c-1), (r-1, c+1),r+1,c+1)]  
+
+def valid_loc(loc,shape):
+    "location not outside bounds"
+    r,c = loc
+    return (0 <= r < shape[0]) and (0<= c < shape[1])
+
+class Region2D:
+    "Basic class for a contiguous region. Can make masks from it"
+    def __init__(self, locs, shape):
+        self.locs = locs
+        self.shape = shape
+    def size(self,):
+        return len(self.locs)
+    def center(self):
+        return np.mean(self.locs,0)
+    def tomask(self):
+        m = np.zeros(self.shape, bool)
+        for i,j in self.locs: m[i,j]=True
+        return m
+            
+
+    
