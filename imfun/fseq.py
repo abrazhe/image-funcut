@@ -4,6 +4,7 @@
 import glob
 import itertools as itt
 import numpy as np
+import tempfile as tmpf
 from scipy import signal
 
 from matplotlib.pyplot import imread
@@ -59,23 +60,38 @@ class FrameSequence():
 
     def aslist(self, maxN = None, fn = lambda x: x, sliceobj=None):
         "returns a list of frames"
-        if sliceobj:
-            fiter = self.frame_slices(sliceobj)
-        else:
-            fiter = self.frames()
+        fiter = self.frame_slices(sliceobj)
         return list(itt.islice(itt.imap(fn, fiter), maxN))
 
+    def asiter(self, maxN = None, fn = lambda x: x, sliceobj=None):
+        "returns a modified iterator over frames TODO: merge with aslist"
+        fiter = self.frame_slices(sliceobj)
+        return itt.islice(itt.imap(fn, fiter), maxN)
+
+
     def as3darray(self, maxN = None, fn = lambda x: x, sliceobj=None):
-        if sliceobj:
-            fiter = self.frame_slices(sliceobj)
-        else:
-            fiter = self.frames()
+        fiter = self.frame_slices(sliceobj)
         shape = self.shape(sliceobj)
         out = np.zeros((self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
             out[k,:,:] = frame
         return out
         #return np.asarray(self.aslist(*args, **kwargs))
+
+
+    def as_memmap_array(self, maxN = None, fn = lambda x: x, sliceobj=None):
+        fiter = self.frame_slices(sliceobj)
+        shape = self.shape(sliceobj)
+        _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
+        out = np.memmap(_tmpfile, dtype=np.float64,
+                        shape=(self.length(), shape[0], shape[1]))
+        for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
+            out[k,:,:] = frame
+        out.flush()
+        return out
+        #return np.asarray(self.aslist(*args, **kwargs))
+    
+
     
     def length(self):
         k = 0
@@ -83,22 +99,45 @@ class FrameSequence():
             k+=1
         return k
 
-    def pix_iter(self, maxN=None, fn = lambda x:x, sliceobj=None):
-        arr = self.as3darray(maxN,fn,sliceobj=sliceobj)
+    def pix_iter_arr(self, maxN=None, **kwargs):
+        #arr = self.as3darray(maxN, **kwargs)
+        arr = self.as_memmap_array(maxN, **kwargs)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
             for col in range(ncols):
-                yield arr[:,row,col], row, col
+                ## asarray to covert from memory-mapped array
+                yield np.asarray(arr[:,row,col]), row, col
 
+    # remove pix_iter_lst, pix_iter_iter -- I don't need them with memmaped
+    # arrays!
+
+    ## def pix_iter_lst(self, maxN=None, fn = lambda x:x, sliceobj=None):
+    ##     "List inteface -- lower memory consumption"
+    ##     lst = self.aslist(maxN,fn,sliceobj=sliceobj)
+    ##     nrows, ncols = lst[0].shape
+    ##     for row in range(nrows):
+    ##         for col in range(ncols):
+    ##             yield np.asarray([arr[row,col] for arr in lst]), row, col
+
+
+                
     def conv_pix_iter(self, kern = default_kernel(),
-                      *args, **kwargs):
+                      **kwargs):
                       #maxN=None, sliceobj=None):
+        """
+        Iterator over pixels for frames, convolved with a kernel
+        - Arguments:
+          - kern: kernel
+          - variant: 'lst', 'arr' or 'iter' ('lst' by default) -- how to store
+                     frames
+          - **kwargs: to be passed to self.pix_iter_*
+        """
         if kern is None: kern = default_kernel()
-        def _fn(a):
-            return signal.convolve2d(a, kern)[1:-1,1:-1]
-        #fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
+        #def _fn(a):
+        #    return signal.convolve2d(a, kern)[1:-1,1:-1]
+        _fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
         kwargs.update({'fn':_fn})
-        return self.pix_iter(*args, **kwargs)
+        return self.pix_iter_arr(**kwargs)
 
     def shape(self,sliceobj=None):
         return self.frame_slices(sliceobj).next().shape
@@ -130,7 +169,8 @@ class FSeq_mlf(FrameSequence):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
     def frames(self):
-        return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
+        return self.mlfimg.flux_frame_iter()
+        #return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
 #    def shape(self): # return it back afterwards
 #        return self.mlfimg.ydim,self.mlfimg.xdim
     def length(self):
