@@ -36,6 +36,17 @@ class MLF_Image():
         arr = read_at(self.fid, pos, self.dim, seek_opt=seek_opt)
         return arr.reshape((self.ydim,self.xdim))
 
+    def flux_frame_iter(self):
+        frame_count = 0
+        self.fid.seek(mlfdescr['data_start'])
+        shift = self.xdim*self.ydim
+        while frame_count < self.nframes:
+            flux_frame = self.read_frame() # seek from current
+            dc_frame = self.read_frame() # seek from current
+            frame_count += 1
+            yield flux_frame
+
+
     def frame_iter(self):
         frame_count = 0
         self.fid.seek(mlfdescr['data_start'])
