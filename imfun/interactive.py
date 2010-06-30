@@ -173,7 +173,7 @@ def view_fseq_frames(fseq):
     f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
 
 
-class DraggableObj():
+class DraggableObj:
     verbose = True
     def __init__(self, obj, parent,):
         self.obj = obj
@@ -370,7 +370,7 @@ class CircleROI(DraggableObj):
                 'color': c.get_facecolor(),}
 
 
-class Picker():
+class Picker:
     verbose = True
     connected = False
     cw = color_walker()

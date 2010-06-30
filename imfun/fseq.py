@@ -39,7 +39,7 @@ def default_kernel():
     return kern/sum(kern)
 
 
-class FrameSequence():
+class FrameSequence:
     def mask_reduce(self,mask):
         "create 1D vector from mask (or slice)"
         return np.asarray([np.mean(f[mask]) for f in self.frames()])

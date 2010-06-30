@@ -19,7 +19,7 @@ def read_at(fid, pos, Nelem, dtype=np.uint16, seek_opt=0):
     fid.seek(pos, seek_opt)
     return np.fromfile(fid, dtype, Nelem)
 
-class MLF_Image():
+class MLF_Image:
     def __init__(self, fname):
         self.fname = fname
         self.fid = open(fname, 'rb')

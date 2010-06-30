@@ -169,7 +169,7 @@ def read_lasaf_txt(fname):
         j = pl.find(dt>=max(dt))[0] + 1
         f_s = 1./np.mean(dt[dt<max(dt)])
         return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
-    except Exception as inst:
+    except Exception, inst:
         print "%s: Exception"%fname, type(inst)
         return None
 
