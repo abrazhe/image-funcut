@@ -62,7 +62,8 @@ def cwtmap(fseq,
     elif kern <= 0:
         pix_iter = pix_iter(**kwargs)
 
-    freqs = np.linspace(*frange, num=nfreqs)
+    #freqs = np.linspace(*frange, num=nfreqs)
+    freqs = np.linspace(frange[0], frange[1], num=nfreqs)
 
     tstarts,tstops = [],[]
 
@@ -95,7 +96,8 @@ def cwt_freqmap(fseq,
                 frange,
                 nfreqs = 32,
                 **kwargs):
-    freqs = np.linspace(*frange, num=nfreqs)
+    #freqs = np.linspace(*frange, num=nfreqs)
+    freqs = np.linspace(frange[0], frange[1], num=nfreqs)
     def _highest_freq(arr):
         ma = np.mean(arr,1)
         #x = (ma>=np.max(ma)).nonzero()[0]
