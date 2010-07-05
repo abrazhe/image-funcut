@@ -576,11 +576,11 @@ class Picker:
                           normp= True,
                           **keywords):
         keywords.update({'rois':rois, 'normp':normp})
-        fs = 1.0/self.dt
+        f_s = 1.0/self.dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
-            aux.wavelet_specgram(x, freqs, fs, ax,
+            aux.wavelet_specgram(x, f_s, freqs,  ax,
                                 wavelet, vmin=vmin, vmax=vmax)
             axlist.append(ax)
         return axlist
@@ -609,7 +609,7 @@ class Picker:
         fig,axlist = aux.setup_axes1((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
-        aux.wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,
+        aux.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
                              wavelet=wavelet,
                              cax = axlist[2])
         axlist[0].set_title(title_string)
