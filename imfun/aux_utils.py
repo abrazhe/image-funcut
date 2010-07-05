@@ -67,14 +67,14 @@ def cone_infl(freqs, extent, wavelet, ax):
         maptlotlib?")
 
 
-def wavelet_specgram(signal, freqs, f_s, ax,
+def wavelet_specgram(signal, f_s, freqs,  ax,
                      wavelet = pycwt.Morlet(),
                      padding = 'zpd',
                      cax = None,
                      vmin=None, vmax=None,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
-    eds = pycwt.eds(wcoefs, wavelet.fc)
+    eds = pycwt.eds(wcoefs, wavelet.f0)
     endtime = len(signal)/f_s
     extent=[0, endtime, freqs[0], freqs[-1]]
     im = ax.imshow(eds, extent = extent,
@@ -127,19 +127,18 @@ def setup_axes1(figsize = (12,6)):
 
 
 
-def plot_spectrogram_with_ts(signal, f_s, vmax=None, freqs = None,
-                             lc = 'b',
-                             title_string = ''):
+def plot_spectrogram_with_ts(signal, f_s, 
+                             lc = 'b', title_string = ''
+                             **kwargs):
     "Create a figure of a signal, spectrogram and a colorbar"
     Ns = len(signal)*1.0
     if freqs is None: freqs = default_freqs(Ns, f_s,512)
-    tvec = np.arange(0, Ns/f_s, 1./f_s)
+    tvec = np.arange(0, (Ns+2)/f_s, 1./f_s)[:Ns]
 
     fig,axlist = setup_axes1()
 
     axlist[1].plot(tvec, signal,'-',color=lc)
-    wavelet_specgram(signal, freqs, f_s, axlist[0], vmax=vmax,
-                     cax = axlist[2])
+    wavelet_specgram(signal, f_s, freqs,  axlist[0], **kwargs)
     axlist[0].set_title(title_string)
     return fig
 
