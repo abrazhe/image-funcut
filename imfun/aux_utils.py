@@ -72,9 +72,14 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
                      padding = 'zpd',
                      cax = None,
                      vmin=None, vmax=None,
+                     correct = None,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
     eds = pycwt.eds(wcoefs, wavelet.f0)
+    if correct == 'freq1':
+        coefs = freqs*2.0/np.pi
+        for i in xrange(eds.shape[1]):
+            eds[:,i] *= coefs
     endtime = len(signal)/f_s
     extent=[0, endtime, freqs[0], freqs[-1]]
     im = ax.imshow(eds, extent = extent,
@@ -119,7 +124,7 @@ def setup_axes1(figsize = (12,6)):
     "Set up axes for a plot with signal, spectrogram and a colorbar"
     fig = pl.figure(figsize = figsize)
     ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
-    ax.append(fig.add_axes((0.08, 0.04, 0.8, 0.3), sharex=ax[0]))
+    ax.append(fig.add_axes((0.08, 0.07, 0.8, 0.3), sharex=ax[0]))
     ax.append(fig.add_axes((0.9, 0.4, 0.02, 0.5), 
                            xticklabels=[], 
                            yticklabels=[]))
@@ -127,19 +132,24 @@ def setup_axes1(figsize = (12,6)):
 
 
 
-def plot_spectrogram_with_ts(signal, f_s, 
-                             lc = 'b', title_string = ''
+def plot_spectrogram_with_ts(signal, f_s, freqs,
+                             figsize=(12,6),
+                             lc = 'b', title_string = '',
                              **kwargs):
     "Create a figure of a signal, spectrogram and a colorbar"
     Ns = len(signal)*1.0
-    if freqs is None: freqs = default_freqs(Ns, f_s,512)
+    freqs = ifnot(freqs, default_freqs(Ns, f_s,512))
     tvec = np.arange(0, (Ns+2)/f_s, 1./f_s)[:Ns]
 
-    fig,axlist = setup_axes1()
+    fig,axlist = setup_axes1(figsize)
 
     axlist[1].plot(tvec, signal,'-',color=lc)
+
+    kwargs['cax'] = axlist[2]
     wavelet_specgram(signal, f_s, freqs,  axlist[0], **kwargs)
     axlist[0].set_title(title_string)
+    axlist[0].axis((tvec[0],tvec[-1], freqs[0],freqs[-1]))
+    #axlist[1].xlim((tvec[0],tvec[-1]))
     return fig
 
 
