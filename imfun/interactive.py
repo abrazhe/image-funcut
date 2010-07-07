@@ -320,7 +320,7 @@ class CircleROI(DraggableObj):
         if event.key in ['T', '!']:
             self.parent.show_timeseries(tags, normp=True)
         elif event.key in ['w', '2']:
-            self.parent.show_spectrograms(tags)
+            self.parent.show_spectrogram_with_ts(self.tag)
         elif event.key in ['W', '3']:
             self.parent.show_wmps(tags)
         elif event.key in ['4']:

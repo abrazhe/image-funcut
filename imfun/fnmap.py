@@ -63,8 +63,10 @@ def cwtmap(fseq,
         pix_iter = pix_iter(**kwargs)
 
     #freqs = np.linspace(*frange, num=nfreqs)
-    freqs = np.linspace(frange[0], frange[1], num=nfreqs)
-
+    if len(frange) == 2:  # a low-high pair
+        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    else:
+        freqs= np.array(frange.copy())
     tstarts,tstops = [],[]
 
     for tr in tranges:
@@ -74,9 +76,10 @@ def cwtmap(fseq,
     out = np.ones((len(tranges),)+shape, np.float64)
 
     for s,i,j in pix_iter:
-        s = s-np.mean(s[:normL])
+        s = (s-np.mean(s[:normL]))/np.std(s[:normL])
         cwt = pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd')
-        eds = pycwt.eds(cwt, wavelet.f0)/np.std(s[:normL])**2
+        #eds = pycwt.eds(cwt, wavelet.f0)/np.std(s[:normL])**2
+        eds = pycwt.eds(cwt, wavelet.f0)
         for tk, tr in enumerate(tranges):
             out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])
         k+= 1
@@ -89,19 +92,31 @@ def cwtmap(fseq,
 
 def loc_max_pos(v):
     return [i for i in xrange(1,len(v)-1)
-            if v[i] > v[i-1] and v[i] > v[i+1]]
+            if (v[i] > v[i-1]) and (v[i] > v[i+1])]
 
 def cwt_freqmap(fseq,
                 tranges,
                 frange,
                 nfreqs = 32,
+                logfreq = False,
                 **kwargs):
     #freqs = np.linspace(*frange, num=nfreqs)
-    freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    if not logfreq:
+        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    else:
+        freqs = np.logspace(log2(frange[0]),
+                            log2(frange[1]),
+                            nfreqs,
+                            base=2.0)
+                            
     def _highest_freq(arr):
-        ma = np.mean(arr,1)
+        ma = np.mean(arr,1) 
+        if np.max(ma) < 1e-7:
+            print "mean wavelet power %e too low"%np.mean(ma)
+            return -1.0
         #x = (ma>=np.max(ma)).nonzero()[0]
         x = loc_max_pos(ma)
+        n = 0xb
         if x:
             xma = ma[x]
             xma1 = (xma>=np.max(xma)).nonzero()[0]
@@ -109,9 +124,12 @@ def cwt_freqmap(fseq,
         else:
             print "No local maxima. This shouldn't have happened!"
             x = (ma>=np.max(ma)).nonzero()[0]
-            n = x[0]
+            try:
+                n = x[0]
+            except:
+                print x,ma
         return freqs[n]
-    return cwtmap(fseq,tranges,frange,nfreqs=nfreqs,func=_highest_freq,**kwargs)
+    return cwtmap(fseq,tranges,freqs,func=_highest_freq,**kwargs)
 
 
 def fftmap(fseq, frange, kern = None, func=np.mean,

@@ -9,6 +9,7 @@ from scipy import signal
 
 from matplotlib.pyplot import imread
 
+_maxshape_ = 1e5
 
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
@@ -35,7 +36,7 @@ def default_kernel():
     Used in 2D convolution of each frame in the sequence
     """
     kern = np.ones((3,3))
-    kern[1,1] = 2.0
+    kern[1,1] = 4.0
     return kern/sum(kern)
 
 
@@ -72,9 +73,19 @@ class FrameSequence:
     def as3darray(self, maxN = None, fn = lambda x: x, sliceobj=None):
         fiter = self.frame_slices(sliceobj)
         shape = self.shape(sliceobj)
-        out = np.zeros((self.length(), shape[0], shape[1]))
+        N =  self.length()*shape[0]*shape[1]
+        ## If total size of data is les than _maxshape_ use normal arrays,
+        ## otherwise use memory-mapped arrays
+        if N < _maxshape_:
+            out = np.zeros((self.length(), shape[0], shape[1]))
+        else:
+            _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
+            out = np.memmap(_tmpfile, dtype=np.float64,
+                            shape=(self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
             out[k,:,:] = frame
+        if hasattr (out, 'flush'):
+            out.flush()
         return out
         #return np.asarray(self.aslist(*args, **kwargs))
 
@@ -94,14 +105,18 @@ class FrameSequence:
 
     
     def length(self):
-        k = 0
-        for _ in self.frames():
-            k+=1
-        return k
+        if not hasattr(self,'_length'):
+            k = 0
+            for _ in self.frames():
+                k+=1
+            self._length = k
+            return k
+        else:
+            return self._length
 
     def pix_iter_arr(self, maxN=None, **kwargs):
         #arr = self.as3darray(maxN, **kwargs)
-        arr = self.as_memmap_array(maxN, **kwargs)
+        arr = self.as3darray(maxN, **kwargs)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
             for col in range(ncols):
