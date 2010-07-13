@@ -6,6 +6,7 @@ setup(name='image-funcut',
                     'imfun.opt',
                     'imfun.readleicaxml',
                     'imfun.aux_utils',
+                    'imfun.pca',
                     'imfun.fseq',
                     'imfun.fnmap',
                     'imfun.MLFImage'],)

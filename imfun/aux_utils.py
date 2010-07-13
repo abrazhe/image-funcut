@@ -153,6 +153,17 @@ def plot_spectrogram_with_ts(signal, f_s, freqs,
     return fig
 
 
+def mask4overlay(mask,colorind=0):
+    """
+    Put a binary mask in some color channel
+    and make regions where the mask is False transparent
+    """
+    sh = mask.shape
+    z = zeros(sh)
+    stack = dstack((z,z,z,ones(sh)*mask))
+    stack[:,:,colorind] = mask
+    return stack
+
 
 
 ## This is for reading Leica txt files

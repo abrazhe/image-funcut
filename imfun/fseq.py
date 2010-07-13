@@ -37,7 +37,7 @@ def default_kernel():
     """
     kern = np.ones((3,3))
     kern[1,1] = 4.0
-    return kern/sum(kern)
+    return kern/kern.sum()
 
 
 class FrameSequence:
