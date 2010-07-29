@@ -190,11 +190,13 @@ from imfun.MLFImage import MLF_Image
 
 class FSeq_mlf(FrameSequence):
     "Class for MLF multi-frame images"
-    def __init__(self, fname):
+    def __init__(self, fname, fn = None):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
-    def frames(self):
-        return self.mlfimg.flux_frame_iter()
+        self.fn = ifnot(fn,unity)
+    def frames(self, fn = None):
+        fn = ifnot(fn,self.fn)
+        return itt.imap(fn,self.mlfimg.flux_frame_iter())
         #return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
 #    def shape(self): # return it back afterwards
 #        return self.mlfimg.ydim,self.mlfimg.xdim
