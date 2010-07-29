@@ -25,15 +25,6 @@ mpl.rcParams['image.origin'] = 'lower'
 
 import itertools
 
-def ar1(alpha = 0.74):
-    "Simple auto-regression model"
-    prev = randn()
-    while True:
-        res = prev*alpha + randn()
-        prev = res
-        yield res
-
-
 def circle_from_struct(circ_props):
     cp = circ_props.copy()
     _  = cp.pop('func')
@@ -107,36 +98,8 @@ def extract_line2(data, p1, p2):
                   for i in range(L)])
 
 
-def percent_threshold(mat, thresh,
-                      func = lambda a,b: a>b):
-    minv = np.min(mat)
-    maxv = np.max(mat)
-    val = (maxv-minv) * thresh/100.0
-    return func(mat,val)
-
-def threshold(mat, thresh, func=lambda a,b: a>b):
-    """
-    Given a matrix M, a value V and a function f, return a matrix X of Booleans
-    where each element is f M(i,j) v -> X(i,j).
-
-    By default, `f a b -> True if a > b, False otherwise`
-    i.e. `lambda a,b: a>b`
-    """
-    return func(mat, thresh)
-
-def times_std(mat, n, func=lambda a,b: a>b):
-    "Same as threshold, but threshold value is times S.D. of the matrix"
-    x = np.std(mat)
-    return func(mat, x*n)
-
-
-def file_names(pat):
-    "Returns a sorted list of file names matching a pattern"
-    x = glob.glob(pat)
-    x.sort()
-    return x
-
 def color_walker():
+    ar1 = aux.ar1
     red, green, blue = ar1(), ar1(), ar1()
     while True:
         yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
@@ -146,16 +109,15 @@ def color_walker():
 def rezip(a):
     return zip(*a)
 
-def shorten_movie(m,n):
-    return array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
 
-def view_fseq_frames(fseq):
-    f = figure()
+def view_fseq_frames(fseq,fn = lambda x:x):
+    f = pl.figure()
     axf = axes()
     frame_index = [0]
-    frames = fseq.aslist()
+    frames = fseq.as3darray(fn=fn)
     Nf = len(frames)
     plf = axf.imshow(frames[0],
+                     interpolation = 'nearest',
                      aspect = 'equal', cmap=mpl.cm.gray)
     def skip(event,n=1):
         fi = frame_index[0]
@@ -500,7 +462,7 @@ class Picker:
     def start(self, roi_objs={}, ax=None):
         "Start picking up ROIs"
         self.drcs = {}
-        self.ax1 = ifnot(ax,axes())
+        self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
 
         if hasattr(self.fseq, 'ch'):
@@ -671,7 +633,7 @@ class Picker:
 
         t = self.timevec()
 
-        figure();
+        pl.figure();
         ax1= subplot(211);
         roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
         plot(t,s1,color=roi1.get_color(), label=tag1)
