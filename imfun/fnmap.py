@@ -41,10 +41,8 @@ def cwtmap(fseq,
     of interest. Default, np.mean
     
     *normL* -- length of normalizing part (baseline) of the time series
-    
-    *kern* -- if 0, no alias, then each frame is filtered, if an array,
-    use this as a kernel to convolve each frame with; see aliased_pix_iter
-    for default kernel
+
+    **kwargs -- to be passed to fseq.as3darray()
     """
     tick = time.clock()
     L = fseq.length()
@@ -53,13 +51,12 @@ def cwtmap(fseq,
     total = shape[0]*shape[1]
     k = 0
 
-    pix_iter = None
     normL = ifnot(normL, L)
 
     if not isseq(tranges[0]):
         tranges = (tranges,)
-    
-    pix_iter = pix_iter(**kwargs)
+
+    pix_iter = fseq.pix_iter(**kwargs)
 
     if len(frange) == 2:  # a low-high pair
         freqs = np.linspace(frange[0], frange[1], num=nfreqs)
@@ -189,7 +186,6 @@ def fftmap(fseq, frange, func=np.mean,
         out = np.ones(shape, np.float64)
         k = 0
         freqs = np.fft.fftfreq(L, fseq.dt)
-        pix_iter = None
         pix_iter = fseq.pix_iter(**kwargs)
         normL = ifnot(normL, L)
         fstart,fstop = frange
