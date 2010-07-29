@@ -568,7 +568,7 @@ class Picker:
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roilabel].get_color()
-        fig,axlist = aux.setup_axes1((8,4))
+        fig,axlist = aux.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
         aux.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
