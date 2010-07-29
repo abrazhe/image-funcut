@@ -1,11 +1,17 @@
 # Very simple functions to extract useful data from Leica Microscope
 # XML files
 
+import glob
+
 def get_prop(node, prop):
     return node.xpathEval('@%s'%prop)[0].content
 
 import libxml2
 
+def get_xmljob(dirname, patt = "*[0-9].xml"):
+    if dirname[-1] != '/':
+        dirname += '/'
+    return glob.glob(dirname+patt)[0]
 
 def ticks_to_ms(lo,hi):
     """Converts from two-word tick representation to milliseconds.

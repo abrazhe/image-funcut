@@ -3,10 +3,13 @@ import time, sys
 #from imfun.aux_utils import ifnot
 from swan import pycwt
 
-def ifnot(a, b):
-    "if a is not None, return a, else return b"
-    if a == None: return b
-    else: return a
+## def ifnot(a, b):
+##     "if a is not None, return a, else return b"
+##     if a == None: return b
+##     else: return a
+
+import aux_utils as aux
+ifnot = aux.ifnot
 
 def isseq(obj):
     return hasattr(obj, '__iter__')
@@ -18,7 +21,6 @@ def cwtmap(fseq,
            wavelet = pycwt.Morlet(),
            func = np.mean,
            normL = None,
-           kern=None,
            verbose = True,
            **kwargs):
     """
@@ -57,29 +59,22 @@ def cwtmap(fseq,
     if not isseq(tranges[0]):
         tranges = (tranges,)
     
-    if type(kern) == np.ndarray or kern is None:
-        pix_iter = fseq.conv_pix_iter(kern,**kwargs)
-    elif kern <= 0:
-        pix_iter = pix_iter(**kwargs)
+    pix_iter = pix_iter(**kwargs)
 
-    #freqs = np.linspace(*frange, num=nfreqs)
     if len(frange) == 2:  # a low-high pair
         freqs = np.linspace(frange[0], frange[1], num=nfreqs)
     else:
         freqs= np.array(frange.copy())
-    tstarts,tstops = [],[]
 
-    for tr in tranges:
-        tstarts.append(int(tr[0]/fseq.dt)) # This is disgusting that I write in such way
-        tstops.append(int(tr[1]/fseq.dt))
+    tstarts = map(lambda x: int(x[0]/fseq.dt), tranges)
+    tstops = map(lambda x: int(x[1]/fseq.dt), tranges)
 
     out = np.ones((len(tranges),)+shape, np.float64)
 
     for s,i,j in pix_iter:
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
         cwt = pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd')
-        #eds = pycwt.eds(cwt, wavelet.f0)/np.std(s[:normL])**2
-        eds = pycwt.eds(cwt, wavelet.f0)
+        eds = pycwt.eds(cwt)
         for tk, tr in enumerate(tranges):
             out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])
         k+= 1
@@ -88,6 +83,52 @@ def cwtmap(fseq,
     if verbose:
         sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
     return out
+
+def fulleds(fseq,
+            frange,
+            nfreqs = 128,
+            wavelet = pycwt.Morlet(),
+            normL = None,
+            verbose = True,
+            **kwargs):
+    """
+    Temporary function, change it a lot
+    """
+    tick = time.clock()
+    L = fseq.length()
+    shape = fseq.shape(kwargs.has_key('sliceobj') and
+                       kwargs['sliceobj'] or None)
+    npix = shape[0]*shape[1]
+    normL = ifnot(normL, L)
+    pixel_iter = fseq.pix_iter(**kwargs)
+
+    if len(frange) == 2:  # a low-high pair
+        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    else:
+        freqs= np.array(frange.copy())
+        nfreqs = len(freqs)
+
+    import tempfile as tmpf
+    _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
+    out = np.memmap(_tmpfile, dtype=np.float64,
+                    shape=shape+(nfreqs,L))
+    out_avg = np.zeros((nfreqs,L), np.float64)
+
+    pixel_counter = 0
+    for s,i,j in pixel_iter:
+        s = (s-np.mean(s[:normL]))/np.std(s[:normL])
+        eds = pycwt.eds(pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
+        out[i,j] = eds
+        out_avg += eds
+        pixel_counter+= 1
+        if not pixel_counter%(npix/20): out.flush() # flush output ~20 times during calc 
+        if verbose:
+            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
+    if verbose:
+        sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+    _tmpfile.close()    
+    return out, out_avg/npix
+
 
 
 def loc_max_pos(v):
@@ -106,17 +147,14 @@ def cwt_freqmap(fseq,
     else:
         freqs = np.logspace(log2(frange[0]),
                             log2(frange[1]),
-                            nfreqs,
-                            base=2.0)
-                            
-    def _highest_freq(arr):
+                            nfreqs, base=2.0)
+          
+    def _dominant_freq(arr):
         ma = np.mean(arr,1) 
         if np.max(ma) < 1e-7:
             print "mean wavelet power %e too low"%np.mean(ma)
             return -1.0
-        #x = (ma>=np.max(ma)).nonzero()[0]
         x = loc_max_pos(ma)
-        n = 0xb
         if x:
             xma = ma[x]
             xma1 = (xma>=np.max(xma)).nonzero()[0]
@@ -127,12 +165,13 @@ def cwt_freqmap(fseq,
             try:
                 n = x[0]
             except:
+                n = 0
                 print x,ma
         return freqs[n]
-    return cwtmap(fseq,tranges,freqs,func=_highest_freq,**kwargs)
+    return cwtmap(fseq,tranges,freqs,func=_dominant_freq,**kwargs)
 
 
-def fftmap(fseq, frange, kern = None, func=np.mean,
+def fftmap(fseq, frange, func=np.mean,
            normL = None,
            verbose = True,
            **kwargs):
@@ -143,26 +182,16 @@ def fftmap(fseq, frange, kern = None, func=np.mean,
         func  : range reducing function. np.mean by default, may be np.sum as well
         """
         tick = time.clock()
-
         L = fseq.length()
-
         shape = fseq.shape(kwargs.has_key('sliceobj') and
                            kwargs['sliceobj'] or None)
-
         total = shape[0]*shape[1]
-
         out = np.ones(shape, np.float64)
-
         k = 0
         freqs = np.fft.fftfreq(L, fseq.dt)
-
         pix_iter = None
-        if type(kern) == np.ndarray or kern is None:
-            pix_iter = fseq.conv_pix_iter(kern,**kwargs)
-        elif kern <= 0:
-            pix_iter = pix_iter(**kwargs)
+        pix_iter = fseq.pix_iter(**kwargs)
         normL = ifnot(normL, L)
-        
         fstart,fstop = frange
         fmask = (freqs >= fstart)*(freqs < fstop)
         for s,i,j in pix_iter:

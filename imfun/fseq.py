@@ -9,6 +9,9 @@ from scipy import signal
 
 from matplotlib.pyplot import imread
 
+import aux_utils as aux
+ifnot = aux.ifnot
+
 _maxshape_ = 1e5
 
 def sorted_file_names(pat):
@@ -26,34 +29,56 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
     if ch is None:
         return iter_files(pattern, loadfn)
     else:
-        getter = lambda frame: frame[:,:,ch]
+        if pattern[-3:] == 'png':
+            getter = lambda frame: frame[::-1,:,ch]
+        else:
+            getter = lambda frame: frame[:,:,ch]
         return  itt.imap(getter, iter_files(pattern, loadfn))
 
 
-def default_kernel():
-    """
-    Default kernel for conv_pix_iter
-    Used in 2D convolution of each frame in the sequence
-    """
-    kern = np.ones((3,3))
-    kern[1,1] = 4.0
-    return kern/kern.sum()
+## def default_kernel():
+##     """
+##     Default kernel for conv_pix_iter
+##     Used in 2D convolution of each frame in the sequence
+##     """
+##     kern = np.ones((3,3))
+##     kern[1,1] = 4.0
+##     return kern/kern.sum()
 
+
+def gauss_kern(xsize=1.5, ysize=None):
+    """ Returns a normalized 2D gauss kernel for convolutions """
+    xsize = int(xsize)
+    ysize = ysize and int(ysize) or xsize
+    x, y = np.mgrid[-xsize:xsize+1, -ysize:ysize+1]
+    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
+    return g / g.sum()
+
+
+default_kernel = gauss_kern
+
+
+def gauss_blur(X,size=1.5):
+    return signal.convolve2d(X,gauss_kern(size),'same')
 
 class FrameSequence:
+    def timevec(self,):
+        L = self.length()
+        dt = self.dt
+        return np.arange(0, (L+2)*dt, dt)[:L]
     def mask_reduce(self,mask):
         "create 1D vector from mask (or slice)"
         return np.asarray([np.mean(f[mask]) for f in self.frames()])
 
-    def frame_slices(self, sliceobj):
+    def frame_slices(self, sliceobj,fn=None):
         "return iterator over subframes"
         if sliceobj:
-            return (f[sliceobj] for f in self.frames())
+            return (f[sliceobj] for f in self.frames(fn))
         else:
-            return self.frames()
+            return self.frames(fn)
 
-    def mean_frame(self,):
-        frameit = itt.imap(np.float64, self.frames())
+    def mean_frame(self,fn=None):
+        frameit = itt.imap(np.float64, self.frames(fn))
         res = frameit.next()
         for k,frame in enumerate(frameit):
             res += frame
@@ -61,14 +86,12 @@ class FrameSequence:
 
     def aslist(self, maxN = None, fn = lambda x: x, sliceobj=None):
         "returns a list of frames"
-        fiter = self.frame_slices(sliceobj)
-        return list(itt.islice(itt.imap(fn, fiter), maxN))
+        return list(self.asiter(maxN,fn,sliceobj))
 
-    def asiter(self, maxN = None, fn = lambda x: x, sliceobj=None):
-        "returns a modified iterator over frames TODO: merge with aslist"
-        fiter = self.frame_slices(sliceobj)
-        return itt.islice(itt.imap(fn, fiter), maxN)
-
+    def asiter(self, maxN = None, fn = None, sliceobj=None):
+        "returns a modified iterator over frames"
+        fiter = self.frame_slices(sliceobj, fn)
+        return itt.islice(fiter, maxN)
 
     def as3darray(self, maxN = None, fn = lambda x: x, sliceobj=None):
         fiter = self.frame_slices(sliceobj)
@@ -101,9 +124,7 @@ class FrameSequence:
         out.flush()
         return out
         #return np.asarray(self.aslist(*args, **kwargs))
-    
-
-    
+        
     def length(self):
         if not hasattr(self,'_length'):
             k = 0
@@ -114,57 +135,46 @@ class FrameSequence:
         else:
             return self._length
 
-    def pix_iter_arr(self, maxN=None, **kwargs):
-        #arr = self.as3darray(maxN, **kwargs)
+    def pix_iter(self, maxN=None, **kwargs):
         arr = self.as3darray(maxN, **kwargs)
         nrows, ncols = arr.shape[1:]
         for row in range(nrows):
             for col in range(ncols):
-                ## asarray to covert from memory-mapped array
+                ## asarray to convert from memory-mapped array
                 yield np.asarray(arr[:,row,col]), row, col
 
-    # remove pix_iter_lst, pix_iter_iter -- I don't need them with memmaped
-    # arrays!
-
-    ## def pix_iter_lst(self, maxN=None, fn = lambda x:x, sliceobj=None):
-    ##     "List inteface -- lower memory consumption"
-    ##     lst = self.aslist(maxN,fn,sliceobj=sliceobj)
-    ##     nrows, ncols = lst[0].shape
-    ##     for row in range(nrows):
-    ##         for col in range(ncols):
-    ##             yield np.asarray([arr[row,col] for arr in lst]), row, col
-
-
-                
-    def conv_pix_iter(self, kern = default_kernel(),
-                      **kwargs):
-                      #maxN=None, sliceobj=None):
-        """
-        Iterator over pixels for frames, convolved with a kernel
-        - Arguments:
-          - kern: kernel
-          - variant: 'lst', 'arr' or 'iter' ('lst' by default) -- how to store
-                     frames
-          - **kwargs: to be passed to self.pix_iter_*
-        """
-        if kern is None: kern = default_kernel()
-        #def _fn(a):
-        #    return signal.convolve2d(a, kern)[1:-1,1:-1]
-        _fn = lambda a: signal.convolve2d(a, kern)[1:-1,1:-1]
-        kwargs.update({'fn':_fn})
-        return self.pix_iter_arr(**kwargs)
+    
 
     def shape(self,sliceobj=None):
         return self.frame_slices(sliceobj).next().shape
 
+class FSeq_arr(FrameSequence):
+    def __init__(self, arr, dt = 1.0, fn = None):
+        self.dt = dt
+        self.data = arr
+        self.hooks = []
+        self.fn = ifnot(fn, unity)
+    def length(self):
+        return self.data.shape[0]
+    def frames(self, fn=None):
+        fn = ifnot(fn, self.fn)
+        return (frame for frame in self.data)
+
+
+def unity(x):
+    return x
+
 class FSeq_glob(FrameSequence):
-    def __init__(self, pattern, ch=0, dt = 1.0):
+    def __init__(self, pattern, ch=0, dt = 1.0, fn = None):
         self.pattern = pattern
         self.ch = ch
         self.dt = dt
-    def frames(self):
-        return fseq_from_glob(self.pattern, self.ch, self.loadfn)
-
+        self.fn = ifnot(fn,unity)
+    def frames(self, fn = None):
+        fn = ifnot(fn,self.fn)
+        ## Examples of processing functions can be found in scipy.ndimage module
+        ## TODO: a list of hook functions
+        return itt.imap(fn,fseq_from_glob(self.pattern, self.ch, self.loadfn))
 
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)

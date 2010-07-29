@@ -11,6 +11,92 @@ import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
+
+
+
+def plane(pars, x,y):
+        kx,ky,z = pars
+        return x*kx + y*ky + z
+
+
+def remove_plane(arr, pars):
+	shape = arr.shape
+	X,Y = meshgrid(*map(range,shape))
+	return arr - plane(pars, X, Y)
+
+try:
+    from scipy import optimize as opt
+    def fit_plane(arr):
+        def _plane_resid(pars, Z, shape):
+            Z = reshape(Z,shape)
+            X,Y = meshgrid(*map(range,shape))
+            return (Z - plane(pars,X,Y)).flatten()
+        p0 = pl.randn(3)
+	p1 = opt.leastsq(_plane_resid, p0, (arr.flatten(), arr.shape))[0]
+        return p1
+except:
+    _scipyp = False
+    
+
+def vessels(f, p, negmask, thresh = None):
+	sh = f.shape
+	X,Y = meshgrid(*map(range, sh))
+	fx = f - plane(p,X,Y)
+	if thresh is None:
+		posmask = fx > median(fx) + fx.std()
+	else:
+		posmask = fx > thresh
+	return posmask*negmask
+	
+
+
+def mask_percent_threshold(mat, thresh):
+    minv = np.min(mat)
+    maxv = np.max(mat)
+    val = (maxv-minv) * thresh/100.0
+    return mat > val
+
+def mask_threshold(mat, thresh, func=lambda a,b: a>b):
+    return mat > thresh
+
+def mask_num_std(mat, n, func=lambda a,b: a>b):
+    "Same as threshold, but threshold value is times S.D. of the matrix"
+    x = np.std(mat)
+    return func(mat, x*n)
+
+def mask_in_right_tail_median_SD(mat, n = 1.5, compfn = np.greater):
+    return compfn(mat, np.median(mat) + n*mat.std())
+
+def shorten_movie(m,n):
+    return np.array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
+
+def ma2d(m, n):
+    "Moving average in 2d (for rows)"
+    for i in xrange(0,len(m)-n,):
+        yield np.mean(m[i:i+n,:],0)
+
+
+def flcompose2(f1,f2):
+    "Compose two functions from left to right"
+    def _(*args,**kwargs):
+        return f2(f1(*args,**kwargs))
+    return _
+                  
+def flcompose(*funcs):
+    "Compose a list of functions from left to right"
+    return reduce(flcompose2, funcs)
+
+
+def imresize(a, nx, ny, **kw):
+    """
+    Resize and image or other 2D array with affine transform
+    # idea from Sci-Py mailing list (by Pauli Virtanen)
+    """
+    from scipy import ndimage
+    return ndimage.affine_transform(
+        a, [(a.shape[0]-1)*1.0/nx, (a.shape[1]-1)*1.0/ny],
+        output_shape=[nx,ny], **kw) 
+
 def best (scoref, lst):
     if len(lst) > 0:
         n,winner = 0, lst[0]
@@ -30,15 +116,26 @@ def allpairs(seq):
     else:
         return [[seq[0], s] for s in seq[1:]] + allpairs(seq[1:])
 
-def norm1(m1, m2):
-    "out=(m1-m2)/m2"
-    return (m1-m2)/m2
+def ar1(alpha = 0.74):
+    "Simple auto-regression model"
+    randn = np.random.randn
+    prev = randn()
+    while True:
+        res = prev*alpha + randn()
+        prev = res
+        yield res
 
-def ma2d(m, n):
-    "Moving average in 2d (for rows)"
-    for i in xrange(0,len(m)-n,):
-        yield np.mean(m[i:i+n,:],0)
+def DoSD(vec):
+	"Remove mean and normalize to SD"
+	return (v1-np.mean(v1))/np.std(v1)
 
+def DoSD(vec):
+	"Remove mean and normalize to mean"
+	m = np.mean(v1)
+	if abs(m) > 1e-12:
+		return v1/m-1
+	else:
+		return v1 -m 
 
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
@@ -75,6 +172,7 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
                      correct = None,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
+    print padding
     eds = pycwt.eds(wcoefs, wavelet.f0)
     if correct == 'freq1':
         coefs = freqs*2.0/np.pi
@@ -120,7 +218,7 @@ def alias_freq(f, fs):
     else:
         return alias_freq(f%fs, fs)
 
-def setup_axes1(figsize = (12,6)):
+def setup_axes_for_spectrogram(figsize = (12,6)):
     "Set up axes for a plot with signal, spectrogram and a colorbar"
     fig = pl.figure(figsize = figsize)
     ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
@@ -141,7 +239,7 @@ def plot_spectrogram_with_ts(signal, f_s, freqs,
     freqs = ifnot(freqs, default_freqs(Ns, f_s,512))
     tvec = np.arange(0, (Ns+2)/f_s, 1./f_s)[:Ns]
 
-    fig,axlist = setup_axes1(figsize)
+    fig,axlist = setup_axes_for_spectrogram(figsize)
 
     axlist[1].plot(tvec, signal,'-',color=lc)
 
