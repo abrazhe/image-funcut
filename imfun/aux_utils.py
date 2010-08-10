@@ -38,7 +38,7 @@ except:
     _scipyp = False
     
 
-def vessels(f, p, negmask, thresh = None):
+def vessel_mask(f, p, negmask, thresh = None):
 	sh = f.shape
 	X,Y = meshgrid(*map(range, sh))
 	fx = f - plane(p,X,Y)

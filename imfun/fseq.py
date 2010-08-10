@@ -125,6 +125,22 @@ class FrameSequence:
         return out
         #return np.asarray(self.aslist(*args, **kwargs))
         
+    def pix_iter(self, maxN=None, **kwargs):
+        "Iterator over time signals from each pixel"
+        arr = self.as3darray(maxN, **kwargs)
+        nrows, ncols = arr.shape[1:]
+        for row in range(nrows):
+            for col in range(ncols):
+                ## asarray to convert from memory-mapped array
+                yield np.asarray(arr[:,row,col]), row, col
+
+    def rand_pix_iter(self, maxN=None, **kwargs):
+        "Randomized iterator over time signals from each pixel"
+        rows,cols = self.shape()
+        N,L = rows*cols, self.length()
+        arr = self.as3darray(maxN, **kwargs).reshape(N, L)
+        return (np.asarray(arr[i]) for i in np.random.permutation(N))
+
     def length(self):
         if not hasattr(self,'_length'):
             k = 0
@@ -134,14 +150,6 @@ class FrameSequence:
             return k
         else:
             return self._length
-
-    def pix_iter(self, maxN=None, **kwargs):
-        arr = self.as3darray(maxN, **kwargs)
-        nrows, ncols = arr.shape[1:]
-        for row in range(nrows):
-            for col in range(ncols):
-                ## asarray to convert from memory-mapped array
-                yield np.asarray(arr[:,row,col]), row, col
 
     
 
