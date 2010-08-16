@@ -79,7 +79,7 @@ class FrameSequence:
 
     def mean_frame(self,fn=None):
         frameit = itt.imap(np.float64, self.frames(fn))
-        res = frameit.next()
+        res = np.copy(frameit.next())
         for k,frame in enumerate(frameit):
             res += frame
         return res/(k+2)
@@ -123,7 +123,6 @@ class FrameSequence:
             out[k,:,:] = frame
         out.flush()
         return out
-        #return np.asarray(self.aslist(*args, **kwargs))
         
     def pix_iter(self, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"

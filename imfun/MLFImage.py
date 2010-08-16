@@ -12,6 +12,10 @@ mlfdescr = {
     'xdim' : 0x8008,
     'ydim': 0x8010,
     'dt': 0x8018,
+    'exposure' : 0x8028,
+    'sfilter' : 0x8038,
+    'mode': 0x8048,
+    'tfilter': 0x8050,
     'data_start': 0x10000
     }
 
@@ -27,6 +31,10 @@ class MLF_Image:
         self.ydim  = self.read_value(mlfdescr['ydim'])
         self.dt = self.read_value(mlfdescr['dt'])
         self.nframes = self.read_value(mlfdescr['nframes'])
+        self.exposure = self.read_value(mlfdescr['nframes'])
+        self.sfilter = self.read_value(mlfdescr['sfilter'])
+        self.mode = self.read_value(mlfdescr['mode'])
+        self.tfilter = self.read_value(mlfdescr['tfilter'])
         self.dim = self.xdim*self.ydim
         
     def read_value(self, pos):
