@@ -14,119 +14,88 @@ ifnot = aux.ifnot
 def isseq(obj):
     return hasattr(obj, '__iter__')
 
+def cwt_iter(fseq,
+             frange,
+             nfreqs = 128,
+             wavelet = pycwt.Morlet(),
+             normL = None,
+             max_pixels = None,
+             verbose = True,
+             **kwargs):
+    """
+    Iterate over cwt of the time series for each pixel
+    *fseq* -- frame sequence
+    *frange* -- frequency range or vector of frequencies
+    *wavelet* -- wavelet object (default pycwt.Morlet())
+    *normL* -- length of normalizing part (baseline) of the time series
+
+    """
+    tick = time.clock()
+    L = fseq.length()
+    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    shape = fseq.shape(subframe)
+    npix = shape[0]*shape[1]
+    normL = ifnot(normL, L)
+    pixel_iter = fseq.pix_iter(**kwargs)
+    max_pixels = ifnot(max_pixels, npix)
+
+    if len(frange) == 2:  # a low-high pair
+        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    else:
+        freqs= np.array(frange.copy())
+    nfreqs = len(freqs)
+
+    #import tempfile as tmpf
+    #_tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
+    #out = np.memmap(_tmpfile, dtype=np.float64,
+    #                shape=shape+(nfreqs,L))
+    #out_avg = np.zeros((nfreqs,L), np.float64)
+
+    pixel_counter = 0
+    npix = min(npix, max_pixels)
+    for s,i,j in pixel_iter:
+        s = (s-np.mean(s[:normL]))/np.std(s[:normL])
+        eds = pycwt.eds(pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
+        pixel_counter+= 1
+        if verbose:
+            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
+        yield eds, i, j
+        if pixel_counter > max_pixels:
+            break
+    if verbose:
+        sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+    #_tmpfile.close()    
+    #return out, out_avg/npix
+
+
 def cwtmap(fseq,
            tranges,
            frange,
-           nfreqs = 32,
-           wavelet = pycwt.Morlet(),
            func = np.mean,
-           normL = None,
-           verbose = True,
            **kwargs):
     """
     Wavelet-based 'functional' map of the frame sequence
     
     Arguments
     ----------
-    
-    *extent* is the window of the form
-    (start-time, stop-time, low-frequency, high-frequency)
-    
-    *nfreqs* -- how many different frequencies in the
-    given range (default 16)
-    
-    *wavelet* -- wavelet object (default pycwt.Morlet())
-    
+    *fseq* -- frame sequence
+    *tranges* -- list of time ranges
+    *frange* -- frequency range or vector of frequencies
     *func* -- function to apply to the wavelet spectrogram within the window
-    of interest. Default, np.mean
-    
-    *normL* -- length of normalizing part (baseline) of the time series
-
-    **kwargs -- to be passed to fseq.as3darray()
+              of interest. Default, np.mean
+    **kwargs -- to be passed to cwt_iter
     """
-    tick = time.clock()
-    L = fseq.length()
-    shape = fseq.shape(kwargs.has_key('sliceobj') and
-                       kwargs['sliceobj'] or None)
-    total = shape[0]*shape[1]
-    k = 0
-
-    normL = ifnot(normL, L)
-
-    if not isseq(tranges[0]):
-        tranges = (tranges,)
-
-    pix_iter = fseq.pix_iter(**kwargs)
-
-    if len(frange) == 2:  # a low-high pair
-        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
-    else:
-        freqs= np.array(frange.copy())
+    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    shape = fseq.shape(subframe)
 
     tstarts = map(lambda x: int(x[0]/fseq.dt), tranges)
     tstops = map(lambda x: int(x[1]/fseq.dt), tranges)
 
     out = np.ones((len(tranges),)+shape, np.float64)
-
-    for s,i,j in pix_iter:
-        s = (s-np.mean(s[:normL]))/np.std(s[:normL])
-        cwt = pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd')
-        eds = pycwt.eds(cwt)
+    for eds,i,j in cwt_iter(fseq,frange,**kwargs):
         for tk, tr in enumerate(tranges):
             out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])
-        k+= 1
-        if verbose:
-            sys.stderr.write("\rpixel %05d of %05d"%(k,total))
-    if verbose:
-        sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
     return out
-
-def fulleds(fseq,
-            frange,
-            nfreqs = 128,
-            wavelet = pycwt.Morlet(),
-            normL = None,
-            verbose = True,
-            **kwargs):
-    """
-    Temporary function, change it a lot
-    """
-    tick = time.clock()
-    L = fseq.length()
-    shape = fseq.shape(kwargs.has_key('sliceobj') and
-                       kwargs['sliceobj'] or None)
-    npix = shape[0]*shape[1]
-    normL = ifnot(normL, L)
-    pixel_iter = fseq.pix_iter(**kwargs)
-
-    if len(frange) == 2:  # a low-high pair
-        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
-    else:
-        freqs= np.array(frange.copy())
-        nfreqs = len(freqs)
-
-    import tempfile as tmpf
-    _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
-    out = np.memmap(_tmpfile, dtype=np.float64,
-                    shape=shape+(nfreqs,L))
-    out_avg = np.zeros((nfreqs,L), np.float64)
-
-    pixel_counter = 0
-    for s,i,j in pixel_iter:
-        s = (s-np.mean(s[:normL]))/np.std(s[:normL])
-        eds = pycwt.eds(pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
-        out[i,j] = eds
-        out_avg += eds
-        pixel_counter+= 1
-        if not pixel_counter%(npix/20): out.flush() # flush output ~20 times during calc 
-        if verbose:
-            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
-    if verbose:
-        sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
-    _tmpfile.close()    
-    return out, out_avg/npix
-
-
 
 def loc_max_pos(v):
     return [i for i in xrange(1,len(v)-1)
@@ -136,16 +105,11 @@ def cwt_freqmap(fseq,
                 tranges,
                 frange,
                 nfreqs = 32,
-                logfreq = False,
                 **kwargs):
-    #freqs = np.linspace(*frange, num=nfreqs)
-    if not logfreq:
-        freqs = np.linspace(frange[0], frange[1], num=nfreqs)
+    if len(frange) > 2:
+        freqs = frange
     else:
-        freqs = np.logspace(log2(frange[0]),
-                            log2(frange[1]),
-                            nfreqs, base=2.0)
-          
+        freqs = np.linspace(frange[0], frange[-1],nfreqs)
     def _dominant_freq(arr):
         ma = np.mean(arr,1) 
         if np.max(ma) < 1e-7:
@@ -167,6 +131,35 @@ def cwt_freqmap(fseq,
         return freqs[n]
     return cwtmap(fseq,tranges,freqs,func=_dominant_freq,**kwargs)
 
+
+def avg_eds(fseq, *args, **kwargs):
+    cwit = cwt_iter(fseq, *args, **kwargs)
+    out,i,j = cwit.next()
+    counter = 1.0
+    for eds, i, j in cwit:
+        out += eds
+        counter += 1
+    return out/counter
+
+def _feature_map(fseq, rhythm, freqs, **kwargs):
+    from scipy.interpolate import splrep,splev
+    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    shape = fseq.shape(subframe)
+
+    L = fseq.length()
+    tinds = np.arange(L)
+    tck = splrep(rhythm[:,0], rhythm[:,1])
+    rhfreqs = map(int, np.round(splev(tinds, tck)))
+    rhsd = 6
+
+    out = np.ones((L,)+shape, np.float64)
+    for eds,i,j in cwt_iter(fseq,freqs,**kwargs):
+        for k in tinds:
+            fi1, fi2  = rhfreqs[k] - rhsd, rhfreqs[k] + rhsd
+            out[k,i,j] = np.sum(eds[fi1:fi2,k])
+        #out[:,i,j] /= eds.mean()
+
+    return out
 
 def fftmap(fseq, frange, func=np.mean,
            normL = None,

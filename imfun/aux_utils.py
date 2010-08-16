@@ -257,8 +257,8 @@ def mask4overlay(mask,colorind=0):
     and make regions where the mask is False transparent
     """
     sh = mask.shape
-    z = zeros(sh)
-    stack = dstack((z,z,z,ones(sh)*mask))
+    z = np.zeros(sh)
+    stack = np.dstack((z,z,z,0.9*np.ones(sh)*mask))
     stack[:,:,colorind] = mask
     return stack
 
