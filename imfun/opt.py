@@ -18,6 +18,41 @@ def gauss_fit(p0,x,y):
     return optimize.fmin(score_gauss, p0, (x, y))
 
 
+def residuals_f(f):
+    return lambda p, v, x: v - f(x,p)
+
+def score_f(f):
+    return lambda p, v, x: np.sum((v - f(x,p))**2)
+
+def rising_exp(t, (a,b,tau)):
+    return a - b*exp(-t/tau)
+
+def double_rising_exp(t, (a,b1,b2,tau1,tau2)):
+    return a - b1*exp(-t/tau1) - b2*exp(-t/tau2)
+
+
+
+def logistic(t, (a,b,tau)):
+    return a / (1 + b*exp(-t/tau))
+
+def rising_pow(t, (a,b,alpha)):
+    return a - b*t**(-alpha)
+
+def mmenten(t, (a, km, alpha)):
+    return a*t/(km + t**alpha)
+
+
+def half_rise_mmenten(p):
+    return p[1]**(1/p[2])
+
+def half_rise_rising_exp(p):
+    return p[2]*log(2*p[1]/p[0])
+
+def half_rise_rising_pow(p):
+    return p[2]*log(2*p[1]/p[0])
+
+
+
 def iter_gauss(p0, vectors, vslice=slice(None)):
     out = []
     for v in vectors:

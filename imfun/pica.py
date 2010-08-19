@@ -1,0 +1,217 @@
+import numpy as np
+from numpy import dot,argsort,diag,where,dstack,zeros, sqrt,float,real
+#from numpy import *
+from numpy.linalg import eigh, inv
+from numpy.random import randn
+import time
+try:
+    from scipy.stats import skew
+    _skew_loaded = True
+except:
+    _skew_loaded = False
+
+## TODOs:
+## [ ] show how much variance is accounted by pcs
+## [X] function to reshape back to movie
+## [X] behave nicely if no scipy available (can't sort by skewness then)
+## [ ] simple GUI (traits?)
+## [ ] masks from ICs or PCs    
+
+def pca1 (X):
+    """
+    Simple principal component analysis
+    X as Npix by Nt matrix
+    X should be normalized and centered beforehand
+    --
+    returns:
+    - U, (Npix by Nesq:esq>0), matrix of PC 'filters' 
+    - EV (Nt by Nesq:esq>0), matrix of PC 'signals'
+     (eigenvalues of temporal covariance matrix). Signals are in columns
+    - esq, vector of eigenvalues
+    """
+    tick = time.clock()
+    Nx, Nt = X.shape
+    C = dot(X.T, X)/Nt # temporal covariance matrix
+
+    ## who knows why do they do that in [1]
+    mean_space  = X.mean(axis=0).reshape(1,-1)
+    C -= dot(mean_space.T, mean_space)
+
+    es, EV = eigh(C)  # eigenvalues, eigenvectors
+
+    ## take non-negative eigenvalues
+    non_neg, = where(es>0)
+    neg = where(es<0)
+    if len(neg)>0:
+        print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
+        es = es[non_neg]
+        EV = EV[:,non_neg]
+    S = diag(np.sqrt(es))          
+    ki = argsort(es)[::-1]     # indices for sorted eigenvalues    
+    U = dot(X, dot(EV,inv(S))) # spatial filters
+    print "PCA finished in %03.2f sec" %(time.clock() - tick)
+    return U[:,ki], EV[:,ki], es[ki]
+
+def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
+              PCuse = None,
+              mu = 0.3):
+    "Wrapper around fastica1, relies on previous use of pca"
+    if not isinstance(PCuse, slice):
+        if not PCuse :
+            PCuse = slice(PCuse)
+        elif len(PCuse) <= 3:
+            PCuse = slice(*PCuse)
+
+    nPCs =  pc_signals[:,PCuse].shape[1]
+    pc_fuse = pc_filters[:,PCuse]
+    sev_use = sev[PCuse]
+
+    pc_suse = pc_signals - pc_signals.mean(axis=0).reshape(1,-1)
+    pc_suse = pc_suse[:,PCuse]
+
+    mux = sptemp_concat(pc_fuse, pc_suse, mu)
+
+    ica_A,_ = fastica1(mux, nIC=nIC)
+    ica_sig = dot(ica_A.T, pc_suse.T)
+
+    ica_filters = dot(pc_fuse,
+                      dot(diag(sev_use**-0.5),ica_A)).T
+
+    if _skew_loaded:
+        skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
+    else:
+        skewsorted = range(nIC)
+    return ica_filters[skewsorted].T, ica_sig[skewsorted].T
+
+
+def fastica1(X, nIC=None, guess=None,
+             termtol = 1e-6, maxiters = 1e3):
+    "Simplistic ICA with FastICA algorithm"
+    tick = time.clock()
+    nPC, siglen = X.shape
+    nIC = nIC or nPC-1
+    guess = guess or randn(nPC,nIC)
+
+    B, Bprev = guess, zeros(guess.shape, np.float64)
+
+    iters, minAbsCos  = 0,0
+
+    errvec = []
+    while (iters < maxiters) and (abs(1 - minAbsCos)>termtol):
+        B = dot(X, dot(X.T, B)**2.0) / siglen
+        ## Symmetric orthogonalization.
+        ## W(W^TW)^{-1/2}
+        x = dot(B.T, B)
+        B = dot(B, real(winvhalf(x)))
+        # Check termination condition
+        minAbsCos = min(abs(diag(dot(B.T, Bprev))))
+        Bprev = B
+        errvec.append(1-minAbsCos) # history of convergence
+        iters += 1
+
+    if iters < maxiters:
+        print "Success: ICA Converged in %d tries" %iters
+    else:
+        print "Fail: reached maximum number of iterations %d reached"%maxiters
+
+    print "ICA finished in %03.2f sec" % (time.clock()- tick)
+    return B.real, errvec
+
+
+
+### Some general utility functions:
+### --------------------------------
+def gauss_kern(xsize, ysize=None):
+    """ Returns a normalized 2D gauss kernel for convolutions """
+    xsize = int(xsize)
+    ysize = ysize and int(ysize) or xsize
+    x, y = mgrid[-xsize:xsize+1, -ysize:ysize+1]
+    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
+    return g / g.sum()
+
+def gauss_blur(X,size=1.5):
+    return signal.convolve2d(X,gauss_kern(size),'same')
+
+def reshape_from_movie(mov):
+    l,w,h = mov.shape
+    return mov.reshape(l,w*h).T
+
+def reshape_to_movie(X,nrows,ncols):
+    Np, Nt = X.shape
+    return X.T.reshape(Nt,nrows,ncols)
+
+def sptemp_concat(filters, signals, mu):
+    if mu == 0:
+        out= filters.T # spatial only
+    elif mu == 1:
+        out= signals.T # temporal only
+    else:
+        out =  np.concatenate(((1-mu)*filters.T, mu*signals.T),
+                              axis = 1)
+    return out / np.sqrt(1-2*mu+2*mu**2)
+
+
+def DFoF(X):
+    """
+    Delta F / mean F normalization for each pixel
+    """
+    xmean = X.mean(axis=1).reshape(-1,1)
+    xmean_z = where(xmean==0)
+    xmean[xmean_z] = 1.0
+    out =  X/xmean - 1
+    out[xmean_z,:] = 0
+    return out
+
+def DFoSD(X, tslice = None):
+    """
+    Delta F / S.D.(F) normalization
+    """
+    if not isinstance(tslice, slice):
+        tslice = tslice and slice(*tslice) or slice(None)
+    xsd = X[:,tslice].std(axis=1).reshape(-1,1)
+    xmean = X[:,tslice].mean(axis=1).reshape(-1,1)
+    return (X-xmean)/xsd
+
+def center_frames(X):
+    """
+    Remove mean over time from each pixel
+    Frames are flattened and are in columns
+    """
+    return X - X.mean(axis=1).reshape(-1,1)
+
+
+def winvhalf(X):
+    "raise matrix to power -1/2"
+    e, V = eigh(X)
+    return dot(V, dot(diag((e+0j)**-0.5),V.T))
+
+def mpower(M, p):
+    """
+    Matrix exponentiation, works for Hermitian matrices
+    """
+    e,EV = linalg.eigh(M)
+    return dot(EV.T,
+               dot(diag((e+0j)**p), EV))
+
+
+def mask4overlay(mask,colorind=0):
+    """
+    Put a binary mask in some color channel
+    and make regions where the mask is False transparent
+    """
+    sh = mask.shape
+    z = np.zeros(sh)
+    stack = dstack((z,z,z,np.ones(sh)*mask))
+    stack[:,:,colorind] = mask
+    return stack
+
+
+def flcompose2(f1,f2):
+    "Compose two functions from left to right"
+    def _(*args,**kwargs):
+        return f2(f1(*args,**kwargs))
+    return _
+                  
+def flcompose(*funcs):
+    "Compose a list of functions from left to right"
+    return reduce(flcompose2, funcs)
