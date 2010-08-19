@@ -9,7 +9,7 @@ from scipy import signal
 
 from matplotlib.pyplot import imread
 
-import aux_utils as aux
+import aux
 ifnot = aux.ifnot
 
 _maxshape_ = 1e5
@@ -124,15 +124,18 @@ class FrameSequence:
         out.flush()
         return out
         
-    def pix_iter(self, maxN=None, rand=False, **kwargs):
+    def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
         arr = self.as3darray(maxN, **kwargs)
+        if mask== None:
+            mask = np.ones(self.shape(), np.bool)
         nrows, ncols = arr.shape[1:]
         rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
         if rand: rcpairs = np.random.permutation(rcpairs)
         for row,col in rcpairs:
-            ## asarray to convert from memory-mapped array
-            yield np.asarray(arr[:,row,col]), row, col
+            if mask[row,col]:
+                ## asarray to convert from memory-mapped array
+                yield np.asarray(arr[:,row,col]), row, col
 
     def length(self):
         if not hasattr(self,'_length'):

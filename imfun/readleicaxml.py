@@ -29,8 +29,8 @@ def low_high_pair(a):
                       get_prop(a, "HighInteger")))
 
 class LeicaProps:
-    import libxml2
     def __init__(self,xmlfilename):
+        import libxml2
         doc = libxml2.parseFile(get_xmljob(xmlfilename))
         for node in doc.xpathEval("//ScannerSettingRecord"):
             Id = get_prop(node, 'Identifier')

@@ -8,7 +8,7 @@ from swan import pycwt
 ##     if a == None: return b
 ##     else: return a
 
-import aux_utils as aux
+import aux
 ifnot = aux.ifnot
 
 def isseq(obj):
@@ -45,12 +45,6 @@ def cwt_iter(fseq,
         freqs= np.array(frange.copy())
     nfreqs = len(freqs)
 
-    #import tempfile as tmpf
-    #_tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
-    #out = np.memmap(_tmpfile, dtype=np.float64,
-    #                shape=shape+(nfreqs,L))
-    #out_avg = np.zeros((nfreqs,L), np.float64)
-
     pixel_counter = 0
     npix = min(npix, max_pixels)
     for s,i,j in pixel_iter:
@@ -64,9 +58,6 @@ def cwt_iter(fseq,
             break
     if verbose:
         sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
-    #_tmpfile.close()    
-    #return out, out_avg/npix
-
 
 def cwtmap(fseq,
            tranges,

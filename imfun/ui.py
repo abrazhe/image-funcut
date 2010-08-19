@@ -12,8 +12,8 @@ from pylab import *
 from pylab import mpl
 
 from swan import pycwt
-from imfun import aux_utils as aux
-from imfun.aux_utils import ifnot
+from imfun import aux
+ifnot = aux.ifnot
 
 from scipy import signal
 
