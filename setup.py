@@ -2,10 +2,10 @@ from distutils.core import setup
 
 setup(name='image-funcut',
       version = '0.0.5',
-      py_modules = ['imfun.interactive',
+      py_modules = ['imfun.ui',
                     'imfun.opt',
                     'imfun.readleicaxml',
-                    'imfun.aux_utils',
+                    'imfun.aux',
                     'imfun.pca',
                     'imfun.fseq',
                     'imfun.fnmap',
