@@ -27,10 +27,11 @@ def score_f(f):
 def rising_exp(t, (a,b,tau)):
     return a - b*exp(-t/tau)
 
+def expf(t, (a,b,tau)):
+    return a + b*exp(-t/tau)
+
 def double_rising_exp(t, (a,b1,b2,tau1,tau2)):
     return a - b1*exp(-t/tau1) - b2*exp(-t/tau2)
-
-
 
 def logistic(t, (a,b,tau)):
     return a / (1 + b*exp(-t/tau))
@@ -41,6 +42,10 @@ def rising_pow(t, (a,b,alpha)):
 def mmenten(t, (a, km, alpha)):
     return a*t/(km + t**alpha)
 
+def search_halfrise(tx, fn, p):
+    maxv = np.max(fn(tx, p))
+    searchfn = lambda a: abs(fn(a, p) - maxv/2.0)
+    return optimize.fmin(searchfn, np.mean(tx))
 
 def half_rise_mmenten(p):
     return p[1]**(1/p[2])
