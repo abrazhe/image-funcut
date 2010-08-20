@@ -7,7 +7,10 @@ import time
 try:
     from scipy.stats import skew
     _skew_loaded = True
+    from scipy.linalg import orth
+    _orth_loaded = True
 except:
+    _orth_loaded = False
     _skew_loaded = False
 
 ## TODOs:
@@ -84,28 +87,52 @@ def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
     return ica_filters[skewsorted].T, ica_sig[skewsorted].T
 
 
+def pow2_nonlinf(X,B):
+    _, siglen = X.shape
+    return dot(X, dot(X.T, B)**2.0) / siglen
+
+def pow3_nonlinf(X,B):
+    _,siglen = X.shape
+    return dot(X, dot(X.T, B)**3.0)/siglen - 3*B
+
+def tanh_nonlinf(X,B, a1 = 1.0):
+    nrows,siglen = X.shape
+    ht = np.tanh(a1 * dot(X.T, B))
+    B = dot(X, ht)/siglen
+    B -= dot(np.ones((nrows,1)),
+             np.sum(1 - ht**2, axis=0).reshape(1,-1)) * B / siglen * a1
+    return B
+
 def fastica1(X, nIC=None, guess=None,
-             termtol = 1e-6, maxiters = 1e3):
+             nonlinfn = pow2_nonlinf,
+             #nonlinfn = pow3_nonlinf,
+             #nonlinfn = tanh_nonlinf,
+             termtol = 5e-7, maxiters = 2e3):
     "Simplistic ICA with FastICA algorithm"
     tick = time.clock()
     nPC, siglen = X.shape
     nIC = nIC or nPC-1
     guess = guess or randn(nPC,nIC)
 
+    if _orth_loaded:
+        guess = orth(guess)
+
     B, Bprev = guess, zeros(guess.shape, np.float64)
 
     iters, minAbsCos  = 0,0
 
     errvec = []
-    while (iters < maxiters) and (abs(1 - minAbsCos)>termtol):
-        B = dot(X, dot(X.T, B)**2.0) / siglen
+    while (iters < maxiters) and (abs(1 - minAbsCos)>=termtol):
+        B = nonlinfn(X,B)
         ## Symmetric orthogonalization.
         ## W(W^TW)^{-1/2}
         x = dot(B.T, B)
         B = dot(B, real(winvhalf(x)))
+
         # Check termination condition
-        minAbsCos = min(abs(diag(dot(B.T, Bprev))))
-        Bprev = B
+        minAbsCos = np.min(abs(diag(dot(B.T, Bprev))))
+
+        Bprev = np.copy(B)
         errvec.append(1-minAbsCos) # history of convergence
         iters += 1
 
@@ -117,7 +144,34 @@ def fastica1(X, nIC=None, guess=None,
     print "ICA finished in %03.2f sec" % (time.clock()- tick)
     return B.real, errvec
 
+def fastica_defl(X, nIC=None, guess=None,
+             nonlinfn = pow2_nonlinf,
+             #nonlinfn = pow3_nonlinf,
+             #nonlinfn = tanh_nonlinf,
+             termtol = 5e-7, maxiters = 2e3):
+    tick = time.clock()
+    nPC, siglen = X.shape
+    nIC = nIC or nPC-1
+    guess = guess or randn(nPC,nIC)
 
+    if _orth_loaded:
+        guess = orth(guess)
+
+    B, Bprev = zeros(guess.shape, np.float64), zeros(guess.shape, np.float64)
+
+    iters, minAbsCos  = 0,0
+
+    errvec = []
+    icc = 0
+    while icc < nIC:
+        w = randn(nPC,1)
+        w = w - dot(dot(B,B.T),w)
+        w /= np.norm(w)
+
+        wprev = zeros(w.shape)
+        for i < maxiters +1:
+            w = w - dot(dot(B,B.T),w)
+            w /= np.norm(w)
 
 ### Some general utility functions:
 ### --------------------------------
@@ -172,12 +226,13 @@ def DFoSD(X, tslice = None):
     xmean = X[:,tslice].mean(axis=1).reshape(-1,1)
     return (X-xmean)/xsd
 
-def center_frames(X):
+def demean(X):
     """
     Remove mean over time from each pixel
     Frames are flattened and are in columns
     """
-    return X - X.mean(axis=1).reshape(-1,1)
+    xmean = X.mean(axis=0).reshape(1,-1)
+    return X - xmean
 
 
 def winvhalf(X):
