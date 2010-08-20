@@ -1,6 +1,11 @@
 # Optimization utilities
 
 import numpy as np
+from scipy import optimize
+fmin = optimize.fmin
+leastsq = optimize.leastsq
+
+exp = np.exp
 
 def gaussian(x, (a, b, c,f)):
     return a * np.exp(-(x-b)**2/(2*c**2))+f
@@ -12,10 +17,10 @@ def score_gauss(p, x, v):
     return sum((v-gaussian(x,p))**2)
 
 
-from scipy import optimize
+
 
 def gauss_fit(p0,x,y):
-    return optimize.fmin(score_gauss, p0, (x, y))
+    return fmin(score_gauss, p0, (x, y))
 
 
 def residuals_f(f):
@@ -45,7 +50,7 @@ def mmenten(t, (a, km, alpha)):
 def search_halfrise(tx, fn, p):
     maxv = np.max(fn(tx, p))
     searchfn = lambda a: abs(fn(a, p) - maxv/2.0)
-    return optimize.fmin(searchfn, np.mean(tx))
+    return fmin(searchfn, np.mean(tx))
 
 def half_rise_mmenten(p):
     return p[1]**(1/p[2])
