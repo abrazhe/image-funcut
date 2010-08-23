@@ -12,8 +12,8 @@ from pylab import *
 from pylab import mpl
 
 from swan import pycwt
-from imfun import aux
-ifnot = aux.ifnot
+from imfun import lib
+ifnot = lib.ifnot
 
 from scipy import signal
 
@@ -64,7 +64,7 @@ def nearest_item_ind(items, xy, fn = lambda a: a):
     Index of the nearest item from a collection.
     Arguments: collection, position, selector
     """
-    return aux.min1(lambda p: eu_dist(fn(p), xy), items)
+    return lib.min1(lambda p: eu_dist(fn(p), xy), items)
 
 
 
@@ -99,7 +99,7 @@ def extract_line2(data, p1, p2):
 
 
 def color_walker():
-    ar1 = aux.ar1
+    ar1 = lib.ar1
     red, green, blue = ar1(), ar1(), ar1()
     while True:
         yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
@@ -542,7 +542,7 @@ class Picker:
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
-            aux.wavelet_specgram(x, f_s, freqs,  ax,
+            lib.wavelet_specgram(x, f_s, freqs,  ax,
                                 wavelet, vmin=vmin, vmax=vmax)
             axlist.append(ax)
         return axlist
@@ -568,10 +568,10 @@ class Picker:
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roilabel].get_color()
-        fig,axlist = aux.setup_axes_for_spectrogram((8,4))
+        fig,axlist = lib.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
-        aux.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
+        lib.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
                              wavelet=wavelet,
                              cax = axlist[2])
         axlist[0].set_title(title_string)
@@ -641,13 +641,13 @@ class Picker:
         legend()
         ax2 = subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
-        ax2.imshow(res, extent = ext, cmap = aux.swanrgb())
+        ax2.imshow(res, extent = ext, cmap = lib.swanrgb())
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 
 
     def show_xwt(self, **kwargs):
-        for p in aux.allpairs0(filter(self.isCircleROI, self.roi_objs.keys())):
+        for p in lib.allpairs0(filter(self.isCircleROI, self.roi_objs.keys())):
             self.show_xwt_roi(*p,**kwargs)
 
 

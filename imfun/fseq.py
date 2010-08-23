@@ -9,8 +9,8 @@ from scipy import signal
 
 from matplotlib.pyplot import imread
 
-import aux
-ifnot = aux.ifnot
+from imfun import lib
+ifnot = lib.ifnot
 
 _maxshape_ = 1e5
 

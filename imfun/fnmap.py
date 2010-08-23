@@ -8,8 +8,8 @@ from swan import pycwt
 ##     if a == None: return b
 ##     else: return a
 
-import aux
-ifnot = aux.ifnot
+from imfun import lib
+ifnot = lib.ifnot
 
 def isseq(obj):
     return hasattr(obj, '__iter__')
