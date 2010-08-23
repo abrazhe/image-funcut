@@ -77,11 +77,15 @@ class FrameSequence:
         else:
             return self.frames(fn)
 
-    def mean_frame(self,fn=None):
+    def mean_frame(self,nframes = None, fn=None):
+        L = self.length()
         frameit = itt.imap(np.float64, self.frames(fn))
         res = np.copy(frameit.next())
+        nframes = min(ifnot(nframes,L), L)
         for k,frame in enumerate(frameit):
             res += frame
+            if k >= nframes:
+                break
         return res/(k+2)
 
     def aslist(self, maxN = None, fn = lambda x: x, sliceobj=None):
