@@ -161,7 +161,7 @@ class FSeq_arr(FrameSequence):
         self.dt = dt
         self.data = arr
         self.hooks = []
-        self.fn = ifnot(fn, unity)
+        self.fn = ifnot(fn, identity)
     def length(self):
         return self.data.shape[0]
     def frames(self, fn=None):
@@ -169,7 +169,7 @@ class FSeq_arr(FrameSequence):
         return (frame for frame in self.data)
 
 
-def unity(x):
+def identity(x):
     return x
 
 class FSeq_glob(FrameSequence):
@@ -177,7 +177,7 @@ class FSeq_glob(FrameSequence):
         self.pattern = pattern
         self.ch = ch
         self.dt = dt
-        self.fn = ifnot(fn,unity)
+        self.fn = ifnot(fn,identity)
     def frames(self, fn = None):
         fn = ifnot(fn,self.fn)
         ## Examples of processing functions can be found in scipy.ndimage module
@@ -201,7 +201,7 @@ class FSeq_mlf(FrameSequence):
     def __init__(self, fname, fn = None):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
-        self.fn = ifnot(fn,unity)
+        self.fn = ifnot(fn,identity)
     def frames(self, fn = None):
         fn = ifnot(fn,self.fn)
         return itt.imap(fn,self.mlfimg.flux_frame_iter())

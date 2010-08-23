@@ -79,6 +79,7 @@ def synth_movie_from_seq(seq, baseL, type=1):
     for s,j,k in seq.pix_iter():
         out[:,j,k] = np.random.poisson(lamm[j,k], size=L)
     return out
+
 def ellipse(xc, yc, a, b, phi):
     t = arange(0, 2*pi, 0.01)
     X = xc + a* cos(t) * cos(phi) + b *sin(t) * sin(phi)
