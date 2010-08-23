@@ -169,7 +169,7 @@ def fastica_defl(X, nIC=None, guess=None,
         w /= np.norm(w)
 
         wprev = zeros(w.shape)
-        for i < maxiters +1:
+        for i in xrange(maxiters +1):
             w = w - dot(dot(B,B.T),w)
             w /= np.norm(w)
 
