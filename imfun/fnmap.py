@@ -153,6 +153,27 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
 
     return out
 
+def flipped_tanh_step(start,stop):
+    "To be used for convolution"
+    def _(t):
+        v =  0.5*(1 + np.tanh(10*(t-start)) * np.tanh(-10*(t-stop)))
+        return v[::-1] - np.mean(v)
+    return _
+
+
+def norm1(v, L):
+    return (v - np.mean(v[:L]))/np.std(v[:L])
+
+def convmap(fseq, (start, stop), normL=None):
+    L = fseq.length()
+    normL = ifnot(normL, L)
+    out = np.zeros(fseq.shape())
+    for s,j,k in fseq.pix_iter():
+        out[j,k] = np.convolve(norm1(s,normL),
+                               flipped_tanh_step(start, stop)(fseq.timevec()),
+                               'valid')[0]
+    return out
+
 def fftmap(fseq, frange, func=np.mean,
            normL = None,
            verbose = True,
