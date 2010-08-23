@@ -47,9 +47,10 @@ def cwt_iter(fseq,
 
     pixel_counter = 0
     npix = min(npix, max_pixels)
+    cwtf = pycwt.cwt_f
     for s,i,j in pixel_iter:
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
-        eds = pycwt.eds(pycwt.cwt_f(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
+        eds = pycwt.eds(cwtf(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
         pixel_counter+= 1
         if verbose:
             sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
