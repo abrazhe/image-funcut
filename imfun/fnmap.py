@@ -216,17 +216,29 @@ def contiguous_regions_2d(mask):
     just a binary mask
 
     """
+    import sys
+    rl = sys.getrecursionlimit()
+    sh = mask.shape
+    sys.setrecursionlimit(sh[0]*sh[1])
     regions = []
     rows,cols = mask.shape
     visited = np.zeros(mask.shape, bool)
     for r in xrange(rows):
         for c in xrange(cols):
             if mask[r,c] and not visited[r,c]:
-                reg = cont_searcher((r,c), mask, visited)
+                reg,visited = cont_searcher((r,c), mask, visited)
                 regions.append(reg)
     regions.sort(key = lambda x: len(x), reverse=True)
-        
+
+    sys.setrecursionlimit(rl)
     return map(lambda x: Region2D(x,mask.shape), regions)
+
+
+def filter_size(mask, min_size=5):
+     regions = contiguous_regions_2d(mask)
+     return reduce(lambda a,b:a+b,
+                   [r.tomask() for r in regions if r.size()>min_size])
+
 
 def cont_searcher(loc, arr, visited):
     """
@@ -237,17 +249,18 @@ def cont_searcher(loc, arr, visited):
     """
     acc = []
     def _loop(loc, acc):
-        if arr[loc]:
-            if (not loc in acc):
-                acc.append(loc)
-                visited[loc] = True
-                for n in neighbours(loc):
-                    if valid_loc(n, arr.shape):
-                        _loop(n,acc)
+        if visited[loc]:
+            return
+        visited[loc] = True
+        if arr[loc] and (not loc in acc):
+            acc.append(loc)
+            for n in neighbours(loc):
+                if valid_loc(n, arr.shape):
+                    _loop(n,acc)
         else:
             return
     _loop(loc, acc)
-    return acc
+    return acc, visited
 
 ## def cont_searcher_rec(loc,arr,visited):
 ##     if arr[loc] and (not loc in acc):
