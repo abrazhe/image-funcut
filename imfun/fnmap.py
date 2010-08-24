@@ -157,7 +157,7 @@ def tanh_step(start,stop):
     "To be used for convolution"
     def _(t):
         v =  0.5*(1 + np.tanh(10*(t-start)) * np.tanh(-10*(t-stop)))
-        return v[::-1] - np.mean(v)
+        return v - np.mean(v)
     return _
 
 
