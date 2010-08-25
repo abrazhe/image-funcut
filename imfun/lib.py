@@ -12,8 +12,6 @@ import matplotlib as mpl
 import numpy as np
 
 
-
-
 def plane(pars, x,y):
         kx,ky,z = pars
         return x*kx + y*ky + z
@@ -125,9 +123,9 @@ def ar1(alpha = 0.74):
         prev = res
         yield res
 
-def DoSD(vec):
-	"Remove mean and normalize to SD"
-	return (v1-np.mean(v1))/np.std(v1)
+#def DoSD(vec):
+#	"Remove mean and normalize to SD"
+#	return (v1-np.mean(v1))/np.std(v1)
 
 def DoSD(vec):
 	"Remove mean and normalize to mean"
@@ -251,14 +249,20 @@ def plot_spectrogram_with_ts(signal, f_s, freqs,
     return fig
 
 
-def mask4overlay(mask,colorind=0):
+def rescale(arr):
+	"Rescales array to [0..1] interval"
+	out = arr - np.min(arr)
+	return out/np.max(out)
+	
+
+def mask4overlay(mask,colorind=0, alpha=0.9):
     """
     Put a binary mask in some color channel
     and make regions where the mask is False transparent
     """
     sh = mask.shape
     z = np.zeros(sh)
-    stack = np.dstack((z,z,z,0.9*np.ones(sh)*mask))
+    stack = np.dstack((z,z,z,alpha*np.ones(sh)*mask))
     stack[:,:,colorind] = mask
     return stack
 
