@@ -154,23 +154,51 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
     return out
 
 def tanh_step(start,stop):
-    "To be used for convolution"
+    "To be used for correlation"
     def _(t):
         v =  0.5*(1 + np.tanh(10*(t-start)) * np.tanh(-10*(t-stop)))
         return v - np.mean(v)
     return _
 
+def MH_onoff(start,stop):
+    "To be used for correlation"
+    mh = pycwt.Mexican_hat()
+    w = stop-start
+    scale = 2*w*mh.fc
+    def _(t):
+        v = mh.psi((t - (start+0.5*w))/scale)
+        return v
+    return _
 
 def norm1(v, L):
     return (v - np.mean(v[:L]))/np.std(v[:L])
 
-def corrmap(fseq, (start, stop), normL=None):
+def detrend(y, ord=2, take=None):
+    x = np.arange(len(y))
+    if take is None:
+        take = x
+    p = np.polyfit(x[take],y[take],ord)
+    return y - np.polyval(p, x)
+
+def meanactmap(fseq, (start,stop), normL=None):
     L = fseq.length()
     normL = ifnot(normL, L)
     out = np.zeros(fseq.shape())
-    comp_sig = tanh_step(start, stop)(fseq.timevec())
+    tv = fseq.timevec()
+    mrange = (tv > start)*(tv < stop)
     for s,j,k in fseq.pix_iter():
-        out[j,k] = np.correlate(norm1(s,normL),
+        sx = detrend(s,take=range(330))
+        out[j,k] = np.mean(norm1(s,normL)[mrange])
+    return out
+    
+
+def corrmap(fseq, (start, stop), normL=None, sigfunc = tanh_step):
+    L = fseq.length()
+    normL = ifnot(normL, L)
+    out = np.zeros(fseq.shape())
+    comp_sig = sigfunc(start, stop)(fseq.timevec())
+    for s,j,k in fseq.pix_iter():
+        out[j,k] = np.correlate(norm1(sx,normL),
                                 comp_sig,
                                 'valid')[0]
     return out
