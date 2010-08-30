@@ -2,6 +2,8 @@
 ### Look at random_spikes() and synth_movie()
 
 import itertools as itt
+import numpy as np
+pi = np.pi
 
 def spike(x, location, a, tau):
     coef = 0.5 * a * (1 + tanh(20 * (x-location) / tau))

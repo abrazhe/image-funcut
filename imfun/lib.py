@@ -13,7 +13,7 @@ import numpy as np
 
 
 def plane(pars, x,y):
-        kx,ky,z = pars
+	kx,ky,z = pars
         return x*kx + y*ky + z
 
 
@@ -46,6 +46,16 @@ def vessel_mask(f, p, negmask, thresh = None):
 		posmask = fx > thresh
 	return posmask*negmask
 	
+def in_circle(coords, radius):
+    return lambda x,y: square_distance((x,y), coords) <= radius**2
+
+def eu_dist(p1,p2):
+    "Euler distance between two points"
+    return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+def square_distance(p1,p2):
+    return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
+
 
 
 def mask_percent_threshold(mat, thresh):
@@ -62,7 +72,7 @@ def mask_num_std(mat, n, func=lambda a,b: a>b):
     x = np.std(mat)
     return func(mat, x*n)
 
-def mask_in_right_tail_median_SD(mat, n = 1.5, compfn = np.greater):
+def mask_median_SD(mat, n = 1.5, compfn = np.greater):
     return compfn(mat, np.median(mat) + n*mat.std())
 
 def shorten_movie(m,n):
@@ -127,13 +137,12 @@ def ar1(alpha = 0.74):
 #	"Remove mean and normalize to SD"
 #	return (v1-np.mean(v1))/np.std(v1)
 
-def DoSD(vec):
+def DoSD(vec, normL=None):
 	"Remove mean and normalize to mean"
-	m = np.mean(v1)
-	if abs(m) > 1e-12:
-		return v1/m-1
-	else:
-		return v1 -m 
+	normL = ifnot(normL, len(vec))
+	m = np.mean(vec[:normL])
+	sd = np.std(vec[:normL])
+	return (vec-m)/sd
 
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
@@ -190,6 +199,17 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
     cone_infl(freqs, extent, wavelet, ax)
     if confidence_level:
         confidence_contour(eds, extent, ax, confidence_level)
+
+def group_maps(maplist, ncols,
+               titles=None, imkw={}, cbkw ={}):
+     import pylab as pl
+     nrows = np.ceil(len(maplist)/ncols)
+     pl.figure(figsize=(2*ncols,2*nrows))
+     for i,f in enumerate(maplist):
+          _ = pl.subplot(nrows,ncols,i+1)
+          pl.imshow(f,aspect='equal', **imkw);
+          pl.colorbar(ax=_,**cbkw);
+          if titles is not None: pl.title(titles[i])
 
 
 def ifnot(a, b):

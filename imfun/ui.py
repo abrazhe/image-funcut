@@ -12,8 +12,10 @@ from pylab import *
 from pylab import mpl
 
 from swan import pycwt
+
 from imfun import lib
 ifnot = lib.ifnot
+in_circle = lib.in_circle
 
 from scipy import signal
 
@@ -64,16 +66,9 @@ def nearest_item_ind(items, xy, fn = lambda a: a):
     Index of the nearest item from a collection.
     Arguments: collection, position, selector
     """
-    return lib.min1(lambda p: eu_dist(fn(p), xy), items)
+    return lib.min1(lambda p: lib.eu_dist(fn(p), xy), items)
 
 
-
-def eu_dist(p1,p2):
-    "Euler distance between two points"
-    return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
-
-def square_distance(p1,p2):
-    return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
 
 
 def line_from_points(p1,p2):
@@ -83,16 +78,13 @@ def line_from_points(p1,p2):
     b = p1[1] - p1[0]*k
     return lambda x: k*x + b
 
-def in_circle(coords, radius):
-    return lambda x,y: square_distance((x,y), coords) < radius**2
-
 
 def extract_line(data, xind, f):
     return array([data[int(i),int(f(i))] for i in xind])
 
 
 def extract_line2(data, p1, p2):
-    L = int(eu_dist(p1,p2))
+    L = int(lib.eu_dist(p1,p2))
     f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
     return array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
                   for i in range(L)])
@@ -196,7 +188,7 @@ class LineScan(DraggableObj):
     def endpoints(self):
         return rezip(self.obj.get_data())
     def length(self):
-        return eu_dist(*self.endpoints())
+        return lib.eu_dist(*self.endpoints())
     def check_endpoints(self):
         "Return endpoints in the correct order"
         pts = self.endpoints()
@@ -208,7 +200,7 @@ class LineScan(DraggableObj):
         xp,yp   = self.pressed
         dx,dy = p[0] - xp, p[1] - yp
         x0, y0 = self.obj.get_xdata(), self.obj.get_ydata()
-        dist1,dist2 = [eu_dist(p,x) for x in self.endpoints()]
+        dist1,dist2 = [lib.eu_dist(p,x) for x in self.endpoints()]
         if dist1/(dist1 + dist2) < 0.05:
             dx,dy = array([dx, 0]), array([dy, 0])
         elif dist2/(dist1 + dist2) < 0.05:
@@ -240,7 +232,8 @@ class LineScan(DraggableObj):
     def show_timeview(self):
         timeview,points = self.get_timeview()
         if timeview is not None:
-            ax = pl.axes();
+            ax = pl.figure().add_subplot(111)
+            #self.fig = self.ax1.figure
             ax.imshow(timeview,
                       extent=(0, timeview.shape[1], 0,
                               self.parent.fseq.dt*self.parent.length()),
@@ -300,7 +293,8 @@ class CircleROI(DraggableObj):
             p = self.parent.roi_objs.pop(self.tag)
             self.obj.remove()
             self.disconnect()
-            self.obj.axes.legend()
+            #self.obj.axes.legend()
+            self.parent.legend()
             self.redraw()
 
     def move(self, p):
@@ -350,8 +344,6 @@ class Picker:
         if self._Nf is None:
             self._Nf = self.fseq.length()
         return self._Nf
-
-    
     
     def onclick(self,event):
         tb = get_current_fig_manager().toolbar
@@ -370,9 +362,18 @@ class Picker:
             print c.axes
             self.roi_objs[label]= CircleROI(c, self)
             #drc.connect()
-            
-        self.ax1.legend()
+        self.legend()    
+        #self.ax1.legend()
         draw()
+
+    def legend(self):
+        handles, labels  = [], []
+        for key,roi in self.roi_objs.items():
+            handles.append(roi.obj)
+            labels.append(key)
+        if len(labels) > 0:
+            pl.figlegend(handles, labels, 'upper right')
+        
 
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
@@ -411,7 +412,8 @@ class Picker:
         else:
             self.curr_line_handle.remove()
         if len(self.roi_objs) > 0:
-            self.ax1.legend()
+            #self.ax1.legend()
+            pass
         self.fig.canvas.draw() #todo BLIT!
         return
 
@@ -455,7 +457,7 @@ class Picker:
         self.roi_objs.update(dict([(l.get_label(), LineScan(l,self))
                                    for l in lines]))
 
-        self.ax1.legend()
+        #self.ax1.legend()
         draw() # redraw the axes
         return
 
@@ -638,7 +640,7 @@ class Picker:
         roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
         plot(t,s1,color=roi1.get_color(), label=tag1)
         plot(t,s2,color=roi2.get_color(), label = tag2)
-        legend()
+        #legend()
         ax2 = subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
         ax2.imshow(res, extent = ext, cmap = lib.swanrgb())
