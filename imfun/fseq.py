@@ -58,7 +58,7 @@ def gauss_kern(xsize=1.5, ysize=None):
 default_kernel = gauss_kern
 
 
-def gauss_blur(X,size=1.5):
+def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
 
 class FrameSequence:

@@ -3,12 +3,14 @@ import time, sys
 #from imfun.aux_utils import ifnot
 from swan import pycwt
 
+import itertools as itt
+
 ## def ifnot(a, b):
 ##     "if a is not None, return a, else return b"
 ##     if a == None: return b
 ##     else: return a
 
-from imfun import lib
+from imfun import lib, ui
 ifnot = lib.ifnot
 
 def isseq(obj):
@@ -115,8 +117,7 @@ def cwt_freqmap(fseq,
         else:
             print "No local maxima. This shouldn't have happened!"
             x = (ma>=np.max(ma)).nonzero()[0]
-            try:
-                n = x[0]
+            try: n = x[0]
             except:
                 n = 0
                 print x,ma
@@ -170,8 +171,10 @@ def MH_onoff(start,stop):
         return v
     return _
 
-def norm1(v, L):
-    return (v - np.mean(v[:L]))/np.std(v[:L])
+## def norm1(v, L):
+##     return (v - np.mean(v[:L]))/np.std(v[:L])
+
+DoSD = lib.DoSD # Normalization function
 
 def detrend(y, ord=2, take=None):
     x = np.arange(len(y))
@@ -179,6 +182,7 @@ def detrend(y, ord=2, take=None):
         take = x
     p = np.polyfit(x[take],y[take],ord)
     return y - np.polyval(p, x)
+
 
 def meanactmap(fseq, (start,stop), normL=None):
     L = fseq.length()
@@ -188,7 +192,7 @@ def meanactmap(fseq, (start,stop), normL=None):
     mrange = (tv > start)*(tv < stop)
     for s,j,k in fseq.pix_iter():
         sx = detrend(s,take=range(330))
-        out[j,k] = np.mean(norm1(s,normL)[mrange])
+        out[j,k] = np.mean(DFoSD(s,normL)[mrange])
     return out
     
 
@@ -198,7 +202,7 @@ def corrmap(fseq, (start, stop), normL=None, sigfunc = tanh_step):
     out = np.zeros(fseq.shape())
     comp_sig = sigfunc(start, stop)(fseq.timevec())
     for s,j,k in fseq.pix_iter():
-        out[j,k] = np.correlate(norm1(sx,normL),
+        out[j,k] = np.correlate(norm1(s,normL),
                                 comp_sig,
                                 'valid')[0]
     return out
@@ -262,12 +266,40 @@ def contiguous_regions_2d(mask):
     sys.setrecursionlimit(rl)
     return map(lambda x: Region2D(x,mask.shape), regions)
 
+def filter_proximity(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
+    rows, cols = mask.shape
+    X,Y = np.meshgrid(xrange(cols), xrange(rows))
+    in_circle = lib.in_circle
+    out = np.zeros((rows,cols), np.bool)
+    for row in xrange(rows):
+        for col in xrange(cols):
+            if fn(mask,row,col):
+                a = in_circle((col,row),rad)
+                if np.sum(mask*a(X,Y))>size:
+                    out[row,col] = True
+    return out
 
-def filter_size(mask, min_size=5):
-     regions = contiguous_regions_2d(mask)
-     return reduce(lambda a,b:a+b,
-                   [r.tomask() for r in regions if r.size()>min_size])
+def filter_mask(mask, fn, args=()):
+    """Split a mask into contiguous regions, filter their size,
+    and return result as a mask
+    """
+    regs = contiguous_regions_2d(mask)
+    filtered_regs = fn(regs, *args)
+    z = np.zeros(mask.shape, dtype=np.bool)
+    if len(filtered_regs) >1:
+        return reduce(lambda a,b:a+b,
+                      [z]+[r.tomask() for r in filtered_regs])
+    else:
+        return z
 
+def filter_size_regions(regions, min_size=5):
+    "Filters clusters by their size"
+    return [r for r in regions if r.size()>min_size]
+
+def filter_shape_regions(regions, th = 2):
+    "Filters continuous regions by their shape"
+    return [r for r in regions
+            if (r.linsize() > th*np.sqrt(r.size()))]
 
 def cont_searcher(loc, arr, visited):
     """
@@ -303,8 +335,8 @@ def cont_searcher(loc, arr, visited):
 def neighbours(loc):
     "list of adjacent locations"
     r,c = loc
-    return [(r,c+1),(r,c-1),(r+1,c),(r-1,c)]
-            #(r-1,c-1), (r+1,c-1), (r-1, c+1),r+1,c+1)]  
+    return [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
+            (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)]  
 
 def valid_loc(loc,shape):
     "location not outside bounds"
@@ -320,6 +352,11 @@ class Region2D:
         return len(self.locs)
     def center(self):
         return np.mean(self.locs,0)
+    def linsize(self,):
+        dists = [lib.eu_dist(*pair) for pair in itt.permutations(self.locs,2)]
+        return reduce(max, dists)
+                               
+        pass
     def tomask(self):
         m = np.zeros(self.shape, bool)
         for i,j in self.locs: m[i,j]=True
