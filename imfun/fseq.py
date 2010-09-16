@@ -46,6 +46,26 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
 ##     return kern/kern.sum()
 
 
+def fseq_to_movie(seq, name, fps = 25, **kwargs):
+    "Creates a movie from frame sequence with mencoder"
+    import os, sys
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    vmin = np.min(map(np.min, seq.frames())) # for scale
+    vmax = np.max(map(np.max, seq.frames())) # for scale
+    L = seq.length()
+    for i,frame in enumerate(seq.frames()):
+        ax.cla()
+        ax.imshow(frame, aspect='equal', vmin=vmin, vmax=vmax, **kwargs)
+        fname = '_tmp%06d.png'%i
+        fig.savefig(fname)
+        sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
+    print 'Running mencoder, this can take a while'
+    os.system("mencoder 'mf://_tmp*.png' -mf type=png:fps=%d -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"%(fps,name))
+    os.system("rm -f _tmp*.png")
+    
+
 def gauss_kern(xsize=1.5, ysize=None):
     """ Returns a normalized 2D gauss kernel for convolutions """
     xsize = int(xsize)
@@ -186,12 +206,26 @@ class FSeq_glob(FrameSequence):
 
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)
-        
+
 class FSeq_txt(FSeq_glob):
     loadfn= lambda self,y: np.loadtxt(y)
 
 class FSeq_npy(FSeq_glob):
     loadfn= lambda self,y: np.load(y)
+
+class FSeq_imgleic(FSeq_img):
+    def __init__(self, pattern, ch=0, fn=None):
+        self.pattern = pattern
+        self.ch = ch
+        self.fn = ifnot(fn,identity)
+        try:
+            from imfun import leica
+            self.lp = leica.LeicaProps(self.pattern.split('*')[0])
+            self.dt = self.lp.dt
+        except:
+            print "Can't read Leica's XML file!"
+            self.dt = 1
+            pass
 
 
 from imfun.MLFImage import MLF_Image

@@ -47,7 +47,7 @@ def vessel_mask(f, p, negmask, thresh = None):
 	return posmask*negmask
 	
 def in_circle(coords, radius):
-    return lambda x,y: square_distance((x,y), coords) <= radius**2
+    return lambda x,y: (square_distance((x,y), coords) <= radius**2)
 
 def eu_dist(p1,p2):
     "Euler distance between two points"

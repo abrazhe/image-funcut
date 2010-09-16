@@ -1,12 +1,12 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.5',
+      version = '0.0.6',
       py_modules = ['imfun.ui',
                     'imfun.pica',
                     'imfun.synthdata',
                     'imfun.opt',
-                    'imfun.readleicaxml',
+                    'imfun.leica',
                     'imfun.lib',
                     'imfun.pca',
                     'imfun.fseq',
