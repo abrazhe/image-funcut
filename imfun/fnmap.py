@@ -313,9 +313,8 @@ def cont_searcher(loc, arr, visited):
         visited[loc] = True
         if arr[loc] and (not loc in acc):
             acc.append(loc)
-            for n in neighbours(loc):
-                if valid_loc(n, arr.shape):
-                    _loop(n,acc)
+            for n in neighbours(loc, arr.shape):
+                _loop(n,acc)
         else:
             return
     _loop(loc, acc)
