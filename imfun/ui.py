@@ -309,7 +309,7 @@ class CircleROI(DraggableObj):
         roi = self.obj
         fn = in_circle(roi.center, roi.radius)
         shape = self.parent.fseq.shape()
-        X,Y = meshgrid(*map(range, shape))
+        X,Y = meshgrid(*map(range, shape[::-1]))
         v = self.parent.fseq.mask_reduce(fn(X,Y))
         if normp:
             Lnorm = type(normp) is int and normp or len(v)

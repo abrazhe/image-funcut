@@ -202,9 +202,7 @@ def corrmap(fseq, (start, stop), normL=None, sigfunc = tanh_step):
     out = np.zeros(fseq.shape())
     comp_sig = sigfunc(start, stop)(fseq.timevec())
     for s,j,k in fseq.pix_iter():
-        out[j,k] = np.correlate(norm1(s,normL),
-                                comp_sig,
-                                'valid')[0]
+        out[j,k] = np.correlate(DoSD(s,normL), comp_sig, 'valid')[0]
     return out
 
 def fftmap(fseq, frange, func=np.mean,
@@ -332,11 +330,12 @@ def cont_searcher(loc, arr, visited):
 ##         return []
 
 
-def neighbours(loc):
+def neighbours(loc, shape):
     "list of adjacent locations"
     r,c = loc
-    return [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
-            (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)]  
+    return filter(lambda x: valid_loc(x, shape),
+                  [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
+                   (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)])
 
 def valid_loc(loc,shape):
     "location not outside bounds"
