@@ -505,12 +505,15 @@ class Picker:
         dt,Nf = self.dt, self.length()
         return arange(0,Nf*dt, dt)[:Nf]
 
-    def save_time_series_to_file(self, fname, ch, normp = False):
+    def save_time_series_to_file(self, fname, normp = False):
         rois = filter(self.isCircleROI, self.roi_objs.keys())
         ts = self.get_timeseries(normp=normp)
         t = self.timevec()        
         fd = file(fname, 'w')
-        out_string = "Channel %d\n" % ch
+        if hasattr(self.fseq, 'ch'):
+            out_string = "Channel %d\n" % self.fseq.ch
+        else:
+            out_string = ""
         out_string += "Time\t" + '\t'.join(rois) + '\n'
         for k in xrange(self.length()):
             out_string += "%e\t"%t[k]
@@ -617,7 +620,7 @@ class Picker:
             fig.show()
 
 
-    def show_xwt_roi(self, tag1, tag2, freqs=None, ch=None,
+    def show_xwt_roi(self, tag1, tag2, freqs=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROIs"
