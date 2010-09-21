@@ -108,17 +108,17 @@ class FrameSequence:
                 break
         return res/(k+2)
 
-    def aslist(self, maxN = None, fn = lambda x: x, sliceobj=None):
+    def aslist(self, fn = None, maxN=None, sliceobj=None):
         "returns a list of frames"
         return list(self.asiter(maxN,fn,sliceobj))
 
-    def asiter(self, maxN = None, fn = None, sliceobj=None):
+    def asiter(self, fn = None, maxN=None, sliceobj=None):
         "returns a modified iterator over frames"
         fiter = self.frame_slices(sliceobj, fn)
         return itt.islice(fiter, maxN)
 
-    def as3darray(self, maxN = None, fn = lambda x: x, sliceobj=None):
-        fiter = self.frame_slices(sliceobj)
+    def as3darray(self, fn = None, maxN = None, sliceobj=None):
+        fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj)
         N =  self.length()*shape[0]*shape[1]
         ## If total size of data is les than _maxshape_ use normal arrays,
@@ -129,7 +129,7 @@ class FrameSequence:
             _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
             out = np.memmap(_tmpfile, dtype=np.float64,
                             shape=(self.length(), shape[0], shape[1]))
-        for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
+        for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
             out.flush()
@@ -137,13 +137,13 @@ class FrameSequence:
         #return np.asarray(self.aslist(*args, **kwargs))
 
 
-    def as_memmap_array(self, maxN = None, fn = lambda x: x, sliceobj=None):
-        fiter = self.frame_slices(sliceobj)
+    def as_memmap_array(self,  fn = None, maxN = None, sliceobj=None):
+        fiter = self.frame_slices(sliceobj, fn)
         shape = self.shape(sliceobj)
         _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
         out = np.memmap(_tmpfile, dtype=np.float64,
                         shape=(self.length(), shape[0], shape[1]))
-        for k,frame in enumerate(itt.islice(itt.imap(fn, fiter), maxN)):
+        for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         out.flush()
         return out
@@ -177,15 +177,16 @@ class FrameSequence:
         return self.frame_slices(sliceobj).next().shape
 
 class FSeq_arr(FrameSequence):
-    def __init__(self, arr, dt = 1.0, fn = None):
+    def __init__(self, arr, dt = 1.0, fns = []):
         self.dt = dt
         self.data = arr
         self.hooks = []
-        self.fn = ifnot(fn, identity)
+        self.fns = fns
     def length(self):
         return self.data.shape[0]
     def frames(self, fn=None):
-        fn = ifnot(fn, self.fn)
+        #fn = ifnot(fn, self.fn)
+        fn = ifnot(fn, lib.flcompose(identity, *self.fns))
         return (frame for frame in self.data)
 
 
@@ -193,16 +194,16 @@ def identity(x):
     return x
 
 class FSeq_glob(FrameSequence):
-    def __init__(self, pattern, ch=0, dt = 1.0, fn = None):
+    def __init__(self, pattern, ch=0, dt = 1.0, fns = []):
         self.pattern = pattern
         self.ch = ch
         self.dt = dt
-        self.fn = ifnot(fn,identity)
+        self.fns = fns
     def frames(self, fn = None):
-        fn = ifnot(fn,self.fn)
+        fn = ifnot(fn, lib.flcompose(identity, *self.fns))
         ## Examples of processing functions can be found in scipy.ndimage module
         ## TODO: a list of hook functions
-        return itt.imap(fn,fseq_from_glob(self.pattern, self.ch, self.loadfn))
+        return itt.imap(fn, fseq_from_glob(self.pattern, self.ch, self.loadfn))
 
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)
@@ -214,10 +215,10 @@ class FSeq_npy(FSeq_glob):
     loadfn= lambda self,y: np.load(y)
 
 class FSeq_imgleic(FSeq_img):
-    def __init__(self, pattern, ch=0, fn=None):
+    def __init__(self, pattern, ch=0, fns=[]):
         self.pattern = pattern
         self.ch = ch
-        self.fn = ifnot(fn,identity)
+        self.fns = []
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(self.pattern.split('*')[0])
@@ -232,12 +233,13 @@ from imfun.MLFImage import MLF_Image
 
 class FSeq_mlf(FrameSequence):
     "Class for MLF multi-frame images"
-    def __init__(self, fname, fn = None):
+    def __init__(self, fname, fns = []):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
-        self.fn = ifnot(fn,identity)
+        self.fns = []
     def frames(self, fn = None):
-        fn = ifnot(fn,self.fn)
+        #fn = ifnot(fn,self.fn)
+        fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
         #return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
 #    def shape(self): # return it back afterwards

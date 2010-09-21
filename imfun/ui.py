@@ -102,7 +102,7 @@ def rezip(a):
     return zip(*a)
 
 
-def view_fseq_frames(fseq,fn = lambda x:x):
+def view_fseq_frames(fseq,fn = None):
     f = pl.figure()
     axf = axes()
     frame_index = [0]
