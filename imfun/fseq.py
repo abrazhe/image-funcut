@@ -26,6 +26,7 @@ def iter_files(pattern, loadfn):
 
 
 def fseq_from_glob(pattern, ch=None, loadfn=np.load):
+    "Sequence of frames from filenames matching a glob"
     if ch is None:
         return iter_files(pattern, loadfn)
     else:
@@ -46,8 +47,8 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
 ##     return kern/kern.sum()
 
 
-def fseq_to_movie(seq, name, fps = 25, **kwargs):
-    "Creates a movie from frame sequence with mencoder"
+def fseq_to_mpg(seq, name, fps = 25, **kwargs):
+    "Creates an mpg  movie from frame sequence with mencoder"
     import os, sys
     import matplotlib.pyplot as plt
     fig = plt.figure()
@@ -82,22 +83,26 @@ def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
 
 class FrameSequence:
+    "Base class for sequence of frames"
     def timevec(self,):
+        "vector of time values"
         L = self.length()
         dt = self.dt
         return np.arange(0, (L+2)*dt, dt)[:L]
+
     def mask_reduce(self,mask):
         "create 1D vector from mask (or slice)"
         return np.asarray([np.mean(f[mask]) for f in self.frames()])
 
     def frame_slices(self, sliceobj,fn=None):
-        "return iterator over subframes"
+        "iterator over subframes"
         if sliceobj:
             return (f[sliceobj] for f in self.frames(fn))
         else:
             return self.frames(fn)
 
     def mean_frame(self,nframes = None, fn=None):
+        "Create mean image over N frames (all by default)"
         L = self.length()
         frameit = itt.imap(np.float64, self.frames(fn))
         res = np.copy(frameit.next())
@@ -171,10 +176,16 @@ class FrameSequence:
         else:
             return self._length
 
-    
-
     def shape(self,sliceobj=None):
         return self.frame_slices(sliceobj).next().shape
+
+    def pw_transform(self, pwfn,**kwargs):
+        """Create another frame sequence, pixelwise applying a function"""
+        nrows, ncols = self.shape()
+        out = np.zeros((self.length(), nrows, ncols))
+        for v, row, col in self.pix_iter(**kwargs):
+            out[:,row,col] = pwfn(v)
+        return FSeq_arr(out)
 
 class FSeq_arr(FrameSequence):
     def __init__(self, arr, dt = 1.0, fns = []):
@@ -187,7 +198,7 @@ class FSeq_arr(FrameSequence):
     def frames(self, fn=None):
         #fn = ifnot(fn, self.fn)
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))
-        return (frame for frame in self.data)
+        return itt.imap(fn, (frame for frame in self.data))
 
 
 def identity(x):

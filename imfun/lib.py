@@ -75,6 +75,14 @@ def mask_num_std(mat, n, func=lambda a,b: a>b):
 def mask_median_SD(mat, n = 1.5, compfn = np.greater):
     return compfn(mat, np.median(mat) + n*mat.std())
 
+def zero_in_mask(mat, mask):
+	out = np.copy(mat)
+	out[mask] = 0.0
+	return out
+
+def zero_low_sd(mat, n = 1.5):
+    return zero_out_mask(mat, mask_median_SD(mat,n,np.less))
+
 def shorten_movie(m,n):
     return np.array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
 
@@ -138,11 +146,25 @@ def ar1(alpha = 0.74):
 #	return (v1-np.mean(v1))/np.std(v1)
 
 def DoSD(vec, normL=None):
-	"Remove mean and normalize to mean"
-	normL = ifnot(normL, len(vec))
-	m = np.mean(vec[:normL])
-	sd = np.std(vec[:normL])
-	return (vec-m)/sd
+    "Remove mean and normalize to S.D."
+    normL = ifnot(normL, len(vec))
+    m = np.mean(vec[:normL])
+    sd = np.std(vec[:normL])
+    return (vec-m)/sd
+
+def DFoF(vec, normL=None):
+    normL = ifnot(normL, len(vec))
+    m = np.mean(vec[:normL])
+    if np.all(m):
+	return vec/m - 1.0
+    else:
+	zi = np.where(np.abs(m) < 1e-9)[0]
+	m[zi] = 1.0
+	out = vec/m - 1.0
+	out[zi] = 0
+	return out
+	
+	    
 
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
