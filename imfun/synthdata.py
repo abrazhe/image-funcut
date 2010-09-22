@@ -7,7 +7,7 @@ pi = np.pi
 
 def spike(x, location, a, tau):
     coef = 0.5 * a * (1 + np.tanh(20 * (x-location) / tau))
-    return coef * exp(- abs(x -location)/ tau)
+    return coef * np.exp(- abs(x -location)/ tau)
 
 
 def randn_iter(loc, sigma):
