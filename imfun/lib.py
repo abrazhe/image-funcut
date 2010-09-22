@@ -102,6 +102,12 @@ def flcompose(*funcs):
     "Compose a list of functions from left to right"
     return reduce(flcompose2, funcs)
 
+def ensure_dir(f):
+    d = os.path.dirname(f)
+    if not os.path.exists(d):
+        os.makedirs(d)
+    return f
+
 
 def imresize(a, nx, ny, **kw):
     """
@@ -141,16 +147,12 @@ def ar1(alpha = 0.74):
         prev = res
         yield res
 
-#def DoSD(vec):
-#	"Remove mean and normalize to SD"
-#	return (v1-np.mean(v1))/np.std(v1)
 
 def DoSD(vec, normL=None):
     "Remove mean and normalize to S.D."
     normL = ifnot(normL, len(vec))
-    m = np.mean(vec[:normL])
-    sd = np.std(vec[:normL])
-    return (vec-m)/sd
+    m, sd, x  = np.mean, np.std, vec[:normL]
+    return (vec-m(x))/sd(x)
 
 def DFoF(vec, normL=None):
     normL = ifnot(normL, len(vec))
@@ -165,7 +167,6 @@ def DFoF(vec, normL=None):
 	return out
 	
 	    
-
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
     _rgbswan_data =  swancmap.get_rgbswan_data2()

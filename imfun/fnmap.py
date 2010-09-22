@@ -303,7 +303,7 @@ def cont_searcher(loc, arr, visited):
     """
     Auxilary function for contiguous_regions_2d, finds one contiguous region
     starting from a non-False location
-    TODO: make it possible to use user-defined funtion over an array instead of
+    TODO: make it possible to use user-defined function over an array instead of
     just a binary mask
     """
     acc = []
