@@ -6,7 +6,7 @@ import numpy as np
 pi = np.pi
 
 def spike(x, location, a, tau):
-    coef = 0.5 * a * (1 + tanh(20 * (x-location) / tau))
+    coef = 0.5 * a * (1 + np.tanh(20 * (x-location) / tau))
     return coef * exp(- abs(x -location)/ tau)
 
 
