@@ -186,6 +186,34 @@ class FrameSequence:
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
         return FSeq_arr(out)
+    def export_png(self, path, base = 'fseq-export-', **kwargs):
+        import  sys
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        vmin = np.min(map(np.min, self.frames())) # for scale
+        vmax = np.max(map(np.max, self.frames())) # for scale
+        L = self.length()
+        for i,frame in enumerate(self.frames()):
+            ax.cla()
+            ax.imshow(frame, aspect='equal', vmin=vmin, vmax=vmax, **kwargs)
+            fname =  path + base + '%06d.png'%i
+            fig.savefig(fname)
+            sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
+        plt.close()
+    def export_mpeg(self, mpeg_name, fps = None, **kwargs):
+        import os
+        "Creates an mpg  movie from frame sequence with mencoder"
+        print "Saving frames as png"
+        path, base = './', '_tmp'
+        if fps is None:
+            fps = 1/self.dt
+        self.export_png(path, base, **kwargs)
+        print 'Running mencoder, this can take a while'
+        mencoder_string = """mencoder 'mf://_tmp*.png' -mf type=png:fps=%d\
+        -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
+        os.system(mencoder_string)
+        os.system("rm -f _tmp*.png")
 
 class FSeq_arr(FrameSequence):
     def __init__(self, arr, dt = 1.0, fns = []):
