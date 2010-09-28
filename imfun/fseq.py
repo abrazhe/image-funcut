@@ -185,11 +185,13 @@ class FrameSequence:
         out = np.zeros((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
-        return FSeq_arr(out)
-    def export_png(self, path, base = 'fseq-export-', **kwargs):
+        return FSeq_arr(out, dt = self.dt)
+    def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
+                   format='.png', **kwargs):
         import  sys
         import matplotlib.pyplot as plt
-        fig = plt.figure()
+        lib.ensure_dir(path)
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         vmin = np.min(map(np.min, self.frames())) # for scale
         vmax = np.max(map(np.max, self.frames())) # for scale
@@ -208,7 +210,7 @@ class FrameSequence:
         path, base = './', '_tmp'
         if fps is None:
             fps = 1/self.dt
-        self.export_png(path, base, **kwargs)
+        self.export_img(path, base, **kwargs)
         print 'Running mencoder, this can take a while'
         mencoder_string = """mencoder 'mf://_tmp*.png' -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
@@ -233,11 +235,25 @@ def identity(x):
     return x
 
 class FSeq_glob(FrameSequence):
-    def __init__(self, pattern, ch=0, dt = 1.0, fns = []):
+    def __init__(self, pattern, ch=0, dt = 1.0, fns = [],
+                 dx = None, dy = None):
         self.pattern = pattern
         self.ch = ch
         self.dt = dt
         self.fns = fns
+        self._scale_set = True
+        if (dx is None) and (dy is None):
+            self.dx,self.dy = 1,1
+            self._scale_set = False
+        elif (dx is not None) and (dy is None):
+            self.dx, self.dy = dx, dx
+        elif (dx is None) and (dy is not None):
+            self.dx, self.dy = dy, dy
+        else:
+            self.dx, self.dy = dx,dy
+            
+
+            
     def frames(self, fn = None):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))
         ## Examples of processing functions can be found in scipy.ndimage module
@@ -255,16 +271,17 @@ class FSeq_npy(FSeq_glob):
 
 class FSeq_imgleic(FSeq_img):
     def __init__(self, pattern, ch=0, fns=[]):
-        self.pattern = pattern
-        self.ch = ch
+        FSeq_glob.__init__(self, pattern,ch=ch)
         self.fns = []
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(self.pattern.split('*')[0])
-            self.dt = self.lp.dt
+            self.dt = self.lp.dt # sec
+            self.dx = self.lp.dx # um/pix
+            self.dy = self.lp.dy # um/pix
+            self._scale_set = True
         except:
             print "Can't read Leica's XML file!"
-            self.dt = 1
             pass
 
 

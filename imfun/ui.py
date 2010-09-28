@@ -102,28 +102,48 @@ def rezip(a):
     return zip(*a)
 
 
-def view_fseq_frames(fseq,fn = None):
+def view_fseq_frames(fseq, vmin = None, vmax = None):
     f = pl.figure()
     axf = axes()
     frame_index = [0]
-    frames = fseq.as3darray(fn=fn)
+    frames = fseq.as3darray()
     Nf = len(frames)
+
+    if vmax is None:
+        vmax = np.max(map(np.max, fseq.frames()))
+
+    if vmin is None:
+        vmin = np.min(map(np.min, fseq.frames()))
+
+    sy,sx = fseq.shape()
+    if fseq._scale_set:
+        sx = sx*fseq.dx 
+        sy = sy*fseq.dy
+        
+    
     plf = axf.imshow(frames[0],
+                     extent = (0, sx, 0, sy),
                      interpolation = 'nearest',
+                     vmax = vmax, vmin = vmin,
                      aspect = 'equal', cmap=mpl.cm.gray)
+    if fseq._scale_set:
+        pl.ylabel('$\mu m$')
+        pl.xlabel('$\mu m$')
+    pl.colorbar(plf)
     def skip(event,n=1):
         fi = frame_index[0]
         key = hasattr(event, 'button') and event.button or event.key
-        if key in (4,'4','down'):
+        if key in (4,'4','down','left'):
             fi -= n
-        elif key in (5,'5','up'):
+        elif key in (5,'5','up','right'):
             fi += n
         fi = fi%Nf
         plf.set_data(frames[fi])
-        axf.set_xlabel('%03d'%fi)
+        axf.set_title('%03d (%3.3f sec)'%(fi, fi*fseq.dt))
         frame_index[0] = fi
         f.canvas.draw()
     f.canvas.mpl_connect('scroll_event',skip)
+    #f.canvas.mpl_connect('key_press_event', skip)
     f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
 
 
@@ -467,12 +487,21 @@ class Picker:
         self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
 
+        sy,sx = self.fseq.shape()
+        if self.fseq._scale_set:
+            sx = sx*self.fseq.dx 
+            sy = sy*self.fseq.dy
+
         if hasattr(self.fseq, 'ch'):
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
+                                  extent = (0, sx, 0, sy),
                                   interpolation = 'nearest',
                                   aspect='equal',
                                   cmap=matplotlib.cm.gray)
+        if self.fseq._scale_set:
+            self.ax1.set_xlabel('$\mu m$')
+            self.ax1.set_ylabel('$\mu m$')
         if True or self.connected is False:
             self.pressed = None
             self.fig.canvas.mpl_connect('button_press_event',

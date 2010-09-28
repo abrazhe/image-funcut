@@ -80,9 +80,9 @@ class Test(HasTraits):
             self.pl.axes.figure.canvas.draw()
 
     def _load_btn_fired(self):
-        pattern = self.fig_dir + os.sep + self.glob
+        pattern = str(self.fig_dir + os.sep + self.glob)
         print pattern
-        self.fseq = fseq.FSeq_img(pattern, ch=self.color_channel)
+        self.fseq = fseq.FSeq_imgleic(pattern, ch=self.color_channel)
         self.frames = [self.fseq.mean_frame()] + self.fseq.aslist()
         Nf = len(self.frames)
         #self.pl = self.axes.imshow(self.fseq.mean_frame(), aspect='equal',
