@@ -81,7 +81,7 @@ def zero_in_mask(mat, mask):
 	return out
 
 def zero_low_sd(mat, n = 1.5):
-    return zero_out_mask(mat, mask_median_SD(mat,n,np.less))
+    return zero_in_mask(mat, mask_median_SD(mat,n,np.less))
 
 def shorten_movie(m,n):
     return np.array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
@@ -103,10 +103,11 @@ def flcompose(*funcs):
     return reduce(flcompose2, funcs)
 
 def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-        os.makedirs(d)
-    return f
+	import os
+	d = os.path.dirname(f)
+	if not os.path.exists(d):
+		os.makedirs(d)
+	return f
 
 
 def imresize(a, nx, ny, **kw):

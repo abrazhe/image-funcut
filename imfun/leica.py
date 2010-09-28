@@ -39,7 +39,7 @@ class LeicaProps:
         for node in doc.xpathEval("//DimensionDescription"):
             Id = get_prop(node, 'DimID')
             Units = get_prop(node, 'Unit')
-            val = float(get_prop(node, 'Length'))
+            val = 1e6*float(get_prop(node, 'Length')) # um
             num_elem = float(get_prop(node, 'NumberOfElements'))
             if Units is 'm':
                 if Id is '1':
