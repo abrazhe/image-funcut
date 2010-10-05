@@ -235,7 +235,7 @@ class FrameSequence:
         mencoder_string = """mencoder 'mf://_tmp*.png' -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
         os.system(mencoder_string)
-        fnames = (path + base + '%06d.png'%i for i in self.length())
+        fnames = (path + base + '%06d.png'%i for i in xrange(self.length()))
         map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):
