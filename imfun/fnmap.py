@@ -277,6 +277,18 @@ def filter_proximity(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
                     out[row,col] = True
     return out
 
+def majority(mask, th = 5, mod = True):
+    rows, cols = mask.shape
+    out = np.zeros((rows,cols), np.bool)
+    for row in xrange(rows):
+        for col in xrange(cols):
+            x = np.sum([mask[n] for n in neighbours((row,col),mask.shape)])
+            out[(row,col)] = (x >= th)
+            if mod:
+               out[(row,col)] *= mask[row,col]
+    return out
+            
+
 def filter_mask(mask, fn, args=()):
     """Split a mask into contiguous regions, filter their size,
     and return result as a mask

@@ -115,18 +115,16 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
     if vmin is None:
         vmin = np.min(map(np.min, fseq.frames()))
 
+
     sy,sx = fseq.shape()
-    if fseq._scale_set:
-        sx = sx*fseq.dx 
-        sy = sy*fseq.dy
-        
-    
+    dy,dx, scale_setp = fseq.get_scale()
+
     plf = axf.imshow(frames[0],
-                     extent = (0, sx, 0, sy),
+                     extent = (0, sx*dx, 0, sy*dy),
                      interpolation = 'nearest',
                      vmax = vmax, vmin = vmin,
                      aspect = 'equal', cmap=mpl.cm.gray)
-    if fseq._scale_set:
+    if scale_setp:
         pl.ylabel('$\mu m$')
         pl.xlabel('$\mu m$')
     pl.colorbar(plf)
@@ -155,6 +153,8 @@ class DraggableObj:
         self.connect()
         self.pressed = None
         self.tag = obj.get_label() # obj must support this
+        fseq = self.parent.fseq
+        self.dy,self.dx, self.scale_setp = fseq.get_scale()
         pass
 
     def redraw(self):
@@ -243,21 +243,28 @@ class LineScan(DraggableObj):
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
             self.show_timeview()
+    def transform_point(self, p):
+        return p[0]/self.dx, p[1]/self.dy
 
     def get_timeview(self):
-        points = self.check_endpoints()
+        points = map(self.transform_point, self.check_endpoints())
         timeview = array([extract_line2(frame, *points) for frame in
                           self.parent.fseq.frames()])
         return timeview,points
+
     def show_timeview(self):
         timeview,points = self.get_timeview()
         if timeview is not None:
+            fseq = self.parent.fseq
             ax = pl.figure().add_subplot(111)
-            #self.fig = self.ax1.figure
+            # TODO: work out if sx differs from sy
             ax.imshow(timeview,
-                      extent=(0, timeview.shape[1], 0,
-                              self.parent.fseq.dt*self.parent.length()),
-                      aspect='equal')
+                      extent=(0, self.dx*timeview.shape[1], 0,
+                              fseq.dt*self.parent.length()),
+                      )
+                      #aspect='equal')
+            if self.scale_setp:
+                ax.set_xlabel('$\mu$m')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
             ax.figure.show()
@@ -327,7 +334,8 @@ class CircleROI(DraggableObj):
 
     def get_timeview(self, normp=False):
         roi = self.obj
-        fn = in_circle(roi.center, roi.radius)
+        c = roi.center[0]/self.dx, roi.center[1]/self.dy
+        fn = in_circle(c, roi.radius)
         shape = self.parent.fseq.shape()
         X,Y = meshgrid(*map(range, shape[::-1]))
         v = self.parent.fseq.mask_reduce(fn(X,Y))
@@ -487,19 +495,19 @@ class Picker:
         self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
 
+        dx,dy, scale_setp = self.fseq.get_scale()
         sy,sx = self.fseq.shape()
-        if self.fseq._scale_set:
-            sx = sx*self.fseq.dx 
-            sy = sy*self.fseq.dy
-
+        vmin = np.min(map(np.min, self.fseq.frames()))
+        vmax = np.max(map(np.max, self.fseq.frames()))
         if hasattr(self.fseq, 'ch'):
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
-                                  extent = (0, sx, 0, sy),
+                                  extent = (0, sx*dx, 0, sy*dy),
                                   interpolation = 'nearest',
                                   aspect='equal',
+                                  vmax=vmax,  vmin=vmin,
                                   cmap=matplotlib.cm.gray)
-        if self.fseq._scale_set:
+        if scale_setp:
             self.ax1.set_xlabel('$\mu m$')
             self.ax1.set_ylabel('$\mu m$')
         if True or self.connected is False:
