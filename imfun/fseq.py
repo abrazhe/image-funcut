@@ -84,6 +84,26 @@ def gauss_blur(X,size=1.0):
 
 class FrameSequence:
     "Base class for sequence of frames"
+    def get_scale(self):
+        if hasattr(self, '_scale_set'):
+            scale_flag = self._scale_set
+            dx,dy, scale_flag = self.dx, self.dy, self._scale_set
+        else:
+            dx,dy,scale_flag = 1,1,None
+        return dx, dy, scale_flag
+
+    def set_scale(self, dx=None, dy=None):
+        self._scale_set = True
+        if (dx is None) and (dy is None):
+            self.dx,self.dy = 1,1
+            self._scale_set = False
+        elif (dx is not None) and (dy is None):
+            self.dx, self.dy = dx, dx
+        elif (dx is None) and (dy is not None):
+            self.dx, self.dy = dy, dy
+        else:
+            self.dx, self.dy = dx,dy
+
     def timevec(self,):
         "vector of time values"
         L = self.length()
@@ -185,7 +205,7 @@ class FrameSequence:
         out = np.zeros((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
-        return FSeq_arr(out, dt = self.dt)
+        return FSeq_arr(out, dt = self.dt, dx=self.dx, dy = self.dy)
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
                    format='.png', **kwargs):
         import  sys
@@ -215,14 +235,17 @@ class FrameSequence:
         mencoder_string = """mencoder 'mf://_tmp*.png' -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
         os.system(mencoder_string)
-        os.system("rm -f _tmp*.png")
+        fnames = (path + base + '%06d.png'%i for i in self.length())
+        map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):
-    def __init__(self, arr, dt = 1.0, fns = []):
+    def __init__(self, arr, dt = 1.0, fns = [],
+                 dx = None, dy = None):
         self.dt = dt
         self.data = arr
         self.hooks = []
         self.fns = fns
+        self.set_scale(dx, dy)
     def length(self):
         return self.data.shape[0]
     def frames(self, fn=None):
@@ -241,18 +264,7 @@ class FSeq_glob(FrameSequence):
         self.ch = ch
         self.dt = dt
         self.fns = fns
-        self._scale_set = True
-        if (dx is None) and (dy is None):
-            self.dx,self.dy = 1,1
-            self._scale_set = False
-        elif (dx is not None) and (dy is None):
-            self.dx, self.dy = dx, dx
-        elif (dx is None) and (dy is not None):
-            self.dx, self.dy = dy, dy
-        else:
-            self.dx, self.dy = dx,dy
-            
-
+        self.set_scale(dx, dy)
             
     def frames(self, fn = None):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))
@@ -277,11 +289,9 @@ class FSeq_imgleic(FSeq_img):
             from imfun import leica
             self.lp = leica.LeicaProps(self.pattern.split('*')[0])
             self.dt = self.lp.dt # sec
-            self.dx = self.lp.dx # um/pix
-            self.dy = self.lp.dy # um/pix
-            self._scale_set = True
-        except:
-            print "Can't read Leica's XML file!"
+            self.set_scale(self.lp.dx, self.lp.dy) # um/pix
+        except Exception as e:
+            print "Got exception, ", e
             pass
 
 
@@ -293,6 +303,7 @@ class FSeq_mlf(FrameSequence):
         self.mlfimg = MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
         self.fns = []
+        self.set_scale()
     def frames(self, fn = None):
         #fn = ifnot(fn,self.fn)
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
@@ -310,6 +321,7 @@ class FSeq_multiff(FrameSequence):
     def __init__(self, fname, dt=1.0):
         self.dt = dt
         self.im = Image.open(fname)
+        self.set_scale()
     def frames(self):
         count = 0
         while True:

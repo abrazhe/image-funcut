@@ -1,10 +1,14 @@
+#!/usr/bin/which python 
 import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-from imfun import fseq
-from imfun import interactive as interact
+from imfun import fseq, fnmap, lib
+from imfun import ui as ifui
 
+import numpy as np
+
+from scipy import signal
 
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg  as FigureCanvas
 from matplotlib.figure import Figure
@@ -43,36 +47,83 @@ class _MPLFigureEditor(Editor):
 class MPLFigureEditor(BasicEditorFactory):
     klass = _MPLFigureEditor
 
+color_channels = {
+    'red':0,
+    'green':1,
+    'blue':2,
+    }
+
 from numpy import sin, cos, linspace, pi
 import os
+
+class FrameSequenceOpts(HasTraits):
+    mfilt7 = lambda v: signal.medfilt(v,7)
+    fw_presets = {
+        'Do nothing' : [],
+        'Gauss blur' : [fseq.gauss_blur],
+        'Median filter (3pix)' : [lambda v:signal.medfilt(v,3)]
+        }
+    pw_presets = {
+        'Do nothing' : lambda x:x,
+        'Norm to SD' : lambda x: x/np.std(x),
+        'Med. filter (7 points)' : mfilt7,
+        'Med. filter (7p) + DFoF': lib.flcompose(mfilt7,lib.DFoF),
+        'Med. filter (7p) + DoSD':lib.flcompose(mfilt7,lib.DoSD),
+        }
+    dt = Float(0.2, label='sampling interval')
+    fig_path = Directory("")
+    ch = Enum('green', 'red', 'blue', label='Color channel')
+    glob = Str('*.tif', label='Glob', description='Image name contains...')
+
+    fw_trans1 = Enum(*sorted(fw_presets.keys()),
+                     label='Framewise transform before')
+    pw_trans = Enum(*sorted(pw_presets.keys()), label='Pixelwise transform')
+
+    fw_trans2 = Enum(*sorted(fw_presets.keys()),
+                     label='Framewise transform after')
+
+    load_btn = Button("Load images")
+
+    
+    view = View(Group(Item('fig_path'),
+                      Item('glob'),
+                      Item('ch'),
+                      Item('dt'),
+                      Item('load_btn', show_label=False),
+                      label='Loading'),
+                Group(Item('fw_trans1'),
+                      Item('pw_trans'),
+                      Item('fw_trans2'),
+                      label='Post-process'))
+
 class Test(HasTraits):
+    fso = Instance(FrameSequenceOpts)
     figure = Instance(Figure, ())
     max_frames = Int(100)
-    sampling_interval = Float(0.4)
     frame_index = Int(0)
     frames = None
-    fig_dir = Directory("")
     load_btn = Button("Load images")
-    color_channel = Enum([0,1,2])
-    glob = Str("*.tif")
-    view = View(Group(Group(Item('fig_dir'),
-                            Item('glob'),
-                            Item('sampling_interval', label='Sampling interval'),
-                            Item('color_channel'),
-                            Item('load_btn', show_label=False)),
-                      Item('figure', editor=MPLFigureEditor(),
-                           show_label=False),
-                      Item('frame_index',
-                           editor=RangeEditor(low=0,
-                                              high_name='max_frames',
-                                              mode='slider'))),
+    view = View(HSplit(Group(Item('load_btn', show_label=False),
+                             Item('figure', editor=MPLFigureEditor(),
+                                  show_label=False),
+                             Item('frame_index',
+                                  editor=RangeEditor(low=0,
+                                                     high_name='max_frames',
+                                                     mode='slider'))),
+                       Item('fso', style='custom'),
+                       show_labels=False),
                 width=800,
                 height=600,
                 resizable=True)
-    
-    def __init__(self):
-        super(Test, self).__init__()
-        self.axes = self.figure.add_subplot(111)
+
+    def _figure_default(self):
+        figure = Figure()
+        self.axes = figure.add_axes([0.05, 0.04, 0.9, 0.92])
+        return figure
+
+    def _fso_default(self):
+        fso = FrameSequenceOpts()
+        return fso
 
     def _frame_index_changed(self):
         if self.frames:
@@ -80,20 +131,24 @@ class Test(HasTraits):
             self.pl.axes.figure.canvas.draw()
 
     def _load_btn_fired(self):
-        pattern = str(self.fig_dir + os.sep + self.glob)
+        fso = self.fso
+        pattern = str(fso.fig_path + os.sep + fso.glob)
         print pattern
-        self.fseq = fseq.FSeq_imgleic(pattern, ch=self.color_channel)
-        self.frames = [self.fseq.mean_frame()] + self.fseq.aslist()
+        self.axes.cla()
+        fs = fseq.FSeq_imgleic(pattern,
+                               ch=color_channels[self.fso.ch])
+        fs.fns = fso.fw_presets[fso.fw_trans1]
+        fs = fs.pw_transform(fso.pw_presets[fso.pw_trans])
+        fs.fns = fso.fw_presets[fso.fw_trans2]
+        self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)
-        #self.pl = self.axes.imshow(self.fseq.mean_frame(), aspect='equal',
-        #cmap='gray')
-        self.picker = interact.Picker(self.fseq)
+        self.picker = ifui.Picker(fs)
         _,self.pl = self.picker.start(ax=self.axes)
         self.pl.axes.figure.canvas.draw()
         self.max_frames = Nf-1
 
 def main():
-    Test().configure_traits()
+    Test(fso=FrameSequenceOpts()).configure_traits()
 
 if __name__ == "__main__":
     main()
