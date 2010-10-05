@@ -232,7 +232,7 @@ class FrameSequence:
             fps = 1/self.dt
         self.export_img(path, base, **kwargs)
         print 'Running mencoder, this can take a while'
-        mencoder_string = """mencoder 'mf://_tmp*.png' -mf type=png:fps=%d\
+        mencoder_string = """mencoder mf://_tmp*.png -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
         os.system(mencoder_string)
         fnames = (path + base + '%06d.png'%i for i in xrange(self.length()))
