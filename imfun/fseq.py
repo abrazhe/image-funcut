@@ -104,6 +104,11 @@ class FrameSequence:
         else:
             self.dx, self.dy = dx,dy
 
+    def data_range(self):
+        minv = np.min(map(np.min, self.frames()))
+        maxv = np.max(map(np.max, self.frames()))
+        return (minv, maxv)
+
     def timevec(self,):
         "vector of time values"
         L = self.length()
@@ -207,19 +212,27 @@ class FrameSequence:
             out[:,row,col] = pwfn(v)
         return FSeq_arr(out, dt = self.dt, dx=self.dx, dy = self.dy)
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
-                   format='.png', **kwargs):
+                   start = 0, stop = None, show_title = True,
+                   format='.png', vmin = None, vmax=None, **kwargs):
         import  sys
         import matplotlib.pyplot as plt
         lib.ensure_dir(path)
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
-        vmin = np.min(map(np.min, self.frames())) # for scale
-        vmax = np.max(map(np.max, self.frames())) # for scale
+        if stop is None:
+            stop = self.length()
+        if vmin is None:
+            vmin = np.min(map(np.min, self.frames())) # for scale
+        if vmax is None:
+            vmax = np.max(map(np.max, self.frames())) # for scale
         L = self.length()
         for i,frame in enumerate(self.frames()):
+            if i > stop: break
             ax.cla()
             ax.imshow(frame, aspect='equal', vmin=vmin, vmax=vmax, **kwargs)
             fname =  path + base + '%06d.png'%i
+            if show_title:
+                ax.set_title('frame %06d (%3.3f s)'%(i, i*self.dt))
             fig.savefig(fname)
             sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
         plt.close()
@@ -231,11 +244,13 @@ class FrameSequence:
         if fps is None:
             fps = 1/self.dt
         self.export_img(path, base, **kwargs)
+        L = self.length()
+        if kwargs.has_key('stop'): L = kwargs['stop']
         print 'Running mencoder, this can take a while'
         mencoder_string = """mencoder mf://_tmp*.png -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
         os.system(mencoder_string)
-        fnames = (path + base + '%06d.png'%i for i in xrange(self.length()))
+        fnames = (path + base + '%06d.png'%i for i in xrange(L))
         map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):

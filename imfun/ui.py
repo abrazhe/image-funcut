@@ -5,7 +5,9 @@ import sys
 import glob
 import time
 import pylab as pl
-from itertools import combinations
+import itertools as itt
+
+
 
 import numpy as np
 from pylab import *
@@ -50,11 +52,17 @@ consonants = "qwrtpsdfghjklzxcvbnm"
 def rand_tag():
     return ''.join(map(random.choice,
                        (consonants, vowels, consonants)))
+def tags_iter(tag_id =1):
+    while True:
+        yield 'roi%03d'%tag_id
+        tag_id +=1
+def rand_tags_iter():
+    while True: yield rand_tag()
 
-def unique_tag(tags, max_tries = 1e4):
+def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
     n = 0
     while n < max_tries:
-        tag = rand_tag()
+        tag = tagger.next()
         n += 1
         if not tag in tags:
             return tag
@@ -400,7 +408,10 @@ class Picker:
             handles.append(roi.obj)
             labels.append(key)
         if len(labels) > 0:
-            pl.figlegend(handles, labels, 'upper right')
+            if self.legtype is 'figlegend':
+                pl.figlegend(handles, labels, 'upper right')
+            elif self.legtype is 'axlegend':
+                self.ax1.legend()
         
 
     def on_press(self, event):
@@ -489,11 +500,12 @@ class Picker:
         draw() # redraw the axes
         return
 
-    def start(self, roi_objs={}, ax=None):
+    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend'):
         "Start picking up ROIs"
         self.drcs = {}
         self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
+        self.legtype = legend_type
 
         dx,dy, scale_setp = self.fseq.get_scale()
         sy,sx = self.fseq.shape()
