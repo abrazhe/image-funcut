@@ -187,12 +187,15 @@ class FrameSequenceOpts(HasTraits):
             fs = fs.pw_transform(self.pw_presets[self.pw_trans])
             fs.fns = self.fw_presets[self.fw_trans2]
             self.fns_changed = False
+            return fs
+        else:
+            return self.fs
 
     def _load_btn_fired(self):
         self.fns_changed = True
         self.fs = self.update_fs()
-        self.vmin, self.vmax = fs.data_range()
-        self.dt = fs.dt
+        self.vmin, self.vmax = self.fs.data_range()
+        self.dt = self.fs.dt
         self.parent._redraw_btn_fired()
 
 class Test(HasTraits):
