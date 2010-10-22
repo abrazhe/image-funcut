@@ -130,18 +130,24 @@ class FrameSequenceOpts(HasTraits):
         except Exception as e:
             "Can't reset dt because", e
 
+    ## def _pw_trans_changed(self):
+    ##     self.fs = self.fs.pw_transform(self.pw_presets[self.pw_trans])
+    ##     self.fs.fns = self.fw_presets[self.fw_trans2]
+    ##     self.vmin, self.vmax = self.fs.data_range()
+
+    ## def _fw_trans1_changed(self):
+    ##     self.fs.fns = self.fw_presets[self.fw_trans1]
+    ##     self.vmin, self.vmax = self.fs.data_range()
+
+    ## def _fw_trans2_changed(self):
+    ##     self.fs.fns = self.fw_presets[self.fw_trans2]
+    ##     self.vmin, self.vmax = self.fs.data_range()
+
     def _pw_trans_changed(self):
-        self.fs = self.fs.pw_transform(self.pw_presets[self.pw_trans])
-        self.fs.fns = self.fw_presets[self.fw_trans2]
-        self.vmin, self.vmax = self.fs.data_range()
-
-    def _fw_trans1_changed(self):
-        self.fs.fns = self.fw_presets[self.fw_trans1]
-        self.vmin, self.vmax = self.fs.data_range()
-
+        self.fns_changed = True
     def _fw_trans2_changed(self):
-        self.fs.fns = self.fw_presets[self.fw_trans2]
-        self.vmin, self.vmax = self.fs.data_range()
+        self.fns_changed = True
+
 
     def _interpolation_changed(self):
         try:
@@ -172,20 +178,25 @@ class FrameSequenceOpts(HasTraits):
     def _percentile_btn2_fired(self):
         self.set_percentile_range(50,98)
 
+    def update_fs(self):
+        if self.fns_changed :
+            pattern = str(self.fig_path + os.sep + self.glob)
+            print pattern
+            fs = fseq.FSeq_imgleic(pattern, ch=color_channels[self.ch])
+            fs.fns = self.fw_presets[self.fw_trans1]
+            fs = fs.pw_transform(self.pw_presets[self.pw_trans])
+            fs.fns = self.fw_presets[self.fw_trans2]
+            self.fns_changed = False
+
     def _load_btn_fired(self):
-        pattern = str(self.fig_path + os.sep + self.glob)
-        print pattern
-        fs = fseq.FSeq_imgleic(pattern,
-                               ch=color_channels[self.ch])
-        fs.fns = self.fw_presets[self.fw_trans1]
-        fs = fs.pw_transform(self.pw_presets[self.pw_trans])
-        fs.fns = self.fw_presets[self.fw_trans2]
-        self.fs = fs
+        self.fns_changed = True
+        self.fs = self.update_fs()
         self.vmin, self.vmax = fs.data_range()
         self.dt = fs.dt
         self.parent._redraw_btn_fired()
 
 class Test(HasTraits):
+    fns_changed = False
     fso = Instance(FrameSequenceOpts)
     figure = Instance(Figure, ())
     max_frames = Int(100)
@@ -218,7 +229,6 @@ class Test(HasTraits):
         if event.inaxes:
             x, y = event.xdata, event.ydata
             self.coords_stat = "x,y: %3.3f,%3.3f,"%(x,y)
-            
 
     def _fso_default(self):
         fso = FrameSequenceOpts(self)
@@ -238,6 +248,7 @@ class Test(HasTraits):
             print "Can't redraw"
 
     def _redraw_btn_fired(self):
+        self.fso.update_fs()
         fs = self.fso.fs
         self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)

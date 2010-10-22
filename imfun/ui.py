@@ -385,7 +385,6 @@ class CircleROI(DraggableObj):
 
 class Picker:
     verbose = True
-    connected = False
     cw = color_walker()
 
     def __init__(self, fseq):
@@ -438,6 +437,7 @@ class Picker:
                 self.ax1.legend([])
 
     def on_press(self, event):
+        print "on_press: ", event
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \
                event.button != 3 or \
@@ -560,6 +560,7 @@ class Picker:
 
     def connect(self):
         "connect all the needed events"
+        print "connecting callbacks to picker"
         cf = self.fig.canvas.mpl_connect
         self.cid = {
             'click': cf('button_press_event', self.on_click),
@@ -567,8 +568,8 @@ class Picker:
             'release': cf('button_release_event', self.on_release),
             'motion': cf('motion_notify_event', self.on_motion),
             }
-
-
+        print self.ax1, self.fig
+        print self.cid
     def disconnect(self):
         if hasattr(self, 'cid'):
             print "disconnecting old callbacks"
