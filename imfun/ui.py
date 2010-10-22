@@ -213,6 +213,22 @@ class DraggableObj:
 
 
 class LineScan(DraggableObj):
+    def __init__(self, obj, parent):
+        DraggableObj.__init__(self, obj, parent)
+        ep = self.endpoints()[1]
+        ax = self.obj.axes
+        self.length_tag = ax.text(ep[0],ep[1], '%2.2f'%self.length(),
+                                  size = 'small',
+                                  color = self.obj.get_color())
+        print "%2.2f"%self.length()
+        self.parent.legend()
+        self.redraw()
+    def update_length_tag(self):
+        "updates text with line length"
+        lt = self.length_tag
+        ep = self.endpoints()[1]
+        lt.set_position(ep)
+        lt.set_text('%2.2f'%self.length())
     def endpoints(self):
         return rezip(self.obj.get_data())
     def length(self):
@@ -235,14 +251,18 @@ class LineScan(DraggableObj):
             dx,dy = array([0, dx]), array([0, dy])
         self.obj.set_data((x0 + dx,y0 + dy))
         self.pressed = p
+        self.update_length_tag()
 
     def on_press(self, event):
         if not self.event_ok(event, True):
             return
         if event.button == 3:
-            self.parent.roi_objs.pop(self.tag) 
             self.disconnect()
+            self.length_tag.set_alpha(0)
+            self.length_tag.remove()
             self.obj.remove()
+            self.parent.roi_objs.pop(self.tag)
+            self.parent.legend()
             self.redraw()
         elif event.button == 1:
             x, y = self.obj.get_xdata(), self.obj.get_ydata()
@@ -251,6 +271,7 @@ class LineScan(DraggableObj):
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
             self.show_timeview()
+
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
 
@@ -381,7 +402,7 @@ class Picker:
             self._Nf = self.fseq.length()
         return self._Nf
     
-    def onclick(self,event):
+    def on_click(self,event):
         tb = get_current_fig_manager().toolbar
         if event.inaxes != self.ax1 or tb.mode != '': return
 
@@ -411,7 +432,7 @@ class Picker:
             if self.legtype is 'figlegend':
                 pl.figlegend(handles, labels, 'upper right')
             elif self.legtype is 'axlegend':
-                self.ax1.legend()
+                self.ax1.legend(handles, labels)
         
 
     def on_press(self, event):
@@ -422,18 +443,21 @@ class Picker:
             return
         self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
-        tag = unique_tag(self.roi_tags())
-        self.curr_line_handle, = self.ax1.plot([0],[0],'-',
-                                               label = tag,
-                                               color=self.cw.next())
+        self.curr_line_handle, _ = self.init_line_handle()
         self.ax1.axis(axrange)
         return
+    def init_line_handle(self):
+        tag = unique_tag(self.roi_tags())
+        lh, = self.ax1.plot([0],[0],'-', label = tag, color=self.cw.next())
+        return lh, tag
+
 
     def on_motion(self, event):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
         pstop = event.xdata, event.ydata
-        self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
+        if hasattr(self, 'curr_line_handle'): 
+            self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
         self.fig.canvas.draw() #todo BLIT!
         
     def on_release(self,event):
@@ -443,16 +467,18 @@ class Picker:
         if not hasattr(self, 'curr_line_handle'): return
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
+            print "picker : on_release"
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
                 self.roi_objs[tag] = newline
             else:
-                self.curr_line_handle.remove()
+                try:
+                    self.curr_line_handle.remove()
+                except: pass
+            self.curr_line_handle,_ = self.init_line_handle()
+            print self.curr_line_handle.get_xdata()
         else:
             self.curr_line_handle.remove()
-        if len(self.roi_objs) > 0:
-            #self.ax1.legend()
-            pass
         self.fig.canvas.draw() #todo BLIT!
         return
 
@@ -500,42 +526,52 @@ class Picker:
         draw() # redraw the axes
         return
 
-    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend'):
+    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
+              cmap = 'gray',
+              interpolation = 'nearest'):
         "Start picking up ROIs"
         self.drcs = {}
         self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
         self.legtype = legend_type
+        self.pressed = None
 
         dx,dy, scale_setp = self.fseq.get_scale()
         sy,sx = self.fseq.shape()
-        vmin = np.min(map(np.min, self.fseq.frames()))
-        vmax = np.max(map(np.max, self.fseq.frames()))
+        vmin,vmax = self.fseq.data_range()
         if hasattr(self.fseq, 'ch'):
             title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
                                   extent = (0, sx*dx, 0, sy*dy),
-                                  interpolation = 'nearest',
+                                  interpolation = interpolation,
                                   aspect='equal',
                                   vmax=vmax,  vmin=vmin,
-                                  cmap=matplotlib.cm.gray)
+                                  cmap=cmap)
         if scale_setp:
             self.ax1.set_xlabel('$\mu m$')
             self.ax1.set_ylabel('$\mu m$')
-        if True or self.connected is False:
-            self.pressed = None
-            self.fig.canvas.mpl_connect('button_press_event',
-                                        self.onclick)
-            self.fig.canvas.mpl_connect('button_press_event',self.on_press)
-            self.fig.canvas.mpl_connect('button_release_event',self.on_release)
-            self.fig.canvas.mpl_connect('motion_notify_event',self.on_motion)
-            self.connected = True
 
-            #self.fig.canvas.mpl_connect('pick_event', self.onpick)
-            self.connected = True
+        self.disconnect()
+        self.connect()
+
         return self.ax1, self.pl
 
-        
+    def connect(self):
+        "connect all the needed events"
+        cf = self.fig.canvas.mpl_connect
+        self.cid = {
+            'click': cf('button_press_event', self.on_click),
+            'press': cf('button_press_event', self.on_press),
+            'release': cf('button_release_event', self.on_release),
+            'motion': cf('motion_notify_event', self.on_motion),
+            }
+
+
+    def disconnect(self):
+        if hasattr(self, 'cid'):
+            print "disconnecting old callbacks"
+            map(self.fig.canvas.mpl_disconnect, self.cid.values())
+            
     def list_roi_timeseries_from_labels(self, roi_tags, **keywords):
         "Returns timeseres for a list of roi labels"
         return [self.roi_timeseries_from_label(tag, **keywords)
