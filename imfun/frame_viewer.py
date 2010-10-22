@@ -80,11 +80,21 @@ class FrameSequenceOpts(HasTraits):
 
     fw_trans2 = Enum(*sorted(fw_presets.keys()),
                      label='Framewise transform after')
+    
+    interpolation = Enum(['nearest', 'bilinear', 'bicubic', 'hanning',
+                           'hamming', 'hermite', 'kaiser', 'quadric',
+                           'gaussian', 'bessel', 'sinc', 'lanczos',
+                           'spline16',],
+                          label = "Image interpolation")
+
+    colormap = Enum(['gray', 'jet', 'hsv', 'hot'])
 
     vmax = Float(255)
     vmin = Float(255)
-    
-    load_btn = Button("Load images")
+
+    percentile_btn = Button("5%-95% range")
+    percentile_btn2 = Button("50%-98% range")
+    load_btn = Button("Load images",)
     
     view = View(Group(Item('fig_path'),
                       Item('glob'),
@@ -98,6 +108,10 @@ class FrameSequenceOpts(HasTraits):
                       label='Post-process'),
                 Group(Item('vmax'),
                       Item('vmin'),
+                      Item('percentile_btn',show_label=False),
+                      Item('percentile_btn2',show_label=False),
+                      Item('interpolation'),
+                      Item('colormap'),
                       label='Display'))
     def __init__(self, parent):
         self.parent = parent
@@ -118,13 +132,45 @@ class FrameSequenceOpts(HasTraits):
 
     def _pw_trans_changed(self):
         self.fs = self.fs.pw_transform(self.pw_presets[self.pw_trans])
-        self.fs.fns = self.fs_presets[self.fw_trans2]
+        self.fs.fns = self.fw_presets[self.fw_trans2]
+        self.vmin, self.vmax = self.fs.data_range()
 
     def _fw_trans1_changed(self):
-        self.fs.fns = self.fs_presets[self.fw_trans1]
+        self.fs.fns = self.fw_presets[self.fw_trans1]
+        self.vmin, self.vmax = self.fs.data_range()
 
     def _fw_trans2_changed(self):
-        self.fs.fns = self.fs_presets[self.fw_trans2]
+        self.fs.fns = self.fw_presets[self.fw_trans2]
+        self.vmin, self.vmax = self.fs.data_range()
+
+    def _interpolation_changed(self):
+        try:
+            self.parent.pl.set_interpolation(self.interpolation)
+            self.parent.redraw()
+        except Exception as e :
+            "Can't change interpolation because", e
+
+    def _colormap_changed(self):
+        try:
+            self.parent.pl.set_cmap(self.colormap)
+            self.parent.redraw()
+        except Exception as e :
+            "Can't change interpolation because", e
+
+    def set_display_range(self, low, high, fn=lambda x:x):
+        self.vmin, self.vmax = map(fn, (low, high))
+
+    def set_percentile_range(self, low, high):
+        from scipy import stats
+        fi = self.parent.frame_index
+        values = np.asarray(self.parent.frames[1:]).flatten()
+        fn = lambda x: stats.scoreatpercentile(values, x)
+        self.set_display_range(low, high, fn)
+
+    def _percentile_btn_fired(self):
+        self.set_percentile_range(5,95)
+    def _percentile_btn2_fired(self):
+        self.set_percentile_range(50,98)
 
     def _load_btn_fired(self):
         pattern = str(self.fig_path + os.sep + self.glob)
@@ -157,16 +203,15 @@ class Test(HasTraits):
                                                      mode='slider'))),
                        Item('fso', style='custom'),
                        show_labels=False),
-                width=800,
+                width=1000,
                 height=600,
                 resizable=True,
-                statusbar = [StatusItem('coords_stat'), StatusItem('time_stat')])
+                statusbar = [StatusItem('coords_stat'),
+                             StatusItem('time_stat')])
 
     def _figure_default(self):
         figure = Figure()
         self.axes = figure.add_axes([0.05, 0.04, 0.9, 0.92])
-        #self.axes.figure.canvas.mpl_connect('motion_notify_event',
-        #                                    self.update_status_bar)
         return figure
 
     def update_status_bar(self, event):
@@ -197,10 +242,13 @@ class Test(HasTraits):
         self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)
         self.picker = ifui.Picker(fs)
-        _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend')
+        _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend',
+                                      cmap = self.fso.colormap,
+                                      interpolation = self.fso.interpolation)
         self.pl.axes.figure.canvas.draw()
         self.axes.figure.canvas.mpl_connect('motion_notify_event',
                                             self.update_status_bar)
+        self.frame_index = 0
         self.max_frames = Nf-1
 
 
