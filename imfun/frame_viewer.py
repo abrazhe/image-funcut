@@ -241,6 +241,8 @@ class Test(HasTraits):
         fs = self.fso.fs
         self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)
+        if hasattr(self, 'picker'):
+            self.picker.disconnect()
         self.picker = ifui.Picker(fs)
         self.axes.cla()
         _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend',
