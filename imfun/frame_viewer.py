@@ -242,6 +242,7 @@ class Test(HasTraits):
         self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)
         self.picker = ifui.Picker(fs)
+        self.axes.cla()
         _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend',
                                       cmap = self.fso.colormap,
                                       interpolation = self.fso.interpolation)
