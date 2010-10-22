@@ -433,7 +433,9 @@ class Picker:
                 pl.figlegend(handles, labels, 'upper right')
             elif self.legtype is 'axlegend':
                 self.ax1.legend(handles, labels)
-        
+        else:
+            if self.legtype is 'axlegend':
+                self.ax1.legend([])
 
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
