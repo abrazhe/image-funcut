@@ -427,15 +427,15 @@ class Picker:
         for key,roi in self.roi_objs.items():
             handles.append(roi.obj)
             labels.append(key)
-        if len(labels) > 0:
+        try:
+            axs= self.ax1.axis
             if self.legtype is 'figlegend':
                 pl.figlegend(handles, labels, 'upper right')
             elif self.legtype is 'axlegend':
                 self.ax1.legend(handles, labels)
-        else:
-            if self.legtype is 'axlegend':
-                self.ax1.legend([])
-
+            self.ax1.axis(axs)
+        except:
+            pass
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \

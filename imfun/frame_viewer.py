@@ -187,6 +187,7 @@ class FrameSequenceOpts(HasTraits):
             fs = fs.pw_transform(self.pw_presets[self.pw_trans])
             fs.fns = self.fw_presets[self.fw_trans2]
             self.fns_changed = False
+            self.fs = fs
             return fs
         else:
             return self.fs
@@ -251,8 +252,7 @@ class Test(HasTraits):
             print "Can't redraw"
 
     def _redraw_btn_fired(self):
-        self.fso.update_fs()
-        fs = self.fso.fs
+        fs = self.fso.update_fs()
         self.frames = [fs.mean_frame()] + fs.aslist()
         Nf = len(self.frames)
         if hasattr(self, 'picker'):
