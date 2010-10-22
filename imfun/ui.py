@@ -437,7 +437,6 @@ class Picker:
                 self.ax1.legend([])
 
     def on_press(self, event):
-        print "on_press: ", event
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \
                event.button != 3 or \
@@ -469,7 +468,6 @@ class Picker:
         if not hasattr(self, 'curr_line_handle'): return
         tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
-            print "picker : on_release"
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
                 self.roi_objs[tag] = newline
@@ -477,10 +475,13 @@ class Picker:
                 try:
                     self.curr_line_handle.remove()
                 except: pass
-            self.curr_line_handle,_ = self.init_line_handle()
-            print self.curr_line_handle.get_xdata()
         else:
-            self.curr_line_handle.remove()
+            try:
+                self.curr_line_handle.remove()
+            except Exception as e:
+                print "Can't remove line handle because", e
+        self.curr_line_handle,_ = self.init_line_handle()
+        self.legend()
         self.fig.canvas.draw() #todo BLIT!
         return
 
@@ -568,8 +569,6 @@ class Picker:
             'release': cf('button_release_event', self.on_release),
             'motion': cf('motion_notify_event', self.on_motion),
             }
-        print self.ax1, self.fig
-        print self.cid
     def disconnect(self):
         if hasattr(self, 'cid'):
             print "disconnecting old callbacks"
