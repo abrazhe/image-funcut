@@ -408,14 +408,12 @@ class Picker:
         x,y = round(event.xdata), round(event.ydata)
         if event.button is 1 and \
            not self.any_roi_contains(event):
-            
             label = unique_tag(self.roi_tags())
             c = Circle((x,y), 5, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
             self.ax1.add_patch(c)
-            print c.axes
             self.roi_objs[label]= CircleROI(c, self)
             #drc.connect()
         self.legend()    
@@ -423,19 +421,17 @@ class Picker:
         draw()
 
     def legend(self):
-        handles, labels  = [], []
-        for key,roi in self.roi_objs.items():
-            handles.append(roi.obj)
-            labels.append(key)
+        keys = sorted(self.roi_objs.keys())
+        handles = [self.roi_objs[key].obj for key in keys]
         try:
             axs= self.ax1.axis
             if self.legtype is 'figlegend':
-                pl.figlegend(handles, labels, 'upper right')
+                pl.figlegend(handles, keys, 'upper right')
             elif self.legtype is 'axlegend':
-                self.ax1.legend(handles, labels)
+                self.ax1.legend(handles, keys)
             self.ax1.axis(axs)
-        except:
-            pass
+        except Exception as e:
+            print "Picker: can't make legend because ", e
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \
@@ -444,13 +440,12 @@ class Picker:
             return
         self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
-        self.curr_line_handle, _ = self.init_line_handle()
+        self.curr_line_handle = self.init_line_handle()
         self.ax1.axis(axrange)
         return
     def init_line_handle(self):
-        tag = unique_tag(self.roi_tags())
-        lh, = self.ax1.plot([0],[0],'-', label = tag, color=self.cw.next())
-        return lh, tag
+        lh, = self.ax1.plot([0],[0],'-', color=self.cw.next())
+        return lh
 
 
     def on_motion(self, event):
@@ -466,8 +461,9 @@ class Picker:
         if not event.button == 3: return
         if self.any_roi_contains(event): return
         if not hasattr(self, 'curr_line_handle'): return
-        tag = self.curr_line_handle.get_label()
         if len(self.curr_line_handle.get_xdata()) > 1:
+            tag = unique_tag(self.roi_tags())
+            self.curr_line_handle.set_label(tag)
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
                 self.roi_objs[tag] = newline
@@ -480,7 +476,7 @@ class Picker:
                 self.curr_line_handle.remove()
             except Exception as e:
                 print "Can't remove line handle because", e
-        self.curr_line_handle,_ = self.init_line_handle()
+        self.curr_line_handle = self.init_line_handle()
         self.legend()
         self.fig.canvas.draw() #todo BLIT!
         return

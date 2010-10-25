@@ -73,6 +73,7 @@ class FrameSequenceOpts(HasTraits):
     fig_path = Directory("")
     ch = Enum('green', 'red', 'blue', label='Color channel')
     glob = Str('*.tif', label='Glob', description='Image name contains...')
+    leica_xml = File('', label='Leica XML', description='Leica properties file')
 
     fw_trans1 = Enum(*sorted(fw_presets.keys()),
                      label='Framewise transform before')
@@ -96,8 +97,9 @@ class FrameSequenceOpts(HasTraits):
     percentile_btn2 = Button("50%-98% range")
     load_btn = Button("Load images",)
     
-    view = View(Group(Item('fig_path'),
+    view = View(Group(Item('fig_path', width = 100),
                       Item('glob'),
+                      Item('leica_xml', width = 100),
                       Item('ch'),
                       Item('dt'),
                       Item('load_btn', show_label=False),
@@ -112,9 +114,18 @@ class FrameSequenceOpts(HasTraits):
                       Item('percentile_btn2',show_label=False),
                       Item('interpolation'),
                       Item('colormap'),
-                      label='Display'))
+                      label='Display'),
+                width = 600, )
     def __init__(self, parent):
         self.parent = parent
+
+    def _fig_path_changed(self):
+        from imfun import leica
+        png_pattern = str(self.fig_path + os.sep + '*.png')
+        if len(fseq.sorted_file_names(png_pattern)) > 1:
+            self.glob = '*.png'
+        self.leica_xml = leica.get_xmljob(self.fig_path)
+    
     def _vmax_changed(self):
         try:
             self.parent.pl.set_clim((self.vmin, self.vmax))
@@ -130,24 +141,15 @@ class FrameSequenceOpts(HasTraits):
         except Exception as e:
             "Can't reset dt because", e
 
-    ## def _pw_trans_changed(self):
-    ##     self.fs = self.fs.pw_transform(self.pw_presets[self.pw_trans])
-    ##     self.fs.fns = self.fw_presets[self.fw_trans2]
-    ##     self.vmin, self.vmax = self.fs.data_range()
-
-    ## def _fw_trans1_changed(self):
-    ##     self.fs.fns = self.fw_presets[self.fw_trans1]
-    ##     self.vmin, self.vmax = self.fs.data_range()
-
-    ## def _fw_trans2_changed(self):
-    ##     self.fs.fns = self.fw_presets[self.fw_trans2]
-    ##     self.vmin, self.vmax = self.fs.data_range()
-
     def _pw_trans_changed(self):
-        self.fns_changed = True
-    def _fw_trans2_changed(self):
-        self.fns_changed = True
+        self.fs2_needs_reload = True
 
+    def _fw_trans1_changed(self):
+        self.fs2_needs_reload = True
+        self.fs.fns = self.fw_presets[self.fw_trans1]
+
+    def _fw_trasn2_changed(self):
+        self.fs2.fns = self.fw_presets[self.fw_trans2]
 
     def _interpolation_changed(self):
         try:
@@ -161,7 +163,7 @@ class FrameSequenceOpts(HasTraits):
             self.parent.pl.set_cmap(self.colormap)
             self.parent.redraw()
         except Exception as e :
-            "Can't change interpolation because", e
+            "Can't change colormap because", e
 
     def set_display_range(self, low, high, fn=lambda x:x):
         self.vmin, self.vmax = map(fn, (low, high))
@@ -178,29 +180,31 @@ class FrameSequenceOpts(HasTraits):
     def _percentile_btn2_fired(self):
         self.set_percentile_range(50,98)
 
-    def update_fs(self):
-        if self.fns_changed :
-            pattern = str(self.fig_path + os.sep + self.glob)
-            print pattern
-            fs = fseq.FSeq_imgleic(pattern, ch=color_channels[self.ch])
-            fs.fns = self.fw_presets[self.fw_trans1]
-            fs = fs.pw_transform(self.pw_presets[self.pw_trans])
-            fs.fns = self.fw_presets[self.fw_trans2]
-            self.fns_changed = False
-            self.fs = fs
-            return fs
-        else:
-            return self.fs
+    def get_fs2(self):
+        "returns frame sequence after pixelwise transform"
+        if self.fs2_needs_reload:
+            self.fs2 = self.fs.pw_transform(self.pw_presets[self.pw_trans])
+            self.fs2.fns = self.fw_presets[self.fw_trans2]
+            self.fs2_needs_reload = False
+        return self.fs2
+            
+    def reset_fs(self):
+        pattern = str(self.fig_path + os.sep + self.glob)
+        print pattern
+        self.fs = fseq.FSeq_imgleic(pattern, ch=color_channels[self.ch],
+                                    xmlname = self.leica_xml)
+        self.fs.fns = self.fw_presets[self.fw_trans1]
+        self.fs2_needs_reload = True
+        self.get_fs2()
+        return
 
     def _load_btn_fired(self):
-        self.fns_changed = True
-        self.fs = self.update_fs()
-        self.vmin, self.vmax = self.fs.data_range()
+        self.reset_fs()
+        self.vmin, self.vmax = self.fs2.data_range()
         self.dt = self.fs.dt
-        self.parent._redraw_btn_fired()
+        self.parent._recalc_btn_fired()
 
 class Test(HasTraits):
-    fns_changed = False
     fso = Instance(FrameSequenceOpts)
     figure = Instance(Figure, ())
     max_frames = Int(100)
@@ -208,14 +212,24 @@ class Test(HasTraits):
     frames = None
     coords_stat = String()
     time_stat = String()
-    redraw_btn = Button("Redraw")
-    view = View(HSplit(Group(Item('redraw_btn', show_label=False),
+    recalc_btn = Button("Recalc frames")
+
+    frame_fwd_btn = Button('frame ->')
+    frame_back_btn = Button('<- frame')
+
+
+    view = View(HSplit(Group(Item('recalc_btn', show_label=False),
                              Item('figure', editor=MPLFigureEditor(),
                                   show_label=False),
-                             Item('frame_index',
-                                  editor=RangeEditor(low=0,
-                                                     high_name='max_frames',
-                                                     mode='slider'))),
+                             HGroup(Item('frame_back_btn'),
+                                   Item('frame_index',
+                                        editor=RangeEditor(low=0,
+                                                           high_name='max_frames',
+                                                           mode='slider'),
+                                        springy = True),
+                                   Item('frame_fwd_btn'),
+                                   show_labels = False,
+                                   padding = 0,)),
                        Item('fso', style='custom'),
                        show_labels=False),
                 width=1000,
@@ -223,6 +237,13 @@ class Test(HasTraits):
                 resizable=True,
                 statusbar = [StatusItem('coords_stat'),
                              StatusItem('time_stat')])
+
+    def _frame_fwd_btn_fired(self):
+        self.frame_index += 1
+
+    def _frame_back_btn_fired(self):
+        self.frame_index -= 1
+
 
     def _figure_default(self):
         figure = Figure()
@@ -251,13 +272,14 @@ class Test(HasTraits):
         except:
             print "Can't redraw"
 
-    def _redraw_btn_fired(self):
-        fs = self.fso.update_fs()
-        self.frames = [fs.mean_frame()] + fs.aslist()
+    def _recalc_btn_fired(self):
+        fs2 = self.fso.get_fs2()
+        self.fso.vmin, self.fso.vmax = fs2.data_range()
+        self.frames = [fs2.mean_frame()] + fs2.aslist()
         Nf = len(self.frames)
         if hasattr(self, 'picker'):
             self.picker.disconnect()
-        self.picker = ifui.Picker(fs)
+        self.picker = ifui.Picker(fs2)
         self.axes.cla()
         _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend',
                                       cmap = self.fso.colormap,
