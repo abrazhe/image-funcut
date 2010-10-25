@@ -297,12 +297,14 @@ class FSeq_npy(FSeq_glob):
     loadfn= lambda self,y: np.load(y)
 
 class FSeq_imgleic(FSeq_img):
-    def __init__(self, pattern, ch=0, fns=[]):
+    def __init__(self, pattern, ch=0, fns=[], xmlname = None):
         FSeq_glob.__init__(self, pattern,ch=ch)
-        self.fns = []
+        if xmlname is None:
+            xmlname = self.pattern.split('*')[0]
+        self.fns = fns
         try:
             from imfun import leica
-            self.lp = leica.LeicaProps(self.pattern.split('*')[0])
+            self.lp = leica.LeicaProps(xmlname)
             self.dt = self.lp.dt # sec
             self.set_scale(self.lp.dx, self.lp.dy) # um/pix
         except Exception as e:
