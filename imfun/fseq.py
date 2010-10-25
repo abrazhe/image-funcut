@@ -156,7 +156,7 @@ class FrameSequence:
         if N < _maxshape_:
             out = np.zeros((self.length(), shape[0], shape[1]))
         else:
-            _tmpfile = tmpf.TemporaryFile('w+',dir='/tmp/')
+            _tmpfile = tmpf.TemporaryFile('w+')
             out = np.memmap(_tmpfile, dtype=np.float64,
                             shape=(self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
