@@ -174,7 +174,7 @@ class FrameSequence:
     def as_memmap_array(self,  fn = None, maxN = None, sliceobj=None):
         fiter = self.frame_slices(sliceobj, fn)
         shape = self.shape(sliceobj)
-        _tmpfile = tmpf.TemporaryFile('w+')
+        _tmpfile = tmpf.TemporaryFile()
         out = np.memmap(_tmpfile, dtype=np.float64,
                         shape=(self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
