@@ -122,7 +122,7 @@ class FrameSequenceOpts(HasTraits):
     def _fig_path_changed(self):
         from imfun import leica
         png_pattern = str(self.fig_path + os.sep + '*.png')
-        if len(fseq.sorted_file_names(png_pattern)) > 1:
+        if len(fseq.sorted_file_names(png_pattern)) > 30:
             self.glob = '*.png'
         self.leica_xml = leica.get_xmljob(self.fig_path)
     
