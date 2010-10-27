@@ -12,7 +12,7 @@ from matplotlib.pyplot import imread
 from imfun import lib
 ifnot = lib.ifnot
 
-_maxshape_ = 1e5
+_maxshape_ = 1e7
 
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
