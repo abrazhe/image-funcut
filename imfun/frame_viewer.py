@@ -3,8 +3,9 @@ import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-from imfun import fseq, fnmap, lib
+from imfun import fseq, fnmap, lib, leica
 from imfun import ui as ifui
+import glob as Glob
 
 import numpy as np
 
@@ -97,7 +98,7 @@ class FrameSequenceOpts(HasTraits):
     percentile_btn2 = Button("50%-98% range")
     load_btn = Button("Load images",)
     
-    view = View(Group(Item('fig_path', width = 100),
+    view = View(Group(Item('fig_path', width=400,springy=True, resizable = True,),
                       Item('glob'),
                       Item('leica_xml', width = 100),
                       Item('ch'),
@@ -115,17 +116,23 @@ class FrameSequenceOpts(HasTraits):
                       Item('interpolation'),
                       Item('colormap'),
                       label='Display'),
-                width = 600, )
+                width = 800, )
     def __init__(self, parent):
         self.parent = parent
 
     def _fig_path_changed(self):
-        from imfun import leica
         png_pattern = str(self.fig_path + os.sep + '*.png')
         if len(fseq.sorted_file_names(png_pattern)) > 30:
             self.glob = '*.png'
         self.leica_xml = leica.get_xmljob(self.fig_path)
-    
+    def _glob_changed(self):
+        if len(self.glob) > 5 and '*' in self.glob:
+            gl = self.glob.split('*')[0]
+            self.leica_xml = leica.get_xmljob(self.fig_path,
+                                              gl + "*[0-9].xml")
+            
+            
+        
     def _vmax_changed(self):
         try:
             self.parent.pl.set_clim((self.vmin, self.vmax))
@@ -222,17 +229,18 @@ class Test(HasTraits):
                              Item('figure', editor=MPLFigureEditor(),
                                   show_label=False),
                              HGroup(Item('frame_back_btn'),
-                                   Item('frame_index',
-                                        editor=RangeEditor(low=0,
-                                                           high_name='max_frames',
-                                                           mode='slider'),
-                                        springy = True),
-                                   Item('frame_fwd_btn'),
-                                   show_labels = False,
-                                   padding = 0,)),
+                                    Item('frame_index',
+                                         editor=RangeEditor(low=0,
+                                                            high_name='max_frames',
+                                                            mode='slider'),
+                                         springy = True),
+                                    Item('frame_fwd_btn'),
+                                    show_labels = False,
+                                    padding = 0,)),
                        Item('fso', style='custom'),
+                       springy = True,
                        show_labels=False),
-                width=1000,
+                width=1200,
                 height=600,
                 resizable=True,
                 statusbar = [StatusItem('coords_stat'),
