@@ -98,7 +98,7 @@ class FrameSequenceOpts(HasTraits):
     percentile_btn2 = Button("50%-98% range")
     load_btn = Button("Load images",)
     
-    view = View(Group(Item('fig_path', width=400,springy=True, resizable = True,),
+    view = View(Group(Item('fig_path', width=400, springy=True, resizable = True,),
                       Item('glob'),
                       Item('leica_xml', width = 100),
                       Item('ch'),
@@ -131,8 +131,6 @@ class FrameSequenceOpts(HasTraits):
             self.leica_xml = leica.get_xmljob(self.fig_path,
                                               gl + "*[0-9].xml")
             
-            
-        
     def _vmax_changed(self):
         try:
             self.parent.pl.set_clim((self.vmin, self.vmax))
