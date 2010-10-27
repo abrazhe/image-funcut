@@ -25,16 +25,28 @@ def iter_files(pattern, loadfn):
     return itt.imap(loadfn, sorted_file_names(pattern))
 
 
+def img_getter(frame, ch, pngflag):
+    if len(frame.shape) > 2:
+        out = frame[:,:,ch]
+    else:
+        out = frame
+    if pngflag:
+        out = out[::-1,:]
+    return out
+
 def fseq_from_glob(pattern, ch=None, loadfn=np.load):
     "Sequence of frames from filenames matching a glob"
-    if ch is None:
-        return iter_files(pattern, loadfn)
-    else:
-        if pattern[-3:] == 'png':
-            getter = lambda frame: frame[::-1,:,ch]
-        else:
-            getter = lambda frame: frame[:,:,ch]
-        return  itt.imap(getter, iter_files(pattern, loadfn))
+    #if ch is None:
+    #    return iter_files(pattern, loadfn)
+    #else:
+    #    if pattern[-3:] == 'png':
+    #        getter = lambda frame: frame[::-1,:,ch]
+    #    else:
+    #        getter = lambda frame: frame[:,:,ch]
+    #    return  itt.imap(getter, iter_files(pattern, loadfn))
+    pngflag = (pattern[-3:] == 'png')
+    return itt.imap(lambda frame: img_getter(frame, ch, pngflag),
+                    iter_files(pattern, loadfn))
 
 
 ## def default_kernel():
