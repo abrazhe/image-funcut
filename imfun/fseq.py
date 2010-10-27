@@ -36,14 +36,6 @@ def img_getter(frame, ch, pngflag):
 
 def fseq_from_glob(pattern, ch=None, loadfn=np.load):
     "Sequence of frames from filenames matching a glob"
-    #if ch is None:
-    #    return iter_files(pattern, loadfn)
-    #else:
-    #    if pattern[-3:] == 'png':
-    #        getter = lambda frame: frame[::-1,:,ch]
-    #    else:
-    #        getter = lambda frame: frame[:,:,ch]
-    #    return  itt.imap(getter, iter_files(pattern, loadfn))
     pngflag = (pattern[-3:] == 'png')
     return itt.imap(lambda frame: img_getter(frame, ch, pngflag),
                     iter_files(pattern, loadfn))
@@ -168,7 +160,7 @@ class FrameSequence:
         if N < _maxshape_:
             out = np.zeros((self.length(), shape[0], shape[1]))
         else:
-            _tmpfile = tmpf.TemporaryFile('w+')
+            _tmpfile = tmpf.TemporaryFile()
             out = np.memmap(_tmpfile, dtype=np.float64,
                             shape=(self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
