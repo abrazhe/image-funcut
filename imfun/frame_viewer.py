@@ -1,4 +1,7 @@
 #!/usr/bin/which python 
+
+import gc # trying to make it work on windows
+
 import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
@@ -6,6 +9,7 @@ mpl.use('WXAgg')
 from imfun import fseq, fnmap, lib, leica
 from imfun import ui as ifui
 import glob as Glob
+
 
 import numpy as np
 
@@ -54,21 +58,29 @@ color_channels = {'red':0, 'green':1,'blue':2, }
 from numpy import sin, cos, linspace, pi
 import os
 
+def medfilt_fn(npoints):
+    mf = signal.medfilt
+    return lambda v: mf(v,npoints)
+
+def norm_mf(fs):
+    mf = fs.mean_frame()
+    return lambda frame: frame/mf - 1.0
+
 class FrameSequenceOpts(HasTraits):
     mfilt7 = lambda v: signal.medfilt(v,7)
     fw_presets = {
         '1. Do nothing' : [],
         '2. Gauss blur' : [fseq.gauss_blur],
-        '3. Median filter (3pix)' : [lambda v:signal.medfilt(v,3)]
+        '3. Median filter' : [lambda v:signal.medfilt(v,3)]
         }
     pw_presets = {
         '1. Do nothing' : lambda x:x,
         '2. Norm to SD' : lambda x: x/np.std(x),
         '3. DFoF' : lib.DFoF,
         '4. DoSD' : lib.DoSD,
-        '5. Med. filter (7 points)' : mfilt7,
-        '6. Med. filter (7p) + DFoF': lib.flcompose(mfilt7,lib.DFoF),
-        '7. Med. filter (7p) + DoSD':lib.flcompose(mfilt7,lib.DoSD),
+        '5. Med. filter ' : mfilt7,
+        '6. Med. filter + DFoF': lib.flcompose(mfilt7,lib.DFoF),
+        '7. Med. filter + DoSD':lib.flcompose(mfilt7,lib.DoSD),
         }
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
@@ -176,8 +188,9 @@ class FrameSequenceOpts(HasTraits):
     def set_percentile_range(self, low, high):
         from scipy import stats
         fi = self.parent.frame_index
-        values = np.asarray(self.parent.frames[1:]).flatten()
-        fn = lambda x: stats.scoreatpercentile(values, x)
+        #values = np.asarray(self.parent.frames[1:]).flatten()
+        #fn = lambda x: stats.scoreatpercentile(values, x)
+        fn = lambda s : self.fs2.data_percentile(s)
         self.set_display_range(low, high, fn)
 
     def _percentile_btn_fired(self):
@@ -188,22 +201,39 @@ class FrameSequenceOpts(HasTraits):
     def get_fs2(self):
         "returns frame sequence after pixelwise transform"
         if self.fs2_needs_reload:
-            self.fs2 = self.fs.pw_transform(self.pw_presets[self.pw_trans])
+            pw_fn = self.pw_presets[self.pw_trans]
+            print pw_fn
+            if hasattr(self, 'fs2'):
+                del self.fs2
+                print "deleted old fs2"
+            self.fs2 = self.fs.pw_transform(pw_fn, dtype = np.float32)
+            print "fs2 created"
             self.fs2.fns = self.fw_presets[self.fw_trans2]
+            print "fs2.fns updated"
             self.fs2_needs_reload = False
         return self.fs2
             
     def reset_fs(self):
+        if hasattr(self, 'fs'): del self.fs
+        if hasattr(self, 'fs2'): del self.fs2
+        gc.collect()
+        print "collected garbage"
+
         pattern = str(self.fig_path + os.sep + self.glob)
         print pattern
         self.fs = fseq.FSeq_imgleic(pattern, ch=color_channels[self.ch],
                                     xmlname = self.leica_xml)
+        print "new fs created"
         self.fs.fns = self.fw_presets[self.fw_trans1]
+        print "fns1 set"
         self.fs2_needs_reload = True
         self.get_fs2()
         return
 
     def _load_btn_fired(self):
+        if self.parent.frames is not None:
+            del self.parent.frames
+            self.parent.frames = None
         self.reset_fs()
         self.vmin, self.vmax = self.fs2.data_range()
         self.dt = self.fs.dt
@@ -219,8 +249,8 @@ class Test(HasTraits):
     time_stat = String()
     recalc_btn = Button("Recalc frames")
 
-    frame_fwd_btn = Button('frame ->')
-    frame_back_btn = Button('<- frame')
+    frame_fwd_btn = Button('frame +')
+    frame_back_btn = Button('- frame')
 
 
     view = View(HSplit(Group(Item('recalc_btn', show_label=False),
@@ -266,7 +296,7 @@ class Test(HasTraits):
         return fso
 
     def _frame_index_changed(self):
-        if self.frames:
+        if len(self.frames) > 0:
             self.pl.set_data(self.frames[self.frame_index])
             self.pl.axes.figure.canvas.draw()
             t = self.frame_index * self.fso.fs.dt
@@ -281,7 +311,12 @@ class Test(HasTraits):
     def _recalc_btn_fired(self):
         fs2 = self.fso.get_fs2()
         self.fso.vmin, self.fso.vmax = fs2.data_range()
-        self.frames = [fs2.mean_frame()] + fs2.aslist()
+
+        if hasattr(fs2, 'data'):
+            self.frames = fs2.data
+        else:
+            self.frames = fs2.as3darray(dtype = np.float32)
+
         Nf = len(self.frames)
         if hasattr(self, 'picker'):
             self.picker.disconnect()
