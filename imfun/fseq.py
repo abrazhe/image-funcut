@@ -14,6 +14,24 @@ ifnot = lib.ifnot
 
 _maxshape_ = 1e6
 
+def memsafe_arr(shape, dtype=np.float32):
+    import tempfile as tmpf
+    from operator import mul
+    N = reduce(mul, shape)
+    if N < _maxshape_:
+        return np.zeros(shape, dtype=dtype)
+    else:
+        print "Using memory-mapped arrays..."
+        _tmpfile = tmpf.TemporaryFile()
+        out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
+        _tmpfile.close()
+        return out
+    
+        
+    
+
+
+
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
     x = glob.glob(pat)
@@ -113,6 +131,11 @@ class FrameSequence:
         maxv = np.max(map(np.max, self.frames()))
         return (minv, maxv)
 
+    def data_percentile(self, p):
+        from scipy.stats import scoreatpercentile
+        arr = self.as3darray().flatten()
+        return scoreatpercentile(arr,p)
+
     def timevec(self,):
         "vector of time values"
         L = self.length()
@@ -142,6 +165,7 @@ class FrameSequence:
                 break
         return res/(k+2)
 
+
     def aslist(self, fn = None, maxN=None, sliceobj=None):
         "returns a list of frames"
         return list(self.asiter(maxN,fn,sliceobj))
@@ -151,18 +175,12 @@ class FrameSequence:
         fiter = self.frame_slices(sliceobj, fn)
         return itt.islice(fiter, maxN)
 
-    def as3darray(self, fn = None, maxN = None, sliceobj=None):
+    def as3darray(self, fn = None, maxN = None, sliceobj=None,
+                  dtype = np.float32):
         fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj)
         N =  self.length()*shape[0]*shape[1]
-        ## If total size of data is les than _maxshape_ use normal arrays,
-        ## otherwise use memory-mapped arrays
-        if N < _maxshape_:
-            out = np.zeros((self.length(), shape[0], shape[1]))
-        else:
-            _tmpfile = tmpf.TemporaryFile()
-            out = np.memmap(_tmpfile, dtype=np.float64,
-                            shape=(self.length(), shape[0], shape[1]))
+        out = memsafe_arr((self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
@@ -170,18 +188,7 @@ class FrameSequence:
         return out
         #return np.asarray(self.aslist(*args, **kwargs))
 
-
-    def as_memmap_array(self,  fn = None, maxN = None, sliceobj=None):
-        fiter = self.frame_slices(sliceobj, fn)
-        shape = self.shape(sliceobj)
-        _tmpfile = tmpf.TemporaryFile()
-        out = np.memmap(_tmpfile, dtype=np.float64,
-                        shape=(self.length(), shape[0], shape[1]))
-        for k,frame in enumerate(itt.islice(fiter, maxN)):
-            out[k,:,:] = frame
-        out.flush()
-        return out
-        
+    
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
         arr = self.as3darray(maxN, **kwargs)
@@ -194,6 +201,9 @@ class FrameSequence:
             if mask[row,col]:
                 ## asarray to convert from memory-mapped array
                 yield np.asarray(arr[:,row,col]), row, col
+        arr.flush()
+        del arr
+        
 
     def length(self):
         if not hasattr(self,'_length'):
@@ -211,10 +221,13 @@ class FrameSequence:
     def pw_transform(self, pwfn,**kwargs):
         """Create another frame sequence, pixelwise applying a function"""
         nrows, ncols = self.shape()
-        out = np.zeros((self.length(), nrows, ncols))
+        #out = np.zeros((self.length(), nrows, ncols))
+        out = memsafe_arr((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
+        out.flush()
         return FSeq_arr(out, dt = self.dt, dx=self.dx, dy = self.dy)
+
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
                    start = 0, stop = None, show_title = True,
                    format='.png', vmin = None, vmax=None, **kwargs):

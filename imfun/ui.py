@@ -430,6 +430,7 @@ class Picker:
             elif self.legtype is 'axlegend':
                 self.ax1.legend(handles, keys)
             self.ax1.axis(axs)
+            self.redraw()
         except Exception as e:
             print "Picker: can't make legend because ", e
     def on_press(self, event):
