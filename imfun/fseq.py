@@ -126,6 +126,10 @@ class FrameSequence:
         else:
             self.dx, self.dy = dx,dy
 
+    def std(self):
+        a = self.as3darray()
+        return float(a.std())
+
     def data_range(self):
         minv = np.min(map(np.min, self.frames()))
         maxv = np.max(map(np.max, self.frames()))
