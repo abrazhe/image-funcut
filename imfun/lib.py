@@ -24,6 +24,9 @@ def remove_plane(arr, pars):
 
 try:
     from scipy import optimize as opt
+    from scipy import stats
+    def percentile(arr, p):
+	    return stats.scoreatpercentile(arr.flatten(), p)
     def fit_plane(arr):
         def _plane_resid(pars, Z, shape):
             Z = reshape(Z,shape)
@@ -205,6 +208,9 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
     print padding
     eds = pycwt.eds(wcoefs, wavelet.f0)
+    if vmax is None: vmax = percentile(eds, 99.0)
+    if vmin is None: vmin = percentile(eds, 1.0)
+    
     if correct == 'freq1':
         coefs = freqs*2.0/np.pi
         for i in xrange(eds.shape[1]):
