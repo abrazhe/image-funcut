@@ -76,11 +76,11 @@ class FrameSequenceOpts(HasTraits):
     pw_presets = {
         '1. Do nothing' : lambda x:x,
         '2. Norm to SD' : lambda x: x/np.std(x),
-        '3. DFoF' : lib.DFoF,
-        '4. DoSD' : lib.DoSD,
+        '3. DF/F' : lib.DFoF,
+        '4. DF/SD' : lib.DoSD,
         '5. Med. filter ' : mfilt7,
-        '6. Med. filter + DFoF': lib.flcompose(mfilt7,lib.DFoF),
-        '7. Med. filter + DoSD':lib.flcompose(mfilt7,lib.DoSD),
+        '6. Med. filter + DF/F': lib.flcompose(mfilt7,lib.DFoF),
+        '7. Med. filter + DF/SD':lib.flcompose(mfilt7,lib.DoSD),
         }
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
@@ -105,9 +105,21 @@ class FrameSequenceOpts(HasTraits):
 
     vmax = Float(255)
     vmin = Float(255)
+    
+    limrange = lambda x: range(5,x-5,5)+range(x-6,x+2,2)
 
-    percentile_btn = Button("5%-95% range")
-    percentile_btn2 = Button("50%-98% range")
+    low_percentile = Enum(limrange(98),label='Low')
+    high_percentile = Enum(limrange(98)[::-1],label='High')
+    apply_percentile = Button("Apply")
+
+
+    low_sd_lim = Enum(range(11),label='Low')
+    high_sd_lim = Enum(range(11)[::-1],label='High')
+    apply_sd_lim = Button("Apply")
+    
+
+    reset_range_btn = Button("Set")
+
     load_btn = Button("Load images",)
     
     view = View(Group(Item('fig_path', width=400, springy=True, resizable = True,),
@@ -121,12 +133,28 @@ class FrameSequenceOpts(HasTraits):
                       Item('pw_trans'),
                       Item('fw_trans2'),
                       label='Post-process'),
-                Group(Item('vmax'),
-                      Item('vmin'),
-                      Item('percentile_btn',show_label=False),
-                      Item('percentile_btn2',show_label=False),
-                      Item('interpolation'),
-                      Item('colormap'),
+                Group(Group(Item('low_percentile'),
+                            Item('high_percentile'),
+                            Item('apply_percentile', show_label=False),
+                            label='Percentile',
+                            show_border=True,
+                            orientation='horizontal'),
+                      Group(Item('low_sd_lim'),
+                            Item('high_sd_lim'),
+                            Item('apply_sd_lim', show_label=False),
+                            label='%SD',
+                            show_border=True,
+                            orientation='horizontal'),
+                      HSplit(Item('vmax'),
+                             Item('vmin'),
+                             Item('reset_range_btn',show_label=False),
+                             show_border=True,
+                             label='Limits',
+                             springy=True),
+                      HSplit(Item('interpolation'),
+                             Item('colormap'),
+                             show_border=True,
+                             label='Matplotlib'),
                       label='Display'),
                 width = 800, )
     def __init__(self, parent):
@@ -185,18 +213,20 @@ class FrameSequenceOpts(HasTraits):
     def set_display_range(self, low, high, fn=lambda x:x):
         self.vmin, self.vmax = map(fn, (low, high))
 
-    def set_percentile_range(self, low, high):
-        from scipy import stats
-        fi = self.parent.frame_index
+    def _apply_sd_lim_fired(self):
+        values = np.asarray(self.parent.frames[1:]).flatten()
+        sd = np.std(values)
+        self.set_display_range(sd*self.low_sd_lim,
+                               sd*self.high_sd_lim)
+
+
+    def _apply_percentile_fired(self):
+        #from scipy import stats
+        #fi = self.parent.frame_index
         #values = np.asarray(self.parent.frames[1:]).flatten()
         #fn = lambda x: stats.scoreatpercentile(values, x)
         fn = lambda s : self.fs2.data_percentile(s)
-        self.set_display_range(low, high, fn)
-
-    def _percentile_btn_fired(self):
-        self.set_percentile_range(5,95)
-    def _percentile_btn2_fired(self):
-        self.set_percentile_range(50,98)
+        self.set_display_range(self.low_percentile, self.high_percentile, fn)
 
     def get_fs2(self):
         "returns frame sequence after pixelwise transform"
@@ -212,6 +242,10 @@ class FrameSequenceOpts(HasTraits):
             print "fs2.fns updated"
             self.fs2_needs_reload = False
         return self.fs2
+
+    def _reset_range_btn_fired(self):
+        self.vmin, self.vmax = self.fs2.data_range()
+
             
     def reset_fs(self):
         if hasattr(self, 'fs'): del self.fs
