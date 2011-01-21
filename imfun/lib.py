@@ -94,6 +94,19 @@ def ma2d(m, n):
     for i in xrange(0,len(m)-n,):
         yield np.mean(m[i:i+n,:],0)
 
+def take(N, seq):
+    return [seq.next() for j in xrange(N)]
+
+
+def fnchain(f,n):
+	return flcompose(*[f]*n)
+	
+
+def fniter(f,x):
+	out = x
+	while True:
+		out = f(out)
+		yield out
 
 def flcompose2(f1,f2):
     "Compose two functions from left to right"
@@ -159,6 +172,7 @@ def DoSD(vec, normL=None):
     return (vec-m(x))/sd(x)
 
 def DFoF(vec, normL=None):
+    "Remove mean and normalize to it"
     normL = ifnot(normL, len(vec))
     m = np.mean(vec[:normL])
     if np.all(m):
