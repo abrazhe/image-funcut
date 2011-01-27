@@ -1,27 +1,88 @@
-def contiguous_regions_2d(mask):
-    """
+import numpy as np
+import time, sys
+#from imfun.aux_utils import ifnot
+from swan import pycwt
+
+import itertools as itt
+import operator as op
+from functools import partial
+
+from scipy import ndimage
+
+from imfun import lib, ui
+ifnot = lib.ifnot
+
+def redmul(*args):
+    "reduces args with multiplication"
+    return reduce(op.mul, args)
+
+def locations(shape):
+    return itt.product(*map(xrange, shape))
+
+
+def contiguous_regions(binarr):
+    """    
     Given a binary 2d array, returns a sorted (by size) list of contiguous
     regions (True everywhere)
-    TODO: make it possible to use user-defined funtion over an array instead of
-    just a binary mask
+    Version without recursion
+    """    
+    sh = binarr.shape
+    regions = [[]]
+    visited = np.zeros(sh, bool)
+    N = redmul(*sh)
 
-    """
-    import sys
-    rl = sys.getrecursionlimit()
-    sh = mask.shape
-    sys.setrecursionlimit(sh[0]*sh[1])
     regions = []
-    rows,cols = mask.shape
-    visited = np.zeros(mask.shape, bool)
-    for r in xrange(rows):
-        for c in xrange(cols):
-            if mask[r,c] and not visited[r,c]:
-                reg,visited = cont_searcher((r,c), mask, visited)
-                regions.append(reg)
+    labels, nlab = ndimage.label(binarr)
+    for j, o in enumerate(ndimage.find_objects(labels)):
+        #sys.stderr.write('\rlocation %06d out of %06d'%(j+1, nlab))
+        origin =  np.asarray([x.start for x in o])
+        x1 = np.asarray(np.where(labels[o] == j+1)).T
+        regions.append( map(tuple, x1 + origin))
+    
     regions.sort(key = lambda x: len(x), reverse=True)
+    return map(lambda x: RegionND(x, binarr.shape), regions)
 
-    sys.setrecursionlimit(rl)
-    return map(lambda x: Region2D(x,mask.shape), regions)
+
+def trampoline(function, *args):
+    """Bounces a function over and over, until we "land" off the
+    trampoline."""
+    bouncer = bounce(function, *args)
+    while True:
+        bouncer = bouncer[1](*bouncer[2])
+        if bouncer[0] == 'land':
+            return bouncer[1]
+
+
+def bounce(function, *args):
+    """Bounce back onto the trampoline, with an upcoming function call."""
+    return ["bounce", function, args]
+
+
+def land(value):
+    """Jump off the trampoline, and land with a value."""
+    return ["land", value]
+
+
+def neighbours_x(loc,shape):
+    n = len(loc)
+    d = np.diag(np.ones(n))
+    x = np.concatenate((d,-d)) + loc
+    return filter(partial(valid_loc, shape=shape), map(tuple, x))
+    
+
+def neighbours_2(loc, shape):
+    "list of adjacent locations"
+    r,c = loc
+    return filter(lambda x: valid_loc(x, shape),
+                  [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
+                   (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)])
+
+neighbours = neighbours_x
+
+def valid_loc(loc,shape):
+    "location not outside bounds"
+    return reduce(op.__and__, [(0 <= x < s) for x,s in zip(loc,shape)])
+
 
 def filter_proximity(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
     rows, cols = mask.shape
@@ -70,64 +131,80 @@ def filter_shape_regions(regions, th = 2):
     return [r for r in regions
             if (r.linsize() > th*np.sqrt(r.size()))]
 
-def cont_searcher(loc, arr, visited):
-    """
-    Auxilary function for contiguous_regions_2d, finds one contiguous region
-    starting from a non-False location
-    TODO: make it possible to use user-defined function over an array instead of
-    just a binary mask
-    """
+def glue_adjacent_regions(regions, max_distance=10):
+    L = len(regions)
     acc = []
-    def _loop(loc, acc):
-        if visited[loc]:
-            return
-        visited[loc] = True
-        if arr[loc] and (not loc in acc):
-            acc.append(loc)
-            for n in neighbours(loc, arr.shape):
-                _loop(n,acc)
+    def _glue_if(r1,r2):
+        if distance_regions(r1,r2) < max_distance:
+            return unite_2regions(r1,r2)
         else:
-            return
-    _loop(loc, acc)
-    return acc, visited
+            return None
+    def _loop(regs):
+        if len(regs) == 1:
+            acc.append(regs[0]); return
+        if len(regs) < 1: return
+        first,rest = regs[0], regs[1:]
+        x = filter(None, map(lambda x: _glue_if(first,x),rest))
+        if x == []:
+            acc.append(first)
+            _loop(rest)
+        else:
+            a = reduce(_glue_if, x)
+            _loop([a] + [b for b in rest if not regions_overlap(a,b)])
 
-## def cont_searcher_rec(loc,arr,visited):
-##     if arr[loc] and (not loc in acc):
-##         visited[loc]=True # side-effect!
-##         return [loc] + [cont_searcher_rec(n) for n in neighbours(loc)
-##                         if valid_loc(n,arr.shape)]
-##     else:
-##         return []
+    _loop(regions)
+    return acc
+
+def regions_overlap(r1,r2):
+    x = False
+    for loc in r1.locs:
+        if loc in r2.locs:
+            return True
+    return False
+    #return x #or y
+        
+def unite_2regions(region1,region2):
+    "Glue together two regions"
+    return RegionND(list(region1.locs) + list(region2.locs), region1.shape)
+    return
 
 
-def neighbours(loc, shape):
-    "list of adjacent locations"
-    r,c = loc
-    return filter(lambda x: valid_loc(x, shape),
-                  [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
-                   (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)])
+def distance_regions(r1, r2, fn=min, start=1e9):
+    dists = [lib.eu_dist(*pair) for pair in
+             itt.product(r1.borders(), r2.borders())]
+    #print dists
+    return reduce(fn, dists, start)
 
-def valid_loc(loc,shape):
-    "location not outside bounds"
-    r,c = loc
-    return (0 <= r < shape[0]) and (0<= c < shape[1])
 
-class Region2D:
+def distance_regions_centra(r1,r2):
+    return lib.eu_dist(r1.center(), r2.center())
+
+class RegionND:
     "Basic class for a contiguous region. Can make masks from it"
     def __init__(self, locs, shape):
         self.locs = locs
         self.shape = shape
+    def ax_extent(self,axis=0):
+        values = [x[axis] for x in self.locs]
+        return np.max(values)-np.min(values)
     def size(self,):
         return len(self.locs)
     def center(self):
         return np.mean(self.locs,0)
+    def borders(self):
+        return (l for l in self.locs if
+                len(filter(lambda x: x not in self.locs, neighbours(l,self.shape))))
     def linsize(self,):
-        dists = [lib.eu_dist(*pair) for pair in itt.permutations(self.locs,2)]
-        return reduce(max, dists)
+        dists = [lib.eu_dist(*pair) for pair in lib.allpairs0(self.borders())]
+        return reduce(max, dists, 0)
                                
         pass
     def tomask(self):
         m = np.zeros(self.shape, bool)
-        for i,j in self.locs: m[i,j]=True
+        for loc in self.locs: m[loc]=True
         return m
-            
+
+
+#----------------------------
+
+

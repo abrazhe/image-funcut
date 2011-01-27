@@ -163,7 +163,8 @@ class DraggableObj:
         self.tag = obj.get_label() # obj must support this
         fseq = self.parent.fseq
         self.dy,self.dx, self.scale_setp = fseq.get_scale()
-        pass
+        self.set_tagtext()
+        return
 
     def redraw(self):
         self.obj.axes.figure.canvas.draw()
@@ -198,12 +199,15 @@ class DraggableObj:
             return
         self.pressed = None
         self.redraw()
+    def set_tagtext(self):
+        pass
 
     def on_scroll(self, event): pass
 
     def on_type(self, event): pass
     
-    def on_press(self, event): pass
+    def on_press(self, event):
+        pass
 
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
@@ -318,6 +322,7 @@ class CircleROI(DraggableObj):
             self.obj.set_radius(r+self.step)
         else:
             self.obj.set_radius(max(0.1,r-self.step))
+        self.set_tagtext()
         self.redraw()
         return
 
@@ -350,7 +355,7 @@ class CircleROI(DraggableObj):
             self.obj.remove()
             self.disconnect()
             #self.obj.axes.legend()
-            self.parent.legend()
+            #self.parent.legend()
             self.redraw()
 
     def move(self, p):
@@ -359,7 +364,21 @@ class CircleROI(DraggableObj):
         dx = p[0] - xp
         dy = p[1] - yp
         self.obj.center = (x+dx, y+dy)
+        self.set_tagtext()
         self.redraw()
+    def set_tagtext(self):
+        ax = self.obj.axes
+        p = self.obj.center
+        r = self.obj.get_radius()
+        x = p[0] + sin(pi/4)*r
+        y = p[1] + sin(pi/4)*r
+        if not hasattr(self, 'tagtext'):
+            self.tagtext = ax.text(x,y, '%s'%self.obj.get_label(),
+                                   size = 'small',
+                                   color = self.get_color())
+        else:
+            self.tagtext.set_position((x,y))
+
 
     def get_timeview(self, normp=False):
         roi = self.obj
@@ -383,11 +402,133 @@ class CircleROI(DraggableObj):
                 'color': c.get_facecolor(),}
 
 
+class DragRect(DraggableObj):
+    def __init__(self, obj):
+        self.obj = obj
+        self.connect()
+        self.pressed = None
+        self.tag = obj.get_label() # obj must support this
+        pass
+
+    "Draggable Rectangular ROI"
+    def on_press(self, event):
+        if not self.event_ok(event, True): return
+        x0, y0 = self.obj.xy
+        self.pressed = x0, y0, event.xdata, event.ydata
+    def move(self, p):
+        x0, y0, xpress, ypress = self.pressed
+        dx = p[0] - xpress
+        dy = p[1] - ypress
+        self.obj.set_x(x0+dx)
+        self.obj.set_y(y0+dy)
+    def jump(self,p):
+        self.obj.set_x(p[0])
+        self.obj.set_y(p[1])
+
+def sse_measure(arr1,arr2, vrange=255.0):
+    r,c = arr1.shape
+    max_sse = r*c*vrange
+    return 1 - np.sqrt(np.sum((arr1-arr2)**2))/max_sse
+
+def corr_measure(arr1,arr2):
+    return 0.5 + np.sum(arr1*arr2)/(2*float(arr1.std())*float(arr2.std()))
+
+
+class RectFollower(DragRect):
+    def __init__(self, obj, arr):
+        DragRect.__init__(self, obj)
+        self.search_width = 1.5*obj.get_width()
+        self.search_height = obj.get_width()
+        self.arr = arr
+    def on_type(self, event):
+        if not self.event_ok(event, True): return
+    def xy(self):
+        return map(int, self.obj.get_xy())
+    def toslice(self,xoff=0,yoff=0):
+        start2,start1 = self.xy()
+        start2 += xoff
+        start1 += yoff
+        w, h = self.obj.get_width(), self.obj.get_height()
+        return (slice(start1, start1+h), slice(start2, start2+w))
+    def find_best_pos(self, frame, template, measure=sse_measure):
+        acc = {}
+        sw, sh = self.search_width, self.search_height
+        for w in range(-sw/2, sw/2):
+            for h in range(-sh/2, sh/2):
+                s = self.toslice(w,h)
+                d = measure(frame[s], template)
+                acc[(w,h)] = d
+        pos = sorted(acc.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
+        pos = pos[0][0]
+        x,y = self.xy()
+        return x+pos[0], y+pos[1]
+        
+        
+        
+def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
+    z = lambda : np.zeros(shape)
+    left = 100
+    right = left+width
+    frames = []
+    xw1 = lib.ar1()
+    xw2 = lib.ar1()
+    for i in range(nframes):
+        f = np.zeros(shape)
+        l,r= 2*left+xw1.next(),2*right+xw2.next()
+        f[:,l:l+4] = 1.0
+        f[:,r:r+4] = 1.0
+        f += np.random.randn(*shape)*noise
+        frames.append(((f.max()-f)/f.max())*255.0)
+    return np.array(frames)
+        
+    
+
+def track_vessels(frames, width=30, height=60, measure = sse_measure):
+    f = pl.figure()
+    axf = pl.axes()
+    frame_index = [0]
+    Nf = len(frames)
+
+    plf = axf.imshow(frames[0],
+                     interpolation = 'nearest',
+                     aspect = 'equal', cmap=mpl.cm.gray)
+    pl.colorbar(plf)
+    def skip(event,n=1):
+        fi = frame_index[0]
+        key = hasattr(event, 'button') and event.button or event.key
+        k = 1
+        s1,s2 = [r.toslice() for r in drs]
+        tmpl1,tmpl2 = [frames[fi][s] for s in s1,s2]
+
+        if key in (4,'4','down','left'):
+            k = -1
+        elif key in (5,'5','up','right'):
+            k = 1
+        fi += k*n
+        fi = fi%Nf
+        plf.set_data(frames[fi])
+        new_pos1 = drs[0].find_best_pos(frames[fi],tmpl1,measure)
+        new_pos2 = drs[1].find_best_pos(frames[fi],tmpl2,measure)
+        drs[0].jump(new_pos1)
+        drs[1].jump(new_pos2)
+        axf.set_title('frame %03d, p1 %f, p2 %f)'%(fi, drs[0].obj.get_x(), drs[1].obj.get_x()))
+        frame_index[0] = fi
+        f.canvas.draw()
+    f.canvas.mpl_connect('scroll_event',skip)
+    #f.canvas.mpl_connect('key_press_event', skip)
+    #f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
+    rects = axf.bar([100, 200], [height, height], [width,width], alpha=0.2)
+    drs = [RectFollower(r,frames) for r in rects]
+    f.canvas.draw()
+    return drs
+
+
+
 class Picker:
     verbose = True
     cw = color_walker()
-
     def __init__(self, fseq):
+        self._show_legend=False
         self.fseq = fseq
         self.dt = fseq.dt
         self._Nf = None
@@ -421,18 +562,19 @@ class Picker:
         draw()
 
     def legend(self):
-        keys = sorted(self.roi_objs.keys())
-        handles = [self.roi_objs[key].obj for key in keys]
-        try:
-            axs= self.ax1.axis
-            if self.legtype is 'figlegend':
-                pl.figlegend(handles, keys, 'upper right')
-            elif self.legtype is 'axlegend':
-                self.ax1.legend(handles, keys)
-            self.ax1.axis(axs)
-            self.redraw()
-        except Exception as e:
-            print "Picker: can't make legend because ", e
+        if self._show_legend == True:
+            keys = sorted(self.roi_objs.keys())
+            handles = [self.roi_objs[key].obj for key in keys]
+            try:
+                axs= self.ax1.axis
+                if self.legtype is 'figlegend':
+                    pl.figlegend(handles, keys, 'upper right')
+                elif self.legtype is 'axlegend':
+                    self.ax1.legend(handles, keys)
+                    self.ax1.axis(axs)
+                    self.redraw()
+            except Exception as e:
+                    print "Picker: can't make legend because ", e
     def on_press(self, event):
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \
@@ -504,8 +646,11 @@ class Picker:
     
     def save_rois(self, fname):
         "Saves picked ROIs to a file"
-        pickle.dump([x.to_struct() for x in self.roi_objs.values()],
-                    file(fname, 'w'))
+        print "Saving ROIs to ", fname
+        if fname:
+            pickle.dump([x.to_struct() for x in self.roi_objs.values()],
+                        file(fname, 'w'),
+                        protocol=0)
 #                     if isinstance(x, CircleROI)],
 
 

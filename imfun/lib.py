@@ -53,6 +53,9 @@ def in_circle(coords, radius):
     return lambda x,y: (square_distance((x,y), coords) <= radius**2)
 
 def eu_dist(p1,p2):
+    return np.sqrt(np.sum([(x-y)**2 for x,y in zip(p1,p2)]))
+
+def eu_dist2d(p1,p2):
     "Euler distance between two points"
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
@@ -165,31 +168,43 @@ def ar1(alpha = 0.74):
         yield res
 
 
-def DoSD(vec, normL=None):
+def DFoSD(vec, normL=None, th = 1e-6):
     "Remove mean and normalize to S.D."
     normL = ifnot(normL, len(vec))
-    m, sd, x  = np.mean, np.std, vec[:normL]
-    return (vec-m(x))/sd(x)
+    m, x  = np.mean, vec[:normL]
+    sdx = np.std(x,0)
+    out =  np.zeros(vec.shape, vec.dtype)
+    if sdx.shape is ():
+	if np.abs(sdx) > th:
+		out = (vec-m(x))/sdx
+    else:
+	zi = np.where(np.abs(sdx) < th)[0]
+	sdx[zi] = 1.0
+	out = (vec-m(x))/sdx
+	out[zi]=0
+    return out
 
-def DFoF(vec, normL=None):
+def DFoF(vec, normL=None, th = 1e-6):
     "Remove mean and normalize to it"
     normL = ifnot(normL, len(vec))
-    m = np.mean(vec[:normL])
-    if np.all(m):
-	return vec/m - 1.0
+    m = np.mean(vec[:normL],0)
+    out = np.zeros(vec.shape, vec.dtype)
+    if m.shape is ():
+	if np.abs(m) > th:
+	    out =  vec/m - 1.0
     else:
-	zi = np.where(np.abs(m) < 1e-9)[0]
+	zi = np.where(np.abs(m) < th)
 	m[zi] = 1.0
 	out = vec/m - 1.0
 	out[zi] = 0
-	return out
+    return out
 	
 	    
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
     _rgbswan_data =  swancmap.get_rgbswan_data2()
     cmap = mpl.colors.LinearSegmentedColormap('rgbswan',
-                                                     _rgbswan_data, LUTSIZE)
+					      _rgbswan_data, LUTSIZE)
     return cmap
 
 def confidence_contour(esurf, extent, ax, L=3.0):

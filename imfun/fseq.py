@@ -205,7 +205,8 @@ class FrameSequence:
             if mask[row,col]:
                 ## asarray to convert from memory-mapped array
                 yield np.asarray(arr[:,row,col]), row, col
-        arr.flush()
+        if hasattr(arr, 'flush'):
+            arr.flush()
         del arr
         
 
@@ -342,7 +343,7 @@ class FSeq_mlf(FrameSequence):
         self.dt = self.mlfimg.dt/1000.0
         self.fns = []
         self.set_scale()
-    def frames(self, fn = None):
+    def frames(self,  fn = None):
         #fn = ifnot(fn,self.fn)
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
@@ -358,15 +359,17 @@ class FSeq_multiff(FrameSequence):
     "Class for multi-frame tiff files"
     def __init__(self, fname, dt=1.0):
         self.dt = dt
+        self.fns = []
         self.im = Image.open(fname)
         self.set_scale()
-    def frames(self):
+    def frames(self, fn = None):
+        fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         count = 0
         while True:
             try:
                 self.im.seek(count)
                 count += 1
-                yield mpl_img.pil_to_array(self.im)
+                yield fn(mpl_img.pil_to_array(self.im))
             except EOFError:
                 break
             
