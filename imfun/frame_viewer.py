@@ -6,14 +6,19 @@ import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-from imfun import fseq, fnmap, lib, leica
+from functools import partial
+
+
+from scipy import stats, signal, ndimage
+from functools import partial # curry-like function
+import numpy as np
+import pylab
+
+
+from imfun import fseq, fnmap, lib, leica, bwmorph
 from imfun import ui as ifui
 import glob as Glob
 
-
-import numpy as np
-
-from scipy import signal
 
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg  as FigureCanvas
 from matplotlib.figure import Figure
@@ -66,6 +71,98 @@ def norm_mf(fs):
     mf = fs.mean_frame()
     return lambda frame: frame/mf - 1.0
 
+def find_objects(binarr,size_threshold=20):
+    labels, nlabels = ndimage.label(binarr)
+    objects =  ndimage.find_objects(labels)
+    size_count = ndimage.sum(binarr, labels, range(nlabels))
+    for k,o in enumerate(objects):
+        if size_count[k] < size_threshold:
+            x = np.where(labels[o] == k+1)
+            labels[x] = 0
+    return ndimage.label(labels)[0]
+        
+    
+
+class GWOpts(HasTraits):
+    pw_presets = {'4. identity' : lambda x,normL=110:x,
+                  '3. norm to SD' : lambda x, normL=110: x/np.std(x[:normL]),
+                  '2. DF/F' : lib.DFoF,
+                  '1. DF/SD' : lib.DFoSD,}
+    normL = Int(250, label="N baseline frames")
+    pw_func = Enum(*sorted(pw_presets.keys()), label='Pixel-wise')
+    tmedian_k = Enum(range(1,13,2), label='median filter kernel')
+    gauss_size = Range(1.0, 20.0, 5.0, label='Gauss sigma (after)')
+    nclose = Range(1,10,3, 'iterations of 3D binary closing')
+    sigma_thresh = Range(0.0, 10.0, 3.0,
+                         label='Binarization threshold, x S.D.')
+    size_threshold = Range(1,2000,60,label='Volume threshold')
+    do_labels = Bool(True,info_text="Try to segment binary?")
+    run_btn = Button('Run')
+    roiexport_file = File('', label='Save ROIs to')
+    roiexport_btn = Button('Export ROIs')
+    view = View(Group(Item('normL'),
+                      Item('pw_func'),
+                      Item('tmedian_k'),
+                      Item('gauss_size'),
+                      show_border=True,
+                      label='Pre-process'),
+                Group(Item('sigma_thresh'),
+                      Item('nclose'),
+                      show_border=True,
+                      label = 'Binarize',),
+                Group(Item('size_threshold'),
+                      Item('do_labels', label='Do labels?'),
+                      show_border=True,
+                      label = 'Segment',),
+                Item('run_btn', show_label=False),
+                Group(Item('roiexport_file', label='Save rois to'),
+                      Item('roiexport_btn', show_label=False),
+                      show_border=True,
+                      label='Exporing'),
+                )
+    def __init__(self, parent):
+        self.fso = parent
+    def _run_btn_fired(self):
+        if hasattr(self.fso, 'fs'):
+            seq = self.fso.fs
+            fn1 = partial(self.pw_presets[self.pw_func],
+                          normL=self.normL)
+            if self.tmedian_k < 3:
+                pwfn = fn1
+            else:
+                pwfn = lib.flcompose2(fn1,
+                                      medfilt_fn(self.tmedian_k))
+            seq1 = seq.pw_transform(pwfn)
+            seq1.fns = [partial(fseq.gauss_blur, size=self.gauss_size)]
+            arr = seq1.as3darray()     # new array with spatially-smoothed data
+            sds = float(np.std(arr))   # standard deviation in all data
+            binarr = ndimage.binary_closing(arr > sds*self.sigma_thresh,
+                                            iterations=self.nclose)
+            if self.do_labels:
+                objects = find_objects(binarr,self.size_threshold)
+                out = np.ma.array(objects, mask=objects==0)
+                seq2 = fseq.FSeq_arr(out)
+                cmap = 'hsv'
+            else:
+                seq2 = fseq.FSeq_arr(binarr)
+                cmap = 'jet'
+            self.fso.get_fs = lambda : seq2
+            self.fso.colormap = cmap
+            self.fso.parent._recalc_btn_fired()
+    def _roiexport_btn_fired(self):
+        print "!!!!"
+        picker = self.fso.parent.picker
+        #self.roiexport_file.configure_traits()
+        #picker.save_rois(self.roiexport_file)
+        f = file(self.roiexport_file,'w')
+        for c in self.fso.parent.picker.roi_objs.values():
+            if isinstance(c, ifui.CircleROI):
+                f.write("%s: C=(%3.3f,%3.3f) R=%3.3f\n"%\
+                        (c.tag, c.obj.center[0], c.obj.center[1],
+                         c.obj.radius))
+        f.close()                    
+        pass
+
 class FrameSequenceOpts(HasTraits):
     mfilt7 = lambda v: signal.medfilt(v,7)
     fw_presets = {
@@ -77,11 +174,12 @@ class FrameSequenceOpts(HasTraits):
         '1. Do nothing' : lambda x:x,
         '2. Norm to SD' : lambda x: x/np.std(x),
         '3. DF/F' : lib.DFoF,
-        '4. DF/SD' : lib.DoSD,
+        '4. DF/SD' : lib.DFoSD,
         '5. Med. filter ' : mfilt7,
         '6. Med. filter + DF/F': lib.flcompose(mfilt7,lib.DFoF),
-        '7. Med. filter + DF/SD':lib.flcompose(mfilt7,lib.DoSD),
+        '7. Med. filter + DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
         }
+    gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
     ch = Enum('green', 'red', 'blue', label='Color channel')
@@ -101,7 +199,7 @@ class FrameSequenceOpts(HasTraits):
                            'spline16',],
                           label = "Image interpolation")
 
-    colormap = Enum(['gray', 'jet', 'hsv', 'hot'])
+    colormap = Enum(['gray', 'jet', 'hsv', 'hot','winter','spring'])
 
     vmax = Float(255)
     vmin = Float(255)
@@ -122,13 +220,16 @@ class FrameSequenceOpts(HasTraits):
 
     load_btn = Button("Load images",)
     
-    view = View(Group(Item('fig_path', width=400, springy=True, resizable = True,),
+    view = View(Group(Item('fig_path', ),
                       Item('glob'),
                       Item('leica_xml', width = 100),
                       Item('ch'),
                       Item('dt'),
                       Item('load_btn', show_label=False),
                       label='Loading'),
+                Group(Item('gw_opts', show_label=False,style='custom'),
+                      show_border=False,
+                      label='GW'),
                 Group(Item('fw_trans1'),
                       Item('pw_trans'),
                       Item('fw_trans2'),
@@ -159,12 +260,14 @@ class FrameSequenceOpts(HasTraits):
                 width = 800, )
     def __init__(self, parent):
         self.parent = parent
+        self.get_fs = self.get_fs2
 
     def _fig_path_changed(self):
         png_pattern = str(self.fig_path + os.sep + '*.png')
         if len(fseq.sorted_file_names(png_pattern)) > 30:
             self.glob = '*.png'
         self.leica_xml = leica.get_xmljob(self.fig_path)
+
     def _glob_changed(self):
         if len(self.glob) > 5 and '*' in self.glob:
             gl = self.glob.split('*')[0]
@@ -172,6 +275,7 @@ class FrameSequenceOpts(HasTraits):
                                               gl + "*[0-9].xml")
             
     def _vmax_changed(self):
+        print "setting levels"
         try:
             self.parent.pl.set_clim((self.vmin, self.vmax))
             self.parent.pl.axes.figure.canvas.draw()
@@ -193,7 +297,7 @@ class FrameSequenceOpts(HasTraits):
         self.fs2_needs_reload = True
         self.fs.fns = self.fw_presets[self.fw_trans1]
 
-    def _fw_trasn2_changed(self):
+    def _fw_trans2_changed(self):
         self.fs2.fns = self.fw_presets[self.fw_trans2]
 
     def _interpolation_changed(self):
@@ -210,7 +314,7 @@ class FrameSequenceOpts(HasTraits):
         except Exception as e :
             "Can't change colormap because", e
 
-    def set_display_range(self, low, high, fn=lambda x:x):
+    def set_display_range(self, low, high, fn=lambda x:float(x)):
         self.vmin, self.vmax = map(fn, (low, high))
 
     def _apply_sd_lim_fired(self):
@@ -221,10 +325,6 @@ class FrameSequenceOpts(HasTraits):
 
 
     def _apply_percentile_fired(self):
-        #from scipy import stats
-        #fi = self.parent.frame_index
-        #values = np.asarray(self.parent.frames[1:]).flatten()
-        #fn = lambda x: stats.scoreatpercentile(values, x)
         fn = lambda s : self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
 
@@ -263,6 +363,11 @@ class FrameSequenceOpts(HasTraits):
         self.fs2_needs_reload = True
         self.get_fs2()
         return
+
+    def _gw_opts_default(self):
+        gw_opts = GWOpts(self)
+        return gw_opts
+
 
     def _load_btn_fired(self):
         if self.parent.frames is not None:
@@ -305,6 +410,7 @@ class Test(HasTraits):
                 width=1200,
                 height=600,
                 resizable=True,
+                title= "Frame viewer",
                 statusbar = [StatusItem('coords_stat'),
                              StatusItem('time_stat')])
 
@@ -343,13 +449,18 @@ class Test(HasTraits):
             print "Can't redraw"
 
     def _recalc_btn_fired(self):
-        fs2 = self.fso.get_fs2()
-        self.fso.vmin, self.fso.vmax = fs2.data_range()
+        fs2 = self.fso.get_fs()
 
         if hasattr(fs2, 'data'):
             self.frames = fs2.data
         else:
             self.frames = fs2.as3darray(dtype = np.float32)
+
+        self.frames = np.ma.array(self.frames, mask=np.isnan(self.frames))    
+
+        vl,vh = self.frames.min(), self.frames.max() 
+        print "vl,vh:", vl, vh
+        self.fso.vmin, self.fso.vmax = float(vl), float(vh)
 
         Nf = len(self.frames)
         if hasattr(self, 'picker'):

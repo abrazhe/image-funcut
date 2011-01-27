@@ -1,8 +1,8 @@
 import numpy as np
-from numpy import dot,argsort,diag,where,dstack,zeros, sqrt,float,real
+from numpy import dot,argsort,diag,where,dstack,zeros, sqrt,float,real,linalg
 #from numpy import *
-from numpy.linalg import eigh, inv
-from numpy.random import randn
+from numpy.linalg import eigh, inv, eig, norm
+from numpy.random import randn, rand
 import time
 try:
     from scipy.stats import skew
@@ -34,7 +34,7 @@ def pca1 (X):
     """
     tick = time.clock()
     Nx, Nt = X.shape
-    C = dot(X.T, X)/Nt # temporal covariance matrix
+    C = dot(transp(X), X)/Nt # temporal covariance matrix
 
     ## who knows why do they do that in [1]
     mean_space  = X.mean(axis=0).reshape(1,-1)
@@ -49,11 +49,20 @@ def pca1 (X):
         print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
         es = es[non_neg]
         EV = EV[:,non_neg]
-    S = diag(np.sqrt(es))          
-    ki = argsort(es)[::-1]     # indices for sorted eigenvalues    
-    U = dot(X, dot(EV,inv(S))) # spatial filters
+    S = diag(np.sqrt(es))
+    whitenmat = dot(EV, inv(S)) # whitenting matrix
+    ki = argsort(es)[::-1]      # indices for sorted eigenvalues    
+    U = dot(X, dot(EV,inv(S)))  # spatial filters
     print "PCA finished in %03.2f sec" %(time.clock() - tick)
     return U[:,ki], EV[:,ki], es[ki]
+
+
+## Whitening
+
+def whiten(x, U, v):
+    pass
+            
+
 
 def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
               PCuse = None,
@@ -75,10 +84,10 @@ def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
     mux = sptemp_concat(pc_fuse, pc_suse, mu)
 
     ica_A,_ = fastica1(mux, nIC=nIC)
-    ica_sig = dot(ica_A.T, pc_suse.T)
+    ica_sig = dot(transp(ica_A), transp(pc_suse))
 
-    ica_filters = dot(pc_fuse,
-                      dot(diag(sev_use**-0.5),ica_A)).T
+    ica_filters = transp(dot(pc_fuse,
+                             dot(diag(sev_use**-0.5),ica_A)))
 
     if _skew_loaded:
         skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
@@ -87,51 +96,62 @@ def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
     return ica_filters[skewsorted].T, ica_sig[skewsorted].T
 
 
+def transp(m):
+    "conjugate transpose"
+    return m.conjugate().transpose()
+
+
 def pow2_nonlinf(X,B):
     _, siglen = X.shape
-    return dot(X, dot(X.T, B)**2.0) / siglen
+    return dot(X, dot(transp(X), B)**2.0) / siglen
 
 def pow3_nonlinf(X,B):
     _,siglen = X.shape
-    return dot(X, dot(X.T, B)**3.0)/siglen - 3*B
+    return dot(X, dot(transp(X), B)**3.0)/siglen - 3*B
 
 def tanh_nonlinf(X,B, a1 = 1.0):
     nrows,siglen = X.shape
-    ht = np.tanh(a1 * dot(X.T, B))
+    ht = np.tanh(a1 * dot(transp(X), B))
     B = dot(X, ht)/siglen
     B -= dot(np.ones((nrows,1)),
              np.sum(1 - ht**2, axis=0).reshape(1,-1)) * B / siglen * a1
     return B
 
+
+
 def fastica1(X, nIC=None, guess=None,
-             nonlinfn = pow2_nonlinf,
-             #nonlinfn = pow3_nonlinf,
+             nonlinfn = pow3_nonlinf,
+             #nonlinfn = pow2_nonlinf,
              #nonlinfn = tanh_nonlinf,
              termtol = 5e-7, maxiters = 2e3):
     "Simplistic ICA with FastICA algorithm"
     tick = time.clock()
     nPC, siglen = X.shape
     nIC = nIC or nPC-1
-    guess = guess or randn(nPC,nIC)
+    guess = guess or rand(nPC,nIC) - 0.5
 
     if _orth_loaded:
         guess = orth(guess)
 
     B, Bprev = guess, zeros(guess.shape, np.float64)
+    Bold2 = zeros(guess.shape, np.float64)
 
-    iters, minAbsCos  = 0,0
+    iters, minAbsCos, minAbsCos2 = 0,0,0
 
     errvec = []
-    while (iters < maxiters) and (abs(1 - minAbsCos)>=termtol):
+    while (iters < maxiters) and ((1-minAbsCos2) > termtol)\
+              and ((1-minAbsCos) > termtol):
         B = nonlinfn(X,B)
         ## Symmetric orthogonalization.
         ## W(W^TW)^{-1/2}
-        x = dot(B.T, B)
-        B = dot(B, real(winvhalf(x)))
+        a = dot(transp(B), B)
+        a = msqrt(inv(a))
+        B = dot(B, real(a))
 
         # Check termination condition
-        minAbsCos = np.min(abs(diag(dot(B.T, Bprev))))
-
+        minAbsCos = np.min(abs(diag(dot(transp(B), Bprev))))
+        minAbsCos2 = np.min(abs(diag(dot(transp(B), Bold2))))
+        Bold2 = np.copy(Bprev)
         Bprev = np.copy(B)
         errvec.append(1-minAbsCos) # history of convergence
         iters += 1
@@ -145,8 +165,8 @@ def fastica1(X, nIC=None, guess=None,
     return B.real, errvec
 
 def fastica_defl(X, nIC=None, guess=None,
-             nonlinfn = pow2_nonlinf,
-             #nonlinfn = pow3_nonlinf,
+             nonlinfn = pow3_nonlinf,
+             #nonlinfn = pow2_nonlinf,
              #nonlinfn = tanh_nonlinf,
              termtol = 5e-7, maxiters = 2e3):
     tick = time.clock()
@@ -164,14 +184,23 @@ def fastica_defl(X, nIC=None, guess=None,
     errvec = []
     icc = 0
     while icc < nIC:
-        w = randn(nPC,1)
-        w = w - dot(dot(B,B.T),w)
-        w /= np.norm(w)
+        w = randn(nPC,1) - 0.5
+        w -= dot(dot(B, transp(B)), w)
+        w /= norm(w)
 
         wprev = zeros(w.shape)
-        for i in xrange(maxiters +1):
-            w = w - dot(dot(B,B.T),w)
-            w /= np.norm(w)
+        for i in xrange(long(maxiters) +1):
+            w -= dot(dot(B, transp(B)), w)
+            w /= norm(w)
+            #wprev = w.copy()
+            if (norm(w-wprev) < termtol) or (norm(w + wprev) < termtol):
+                B[:,icc]  = transp(w)
+                icc += 1
+                break
+            wprev = w.copy()
+    return B.real, errvec
+
+
 
 ### Some general utility functions:
 ### --------------------------------
@@ -188,7 +217,7 @@ def gauss_blur(X,size=1.5):
 
 def reshape_from_movie(mov):
     l,w,h = mov.shape
-    return mov.reshape(l,w*h).T
+    return transp(mov.reshape(l,w*h))
 
 def reshape_to_movie(X,nrows,ncols):
     Np, Nt = X.shape
@@ -238,14 +267,18 @@ def demean(X):
 def winvhalf(X):
     "raise matrix to power -1/2"
     e, V = eigh(X)
-    return dot(V, dot(diag((e+0j)**-0.5),V.T))
+    return dot(V, dot(diag((e+0j)**-0.5),transp(V)))
+
+def msqrt(X):
+    e, V = eigh(X)
+    return dot(V, dot(diag(((e+0j)**0.5)), transp(V)))
 
 def mpower(M, p):
     """
     Matrix exponentiation, works for Hermitian matrices
     """
     e,EV = linalg.eigh(M)
-    return dot(EV.T,
+    return dot(transp(EV),
                dot(diag((e+0j)**p), EV))
 
 
