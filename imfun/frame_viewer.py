@@ -29,6 +29,9 @@ from enthought.traits.api import *
 from enthought.traits.ui.api import *
 
 
+from enthought.traits.ui.menu \
+     import Action, CloseAction, Menu, MenuBar, OKCancelButtons, Separator
+
 from enthought.traits.ui.wx.editor import Editor
 from enthought.traits.ui.basic_editor_factory import BasicEditorFactory
 
@@ -407,12 +410,19 @@ class Test(HasTraits):
                        Item('fso', style='custom'),
                        springy = True,
                        show_labels=False),
+                #menubar = MenuBar(Separator(),
+                #                  CloseAction,
+                #                  name = 'File'),
                 width=1200,
                 height=600,
                 resizable=True,
                 title= "Frame viewer",
                 statusbar = [StatusItem('coords_stat'),
                              StatusItem('time_stat')])
+
+    def _save_rois(self):
+        pass
+    
 
     def _frame_fwd_btn_fired(self):
         self.frame_index += 1
