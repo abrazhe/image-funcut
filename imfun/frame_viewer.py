@@ -217,12 +217,15 @@ class FrameSequenceOpts(HasTraits):
     low_sd_lim = Enum(range(11),label='Low')
     high_sd_lim = Enum(range(11)[::-1],label='High')
     apply_sd_lim = Button("Apply")
-    
 
+    export_movie_filename = File('', description='where to save the movie')
+    export_fps = Float(25.0)
+    
     reset_range_btn = Button("Set")
-
     load_btn = Button("Load images",)
-    
+    export_btn = Button('Export movie')
+
+    ## view for FSO
     view = View(Group(Item('fig_path', ),
                       Item('glob'),
                       Item('leica_xml', width = 100),
@@ -260,6 +263,10 @@ class FrameSequenceOpts(HasTraits):
                              show_border=True,
                              label='Matplotlib'),
                       label='Display'),
+                Group(Item('export_movie_filename',label='Export to'),
+                      Item('export_fps', label='Frames/sec'),
+                      Item('export_btn', show_label=False),
+                      label='Export'),
                 width = 800, )
     def __init__(self, parent):
         self.parent = parent
@@ -371,6 +378,14 @@ class FrameSequenceOpts(HasTraits):
         gw_opts = GWOpts(self)
         return gw_opts
 
+    def _export_btn_fired(self):
+        seq = self.get_fs2()
+        seq.export_mpeg(self.export_movie_filename,
+                        fps = self.export_fps,
+                        cmap=self.colormap,
+                        interpolation = self.interpolation,
+                        vmin = self.vmin,
+                        vmax=self.vmax)
 
     def _load_btn_fired(self):
         if self.parent.frames is not None:
