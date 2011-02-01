@@ -24,7 +24,7 @@ def contiguous_regions(binarr):
     """    
     Given a binary 2d array, returns a sorted (by size) list of contiguous
     regions (True everywhere)
-    Version without recursion
+    Version without recursion. Relies on scipy.ndimage
     """    
     sh = binarr.shape
     regions = [[]]
@@ -41,26 +41,6 @@ def contiguous_regions(binarr):
     
     regions.sort(key = lambda x: len(x), reverse=True)
     return map(lambda x: RegionND(x, binarr.shape), regions)
-
-
-def trampoline(function, *args):
-    """Bounces a function over and over, until we "land" off the
-    trampoline."""
-    bouncer = bounce(function, *args)
-    while True:
-        bouncer = bouncer[1](*bouncer[2])
-        if bouncer[0] == 'land':
-            return bouncer[1]
-
-
-def bounce(function, *args):
-    """Bounce back onto the trampoline, with an upcoming function call."""
-    return ["bounce", function, args]
-
-
-def land(value):
-    """Jump off the trampoline, and land with a value."""
-    return ["land", value]
 
 
 def neighbours_x(loc,shape):
@@ -183,7 +163,7 @@ class RegionND:
     "Basic class for a contiguous region. Can make masks from it"
     def __init__(self, locs, shape):
         self.locs = locs
-        self.shape = shape
+        self.shape = shape # shape of containing array
     def ax_extent(self,axis=0):
         values = [x[axis] for x in self.locs]
         return np.max(values)-np.min(values)

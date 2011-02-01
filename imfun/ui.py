@@ -15,7 +15,7 @@ from pylab import mpl
 
 from swan import pycwt
 
-from imfun import lib
+from imfun import lib, fnmap
 ifnot = lib.ifnot
 in_circle = lib.in_circle
 
@@ -526,8 +526,9 @@ def track_vessels(frames, width=30, height=60, measure = sse_measure):
 
 class Picker:
     verbose = True
-    cw = color_walker()
     def __init__(self, fseq):
+        self.cw = color_walker()
+
         self._show_legend=False
         self.fseq = fseq
         self.dt = fseq.dt
@@ -764,6 +765,14 @@ class Picker:
             y = abs(fft(x))[1:L/2]
             ax.plot(freqs, y**2)
         ax.set_xlabel("Frequency, Hz")
+    def show_xcorrmap(self, roitag, figsize=(6,6),
+                      **kwargs):
+        signal = self.get_timeseries([roitag],normp=True)[0]
+        xcmap = fnmap.xcorrmap(self.fseq, signal, **kwargs)
+        pl.figure(figsize=figsize)
+        pl.imshow(xcmap, aspect = 'equal')
+        pl.title('Correlation to %s'%roitag)
+        return xcmap
 
     def show_spectrograms(self, rois = None, freqs = None,
                           wavelet = pycwt.Morlet(),
@@ -781,7 +790,7 @@ class Picker:
             axlist.append(ax)
         return axlist
 
-    def show_spectrogram_with_ts(self, roilabel,
+    def show_spectrogram_with_ts(self, roitag,
                                  freqs=None,
                                  wavelet = pycwt.Morlet(),
                                  title_string = None,
@@ -790,18 +799,18 @@ class Picker:
                                  normp = True,
                                  **keywords):
         "Create a figure of a signal, spectrogram and a colorbar"
-        if not self.isCircleROI(roilabel):
+        if not self.isCircleROI(roitag):
             print "This is not a circle ROI, exiting"
             return
-        signal = self.get_timeseries([roilabel],normp=normp)[0]
+        signal = self.get_timeseries([roitag],normp=normp)[0]
         Ns = len(signal)
         f_s = 1/self.dt
         freqs = ifnot(freqs,self.default_freqs())
-        title_string = ifnot(title_string, roilabel)
+        title_string = ifnot(title_string, roitag)
         tvec = self.timevec()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
-        lc = self.roi_objs[roilabel].get_color()
+        lc = self.roi_objs[roitag].get_color()
         fig,axlist = lib.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
