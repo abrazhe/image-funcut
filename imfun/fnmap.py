@@ -10,7 +10,7 @@ import itertools as itt
 ##     if a == None: return b
 ##     else: return a
 
-from imfun import lib, ui
+from imfun import lib
 ifnot = lib.ifnot
 
 def isseq(obj):
@@ -101,6 +101,10 @@ def cwt_freqmap(fseq,
                 frange,
                 nfreqs = 32,
                 **kwargs):
+    """
+    Maps dominant frequency in the given frequency band, creates
+    maps for a list of specified time ranges
+    """
     if len(frange) > 2:
         freqs = frange
     else:
@@ -127,6 +131,11 @@ def cwt_freqmap(fseq,
 
 
 def avg_eds(fseq, *args, **kwargs):
+    """
+    Average wavelet energy density surface for a frame sequence
+    input: fseq, *args, **kwargs
+    *args, **kwargs are passed to cwt_iter
+    """
     cwit = cwt_iter(fseq, *args, **kwargs)
     out,i,j = cwit.next()
     counter = 1.0
@@ -197,13 +206,34 @@ def meanactmap(fseq, (start,stop), normL=None):
     return out
     
 
-def corrmap(fseq, (start, stop), normL=None, sigfunc = tanh_step):
-    L = fseq.length()
-    normL = ifnot(normL, L)
-    out = np.zeros(fseq.shape())
+def actcorrmap(fseq, (start, stop), normL=None,
+               normfn = lib.DFoSD,
+               sigfunc = tanh_step):
+    "Activation correlation-based mapping"
     comp_sig = sigfunc(start, stop)(fseq.timevec())
+    return xcorrmap(fseq, comp_sig, normL, normfn)
+
+from scipy import stats
+
+def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
+             corrfn = np.correlate,
+             keyfn = lambda x:x[0],
+             normalize_signal=False):
+    """
+    other variants for corrfn:
+     - scipy.stats.pearsonr
+     - scipy.stats.spearmanr
+    """
+    funcs = {'pearson':stats.pearsonr,
+             'spearman':stats.spearmanr,
+             'correlate':np.correlate} 
+    if type(corrfn) == str:
+        corrfn = funcs[corrfn]
+    out = np.zeros(fseq.shape())
+    if normalize_signal:
+        signal = normfn(signal, normL)
     for s,j,k in fseq.pix_iter():
-        out[j,k] = np.correlate(DFoSD(s,normL), comp_sig, 'valid')[0]
+        out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
     return out
 
 def fftmap(fseq, frange, func=np.mean,

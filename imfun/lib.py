@@ -98,18 +98,23 @@ def ma2d(m, n):
         yield np.mean(m[i:i+n,:],0)
 
 def take(N, seq):
+    "Takes first N values from a sequence"	
     return [seq.next() for j in xrange(N)]
 
 
 def fnchain(f,n):
-	return flcompose(*[f]*n)
+    """
+    returns lambda *args, **kwargs: f(..n times..f(*args, **kwargs))
+    """
+    return flcompose(*[f]*n)
 	
 
 def fniter(f,x):
-	out = x
-	while True:
-		out = f(out)
-		yield out
+    "Same as fnchain, but as an iterator"
+    out = x
+    while True:
+        out = f(out)
+	yield out
 
 def flcompose2(f1,f2):
     "Compose two functions from left to right"
@@ -347,6 +352,27 @@ def mask4overlay(mask,colorind=0, alpha=0.9):
     stack[:,:,colorind] = mask
     return stack
 
+
+### Stackless trampolining
+def trampoline(function, *args):
+    """Bounces a function over and over, until we "land" off the
+    trampoline."""
+    bouncer = bounce(function, *args)
+    while True:
+        bouncer = bouncer[1](*bouncer[2])
+        if bouncer[0] == 'land':
+            return bouncer[1]
+
+
+def bounce(function, *args):
+    """Bounce back onto the trampoline, with an upcoming function call."""
+    return ["bounce", function, args]
+
+
+def land(value):
+    """Jump off the trampoline, and land with a value."""
+    return ["land", value]
+### --- end of stackless trampolining
 
 
 ## This is for reading Leica txt files
