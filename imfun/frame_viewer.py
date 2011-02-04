@@ -36,7 +36,6 @@ from enthought.traits.ui.wx.editor import Editor
 from enthought.traits.ui.basic_editor_factory import BasicEditorFactory
 
 
-
 class _MPLFigureEditor(Editor):
     scrollable  = True
     def init(self, parent):
@@ -93,10 +92,11 @@ class GWOpts(HasTraits):
                   '1. DF/SD' : lib.DFoSD,}
     normL = Int(250, label="N baseline frames")
     pw_func = Enum(*sorted(pw_presets.keys()), label='Pixel-wise')
-    tmedian_k = Enum(range(1,13,2), label='median filter kernel')
+    tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
     gauss_size = Range(1.0, 20.0, 5.0, label='Gauss sigma (after)')
-    nclose = Range(1,10,3, 'iterations of 3D binary closing')
-    sigma_thresh = Range(0.0, 10.0, 3.0,
+    nclose = Range(0,5,1, 'iterations of 3D binary closing')
+    nopen = Range(0,5,1,  'iterations of 3D binary opening')
+    sigma_thresh = Range(0.0, 10.0, 1.0,
                          label='Binarization threshold, x S.D.')
     size_threshold = Range(1,2000,60,label='Volume threshold')
     do_labels = Bool(True,info_text="Try to segment binary?")
@@ -110,6 +110,7 @@ class GWOpts(HasTraits):
                       show_border=True,
                       label='Pre-process'),
                 Group(Item('sigma_thresh'),
+                      Item('nopen'),
                       Item('nclose'),
                       show_border=True,
                       label = 'Binarize',),
@@ -139,8 +140,11 @@ class GWOpts(HasTraits):
             seq1.fns = [partial(fseq.gauss_blur, size=self.gauss_size)]
             arr = seq1.as3darray()     # new array with spatially-smoothed data
             sds = float(np.std(arr))   # standard deviation in all data
-            binarr = ndimage.binary_closing(arr > sds*self.sigma_thresh,
-                                            iterations=self.nclose)
+            binarr = arr > sds*self.sigma_thresh
+            if self.nopen > 0:
+                binarr = ndimage.binary_opening(binarr, iterations=self.nopen)
+            if sel.nclose >0:
+                binarr = ndimage.binary_closing(binarr, iterations=self.nopen)
             if self.do_labels:
                 objects = find_objects(binarr,self.size_threshold)
                 out = np.ma.array(objects, mask=objects==0)

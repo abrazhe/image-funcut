@@ -166,7 +166,7 @@ def quality_threshold(points, max_diam, dist_fn = euclidean):
 ## note: can't work with points as ndarrays because
 ## 1. they are not hashable (convert to tuples) and
 ## 2. can't be compared simply by p1 == p2.
-def dbscan(points, eps, min_pts, dist_fn = euclidean1,
+def dbscan(points, eps, min_pts, dist_fn = euclidean,
            verbose=False):
     clusters, marks = [], {}
     t = tuple
