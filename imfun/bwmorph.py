@@ -37,7 +37,7 @@ def contiguous_regions(binarr):
         #sys.stderr.write('\rlocation %06d out of %06d'%(j+1, nlab))
         origin =  np.asarray([x.start for x in o])
         x1 = np.asarray(np.where(labels[o] == j+1)).T
-        regions.append( map(tuple, x1 + origin))
+        regions.append( map(tuple, (x1 + origin)))
     
     regions.sort(key = lambda x: len(x), reverse=True)
     return map(lambda x: RegionND(x, binarr.shape), regions)
@@ -162,6 +162,7 @@ def distance_regions_centra(r1,r2):
 class RegionND:
     "Basic class for a contiguous region. Can make masks from it"
     def __init__(self, locs, shape):
+        #self.locs = [loc[::-1] for loc in locs]
         self.locs = locs
         self.shape = shape # shape of containing array
     def ax_extent(self,axis=0):

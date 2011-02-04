@@ -12,7 +12,7 @@ from matplotlib.pyplot import imread
 from imfun import lib
 ifnot = lib.ifnot
 
-_maxshape_ = 1e6
+_maxshape_ = 1e8
 
 def memsafe_arr(shape, dtype=np.float32):
     import tempfile as tmpf
@@ -230,7 +230,8 @@ class FrameSequence:
         out = memsafe_arr((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
-        out.flush()
+        if hasattr(out, 'flush'):
+            out.flush()
         return FSeq_arr(out, dt = self.dt, dx=self.dx, dy = self.dy)
 
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
