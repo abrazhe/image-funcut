@@ -156,7 +156,7 @@ def min1(scoref, lst):
     return best(lambda x,y: x < y, map(scoref, lst))
 
 def allpairs0(seq):
-    return list(combinations(seq,2))
+    return combinations(seq,2)
 
 def allpairs(seq):
     if len(seq) <= 1: return []
