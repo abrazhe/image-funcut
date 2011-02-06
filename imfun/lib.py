@@ -11,11 +11,9 @@ import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
-
 def plane(pars, x,y):
 	kx,ky,z = pars
         return x*kx + y*ky + z
-
 
 def remove_plane(arr, pars):
 	shape = arr.shape
@@ -38,7 +36,6 @@ try:
 except:
     _scipyp = False
     
-
 def vessel_mask(f, p, negmask, thresh = None):
 	sh = f.shape
 	X,Y = meshgrid(*map(range, sh))
@@ -61,8 +58,6 @@ def eu_dist2d(p1,p2):
 
 def square_distance(p1,p2):
     return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
-
-
 
 def mask_percent_threshold(mat, thresh):
     minv = np.min(mat)
@@ -172,6 +167,36 @@ def ar1(alpha = 0.74):
         prev = res
         yield res
 
+def ifnot(a, b):
+    "if a is not None, return a, else return b"
+    if a == None: return b
+    else: return a
+
+def auto_threshold(arr, init_th = None, max_iter = 1e7):
+    """
+    Automatic threhold with INTERMEANS(I) algorithm
+    INPUT:
+    ------
+    arr: array-like
+    init_th: starting threshold
+    max_iter: upper limit of iterations
+    Output:
+    -------
+    threshold: float
+    Based on:
+    T. Ridler and S. Calvard, "Picture thresholding using an iterative
+    selection method," IEEE Trans. Systems Man Cybernet., vol. 8, pp. 630-632,
+    1978.
+    """
+    thprev = ifnot(init_th, np.median(arr))
+    for i in xrange(int(max_iter)):
+	ab = np.mean(arr[where(arr <= thprev)])
+	av = np.mean(arr[where(arr > thprev)])
+	thnext = 0.5*(ab+av)
+	if thnext <= thprev:
+		break
+	thprev = thnext
+    return thnext
 
 def DFoSD(vec, normL=None, th = 1e-6):
     "Remove mean and normalize to S.D."
@@ -203,8 +228,28 @@ def DFoF(vec, normL=None, th = 1e-6):
 	out = vec/m - 1.0
 	out[zi] = 0
     return out
+
+
+def rescale(arr):
+	"Rescales array to [0..1] interval"
+	out = arr - np.min(arr)
+	return out/np.max(out)
 	
-	    
+
+def mask4overlay(mask,colorind=0, alpha=0.9):
+    """
+    Put a binary mask in some color channel
+    and make regions where the mask is False transparent
+    """
+    sh = mask.shape
+    z = np.zeros(sh)
+    stack = np.dstack((z,z,z,alpha*np.ones(sh)*mask))
+    stack[:,:,colorind] = mask
+    return stack
+
+
+	
+###------------- Wavelet-related -------------	    
 def swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
     _rgbswan_data =  swancmap.get_rgbswan_data2()
@@ -278,10 +323,6 @@ def group_maps(maplist, ncols,
           if titles is not None: pl.title(titles[i])
 
 
-def ifnot(a, b):
-    "if a is not None, return a, else return b"
-    if a == None: return b
-    else: return a
 
 def default_freqs(Ns, f_s, num=100):
     """
@@ -334,23 +375,6 @@ def plot_spectrogram_with_ts(signal, f_s, freqs,
     #axlist[1].xlim((tvec[0],tvec[-1]))
     return fig
 
-
-def rescale(arr):
-	"Rescales array to [0..1] interval"
-	out = arr - np.min(arr)
-	return out/np.max(out)
-	
-
-def mask4overlay(mask,colorind=0, alpha=0.9):
-    """
-    Put a binary mask in some color channel
-    and make regions where the mask is False transparent
-    """
-    sh = mask.shape
-    z = np.zeros(sh)
-    stack = np.dstack((z,z,z,alpha*np.ones(sh)*mask))
-    stack[:,:,colorind] = mask
-    return stack
 
 
 ### Stackless trampolining

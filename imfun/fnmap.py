@@ -10,8 +10,11 @@ import itertools as itt
 ##     if a == None: return b
 ##     else: return a
 
-from imfun import lib
+from imfun import lib, bwmorph
 ifnot = lib.ifnot
+
+neighbours = bwmorph.neighbours
+locations = bwmorph.locations
 
 def isseq(obj):
     return hasattr(obj, '__iter__')
@@ -164,6 +167,8 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
 
     return out
 
+    
+
 def tanh_step(start,stop):
     "To be used for correlation"
     def _(t):
@@ -215,6 +220,10 @@ def actcorrmap(fseq, (start, stop), normL=None,
 
 from scipy import stats
 
+_corrfuncs = {'pearson':stats.pearsonr,
+             'spearman':stats.spearmanr,
+             'correlate':np.correlate} 
+
 def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
              corrfn = np.correlate,
              keyfn = lambda x:x[0],
@@ -224,17 +233,36 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
      - scipy.stats.pearsonr
      - scipy.stats.spearmanr
     """
-    funcs = {'pearson':stats.pearsonr,
-             'spearman':stats.spearmanr,
-             'correlate':np.correlate} 
     if type(corrfn) == str:
-        corrfn = funcs[corrfn]
+        corrfn = _corrfuncs[corrfn]
     out = np.zeros(fseq.shape())
     if normalize_signal:
         signal = normfn(signal, normL)
     for s,j,k in fseq.pix_iter():
         out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
     return out
+
+def local_corr_map(arr, normL=None, normfn=lib.DFoSD,
+                   corrfn = np.correlate,
+                   keyfn = lambda x:x[0],
+                   verbose=False):
+    if type(corrfn) == str:
+        corrfn = _corrfuncs[corrfn]
+    sh = arr.shape[1:]
+    out = np.zeros(sh)
+    pixel_counter,npix = 0,np.prod(sh)
+    def _v(l):
+        return arr[:,l[0],l[1]] 
+    for loc in locations(sh):
+        pixel_counter+= 1
+        if verbose and not (pixel_counter % 100):
+            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
+        local_corr = [keyfn(corrfn(_v(loc), _v(n))) for n in neighbours(loc,sh)]
+        out[loc] = np.mean(local_corr)
+    return out
+
+    
+
 
 def fftmap(fseq, frange, func=np.mean,
            normL = None,

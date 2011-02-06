@@ -9,12 +9,9 @@ from functools import partial
 
 from scipy import ndimage
 
-from imfun import lib, ui
+from imfun import lib
 ifnot = lib.ifnot
 
-def redmul(*args):
-    "reduces args with multiplication"
-    return reduce(op.mul, args)
 
 def locations(shape):
     return itt.product(*map(xrange, shape))
@@ -29,7 +26,7 @@ def contiguous_regions(binarr):
     sh = binarr.shape
     regions = [[]]
     visited = np.zeros(sh, bool)
-    N = redmul(*sh)
+    N = np.prod(*sh)
 
     regions = []
     labels, nlab = ndimage.label(binarr)
