@@ -190,8 +190,8 @@ def auto_threshold(arr, init_th = None, max_iter = 1e7):
     """
     thprev = ifnot(init_th, np.median(arr))
     for i in xrange(int(max_iter)):
-	ab = np.mean(arr[where(arr <= thprev)])
-	av = np.mean(arr[where(arr > thprev)])
+	ab = np.mean(arr[np.where(arr <= thprev)])
+	av = np.mean(arr[np.where(arr > thprev)])
 	thnext = 0.5*(ab+av)
 	if thnext <= thprev:
 		break
