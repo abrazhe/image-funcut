@@ -20,6 +20,12 @@ except:
 ## [ ] simple GUI (traits?)
 ## [ ] masks from ICs or PCs    
 
+def pca_svd(X):
+    ndata, ndim = X.shape
+    U,S,V = np.linalg.svd(X)
+    V = V[:ndata] #only makes sense to return the first num_data
+    return U,V,S
+
 def pca1 (X):
     """
     Simple principal component analysis
@@ -35,7 +41,7 @@ def pca1 (X):
     tick = time.clock()
     Nx, Nt = X.shape
     C = dot(transp(X), X)/Nt # temporal covariance matrix
-
+    print C
     ## who knows why do they do that in [1]
     mean_space  = X.mean(axis=0).reshape(1,-1)
     C -= dot(mean_space.T, mean_space)
@@ -43,7 +49,7 @@ def pca1 (X):
     es, EV = eigh(C)  # eigenvalues, eigenvectors
 
     ## take non-negative eigenvalues
-    non_neg, = where(es>0)
+    non_neg, = where(es>=0)
     neg = where(es<0)
     if len(neg)>0:
         print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
@@ -56,6 +62,10 @@ def pca1 (X):
     print "PCA finished in %03.2f sec" %(time.clock() - tick)
     return U[:,ki], EV[:,ki], es[ki]
 
+# note: returns EVs stored in columns, e.g.
+# [[x1, x2, ... xn],
+#  [y1, y2, ... yn],
+#  ...]
 
 ## Whitening
 
