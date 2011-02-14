@@ -349,14 +349,17 @@ class CircleROI(DraggableObj):
             self.pressed = event.xdata, event.ydata, x0, y0
         elif event.button is 2:
             self.parent.show_timeseries([self.tag])
-            
         elif event.button is 3:
-            p = self.parent.roi_objs.pop(self.tag)
-            self.obj.remove()
-            self.disconnect()
-            #self.obj.axes.legend()
-            #self.parent.legend()
-            self.redraw()
+            self.destroy()
+        
+    def destroy(self):
+        p = self.parent.roi_objs.pop(self.tag)
+        self.obj.remove()
+        self.tagtext.remove()
+        self.disconnect()
+        #self.obj.axes.legend()
+        #self.parent.legend()
+        self.redraw()
 
     def move(self, p):
         "Move the ROI when the mouse is pressed over it"
@@ -366,6 +369,7 @@ class CircleROI(DraggableObj):
         self.obj.center = (x+dx, y+dy)
         self.set_tagtext()
         self.redraw()
+
     def set_tagtext(self):
         ax = self.obj.axes
         p = self.obj.center
@@ -550,7 +554,7 @@ class Picker:
         x,y = round(event.xdata), round(event.ydata)
         if event.button is 1 and \
            not self.any_roi_contains(event):
-            label = unique_tag(self.roi_tags())
+            label = unique_tag(self.roi_tags(), self.tagger)
             c = Circle((x,y), 5, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
@@ -606,7 +610,7 @@ class Picker:
         if self.any_roi_contains(event): return
         if not hasattr(self, 'curr_line_handle'): return
         if len(self.curr_line_handle.get_xdata()) > 1:
-            tag = unique_tag(self.roi_tags())
+            tag = unique_tag(self.roi_tags(), self.tagger)
             self.curr_line_handle.set_label(tag)
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
@@ -676,6 +680,7 @@ class Picker:
               cmap = 'gray',
               interpolation = 'nearest'):
         "Start picking up ROIs"
+        self.tagger = tags_iter()
         self.drcs = {}
         self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
         self.fig = self.ax1.figure
