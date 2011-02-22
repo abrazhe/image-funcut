@@ -3,7 +3,7 @@
 
 import itertools as itt
 import numpy as np
-pi = np.pi
+from numpy import pi, cos, sin, tan
 
 def spike(x, location, a, tau):
     coef = 0.5 * a * (1 + np.tanh(20 * (x-location) / tau))
@@ -60,7 +60,7 @@ def synth_movie(tvec, size, nobjs=42, snr=0.5,
     signal_mean = np.mean(map(np.mean, spike_signals))
     signal_std = np.mean(map(np.std, spike_signals))
     noise = lambda : np.random.poisson((signal_std**2)/snr, size=L)
-    out = zeros((L, size, size))
+    out = np.zeros((L, size, size))
     for j in xrange(size):
         for k in xrange(size):
             out[:,j,k] = noise()

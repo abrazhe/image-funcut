@@ -5,7 +5,7 @@
 
 import numpy as np
 
-def pca(X):
+def pcax(X):
   # Principal Component Analysis
   # input: X, matrix with training data as flattened arrays in rows
   # return: projection matrix (with important dimensions first),

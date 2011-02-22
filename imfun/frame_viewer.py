@@ -93,10 +93,10 @@ class GWOpts(HasTraits):
     normL = Int(250, label="N baseline frames")
     pw_func = Enum(*sorted(pw_presets.keys()), label='Pixel-wise')
     tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
-    gauss_size = Range(1.0, 20.0, 5.0, label='Gauss sigma (after)')
+    gauss_size = Range(1.0, 20.0, 1.0, label='Gauss sigma (after)')
     nclose = Range(0,5,1, 'iterations of 3D binary closing')
     nopen = Range(0,5,1,  'iterations of 3D binary opening')
-    sigma_thresh = Range(0.0, 10.0, 1.0,
+    sigma_thresh = Range(0.0, 10.0, 1.5,
                          label='Binarization threshold, x S.D.')
     size_threshold = Range(1,2000,60,label='Volume threshold')
     do_labels = Bool(True,info_text="Try to segment binary?")
@@ -143,7 +143,7 @@ class GWOpts(HasTraits):
             binarr = arr > sds*self.sigma_thresh
             if self.nopen > 0:
                 binarr = ndimage.binary_opening(binarr, iterations=self.nopen)
-            if sel.nclose >0:
+            if self.nclose >0:
                 binarr = ndimage.binary_closing(binarr, iterations=self.nopen)
             if self.do_labels:
                 objects = find_objects(binarr,self.size_threshold)
