@@ -26,7 +26,7 @@ def contiguous_regions(binarr):
     sh = binarr.shape
     regions = [[]]
     visited = np.zeros(sh, bool)
-    N = np.prod(*sh)
+    N = np.prod(sh)
 
     regions = []
     labels, nlab = ndimage.label(binarr)

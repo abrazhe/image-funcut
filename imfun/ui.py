@@ -10,7 +10,6 @@ import itertools as itt
 
 
 import numpy as np
-from pylab import *
 from pylab import mpl
 
 from swan import pycwt
@@ -112,16 +111,16 @@ def rezip(a):
 
 def view_fseq_frames(fseq, vmin = None, vmax = None):
     f = pl.figure()
-    axf = axes()
+    axf = pl.axes()
     frame_index = [0]
     frames = fseq.as3darray()
     Nf = len(frames)
 
     if vmax is None:
-        vmax = np.max(map(np.max, fseq.frames()))
+        vmax = np.max(map(np.max, frames))
 
     if vmin is None:
-        vmin = np.min(map(np.min, fseq.frames()))
+        vmin = np.min(map(np.min, frames))
 
 
     sy,sx = fseq.shape()
@@ -133,8 +132,8 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
                      vmax = vmax, vmin = vmin,
                      aspect = 'equal', cmap=mpl.cm.gray)
     if scale_setp:
-        pl.ylabel('$\mu m$')
-        pl.xlabel('$\mu m$')
+        pl.ylabel('um')
+        pl.xlabel('um')
     pl.colorbar(plf)
     def skip(event,n=1):
         fi = frame_index[0]

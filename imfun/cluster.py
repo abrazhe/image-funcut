@@ -342,14 +342,14 @@ def plot3_clusters(points, clusters):
     
     from mpl_toolkits.mplot3d import axes3d
 
-    figure(figsize=(6,6))
-    ax = axes(projection='3d')
+    pl.figure(figsize=(6,6))
+    ax = pl.axes(projection='3d')
     arr = points2array(points)[:,:3]
     plot(*arr.T[:3,:], color='k', ls='none',
          marker=',', alpha=0.3)
     colors = ['r','b','g','c','m','y']
     for j,c in enumerate(clusters):
-        plot(*cluster2array(c).T[:3,:],
+        pl.plot(*cluster2array(c).T[:3,:],
              ls = 'none', marker=',',
              color=colors[j%len(colors)],
              alpha=0.5)
@@ -377,7 +377,7 @@ def cluster2array(c):
     return points2array(c.points)
 
 def points2array(points,dtype=np.float64):
-    return array(points, dtype=dtype)
+    return np.array(points, dtype=dtype)
 
 def surfconvert(frame):
     out = []
@@ -385,7 +385,7 @@ def surfconvert(frame):
     for r in range(nr):
         for c in range(nc):
             out.append([r,c,frame[r,c]])
-    return array(out)
+    return np.array(out)
 
 
 
@@ -405,7 +405,7 @@ try:
         colors = ['r', 'b','g','c','m','y']
         objs = gng.graph.connected_components()
         for j,o in enumerate(objs):
-            coords = array([node.data.pos for node in o])
+            coords = np.array([node.data.pos for node in o])
             scatter(coords[:,1],coords[:,2],color=colors[j%len(colors)])
 except:
     pass

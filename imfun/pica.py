@@ -22,29 +22,26 @@ except:
 
 def pca_svd(X):
     ndata, ndim = X.shape
-    U,S,V = np.linalg.svd(X)
-    V = V[:ndata] #only makes sense to return the first num_data
-    return U,V,S
+    Y = X - X.mean(axis=-1)[:, np.newaxis] # remove mean
+    U,s,Vh = np.linalg.svd(X, full_matrices=False)
+    Vh = Vh[:ndata] #only makes sense to return the first num_data
+    return U,Vh,s
 
-def pca1 (X):
+def pca1 (X, verbose=False):
     """
     Simple principal component analysis
     X as Npix by Nt matrix
     X should be normalized and centered beforehand
     --
     returns:
-    - U, (Npix by Nesq:esq>0), matrix of PC 'filters' 
     - EV (Nt by Nesq:esq>0), matrix of PC 'signals'
      (eigenvalues of temporal covariance matrix). Signals are in columns
     - esq, vector of eigenvalues
     """
     tick = time.clock()
     Nx, Nt = X.shape
-    C = dot(transp(X), X)/Nt # temporal covariance matrix
-    print C
-    ## who knows why do they do that in [1]
-    mean_space  = X.mean(axis=0).reshape(1,-1)
-    C -= dot(mean_space.T, mean_space)
+    Y = X - X.mean(axis=-1)[:, np.newaxis] # remove mean
+    C = dot(Y, Y.T)/Nt # temporal covariance matrix
 
     es, EV = eigh(C)  # eigenvalues, eigenvectors
 
@@ -52,15 +49,17 @@ def pca1 (X):
     non_neg, = where(es>=0)
     neg = where(es<0)
     if len(neg)>0:
-        print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
+        if verbose:
+            print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
         es = es[non_neg]
         EV = EV[:,non_neg]
-    S = diag(np.sqrt(es))
-    whitenmat = dot(EV, inv(S)) # whitenting matrix
+    #S = diag(np.sqrt(es))
+    #whitenmat = dot(EV, inv(S)) # whitenting matrix
     ki = argsort(es)[::-1]      # indices for sorted eigenvalues    
-    U = dot(X, dot(EV,inv(S)))  # spatial filters
-    print "PCA finished in %03.2f sec" %(time.clock() - tick)
-    return U[:,ki], EV[:,ki], es[ki]
+    #U = dot(X, whitenmat)  # spatial filters
+    if verbose:
+        print "PCA finished in %03.2f sec" %(time.clock() - tick)
+    return EV[:,ki], es[ki]
 
 # note: returns EVs stored in columns, e.g.
 # [[x1, x2, ... xn],
@@ -69,41 +68,35 @@ def pca1 (X):
 
 ## Whitening
 
-def whiten(x, U, v):
-    pass
-            
 
+def whiten_mat1(X):
+    EV,es = pca1(X)
+    S = diag(np.sqrt(es))
+    return dot(EV, inv(S))
 
-def cell_ica1(pc_filters, pc_signals, sev, nIC=20,
-              PCuse = None,
-              mu = 0.3):
-    "Wrapper around fastica1, relies on previous use of pca"
-    if not isinstance(PCuse, slice):
-        if not PCuse :
-            PCuse = slice(PCuse)
-        elif len(PCuse) <= 3:
-            PCuse = slice(*PCuse)
+def st_ica(X, ncomp = 20,  mu = 0.3):
+    """Spatiotemporal ICA for sequences of images
+    Input:
+    X -- list of 2D arrays or 3D array with first axis = time
+    mu -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+    """
 
-    nPCs =  pc_signals[:,PCuse].shape[1]
-    pc_fuse = pc_filters[:,PCuse]
-    sev_use = sev[PCuse]
+    data = reshape_from_movie(X) # nframes x npixels
+    sh = X[0].shape
+    
+    pc_filters, pc_signals, ev = whiten_svd(data, ncomp)
+    
+    mux = sptemp_concat(pc_filters, pc_signals, mu)
 
-    pc_suse = pc_signals - pc_signals.mean(axis=0).reshape(1,-1)
-    pc_suse = pc_suse[:,PCuse]
-
-    mux = sptemp_concat(pc_fuse, pc_suse, mu)
-
-    ica_A,_ = fastica1(mux, nIC=nIC)
-    ica_sig = dot(transp(ica_A), transp(pc_suse))
-
-    ica_filters = transp(dot(pc_fuse,
-                             dot(diag(sev_use**-0.5),ica_A)))
+    _, W = fastica(mux, whiten=False)
+    ica_sig = dot(W, pc_signals)
+    ica_filters = dot(dot(diag(1.0/np.sqrt(ev)), W), pc_filters)
 
     if _skew_loaded:
         skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
     else:
         skewsorted = range(nIC)
-    return ica_filters[skewsorted].T, ica_sig[skewsorted].T
+    return ica_filters[skewsorted], ica_sig[skewsorted]
 
 
 def transp(m):
@@ -111,73 +104,84 @@ def transp(m):
     return m.conjugate().transpose()
 
 
-def pow2_nonlinf(X,B):
-    _, siglen = X.shape
-    return dot(X, dot(transp(X), B)**2.0) / siglen
 
-def pow3_nonlinf(X,B):
-    _,siglen = X.shape
-    return dot(X, dot(transp(X), B)**3.0)/siglen - 3*B
+pow3nonlin = {'g':lambda X: X**3,
+              'gprime': lambda X: 3*X**2}
 
-def tanh_nonlinf(X,B, a1 = 1.0):
-    nrows,siglen = X.shape
-    ht = np.tanh(a1 * dot(transp(X), B))
-    B = dot(X, ht)/siglen
-    B -= dot(np.ones((nrows,1)),
-             np.sum(1 - ht**2, axis=0).reshape(1,-1)) * B / siglen * a1
-    return B
+pow3nonlinx = {'g':lambda X,args: X**3,
+              'gprime': lambda X,args: 3*X**2}
 
 
+def _sym_decorrelate(X):
+    "W <- W \cdot (W^T \cdot W)^{-1/2}"
+    a = dot(X, transp(X))
+    ev, EV = linalg.eigh(a)
+    
+    return dot(dot(dot(EV, np.diag(1.0/np.sqrt(ev))),
+                   EV.T),
+               X)
 
-def fastica1(X, nIC=None, guess=None,
-             nonlinfn = pow3_nonlinf,
-             #nonlinfn = pow2_nonlinf,
-             #nonlinfn = tanh_nonlinf,
-             termtol = 5e-7, maxiters = 2e3):
+def _ica_symm(X, nIC=None, guess=None,
+              nonlinfn = pow3nonlin,
+              termtol = 5e-7, max_iter = 2e3,
+              verbose=False):
     "Simplistic ICA with FastICA algorithm"
-    tick = time.clock()
-    nPC, siglen = X.shape
-    nIC = nIC or nPC-1
-    guess = guess or rand(nPC,nIC) - 0.5
+    nPC, siglen = map(float, X.shape)
+    nIC = nIC or nPC
 
-    if _orth_loaded:
-        guess = orth(guess)
+    guess = guess or np.random.normal(size=(nPC,nPC))
+    guess = _sym_decorrelate(guess)
 
-    B, Bprev = guess, zeros(guess.shape, np.float64)
-    Bold2 = zeros(guess.shape, np.float64)
+    B, Bprev = zeros(guess.shape, np.float64), guess
 
-    iters, minAbsCos, minAbsCos2 = 0,0,0
+    iters, errx = 0,termtol+1
+    g, gp = pow3nonlin['g'], pow3nonlin['gprime']
 
-    errvec = []
-    while (iters < maxiters) and ((1-minAbsCos2) > termtol)\
-              and ((1-minAbsCos) > termtol):
-        B = nonlinfn(X,B)
-        ## Symmetric orthogonalization.
-        ## W(W^TW)^{-1/2}
-        a = dot(transp(B), B)
-        a = msqrt(inv(a))
-        B = dot(B, real(a))
-
-        # Check termination condition
-        minAbsCos = np.min(abs(diag(dot(transp(B), Bprev))))
-        minAbsCos2 = np.min(abs(diag(dot(transp(B), Bold2))))
-        Bold2 = np.copy(Bprev)
+    while (iters < max_iter) and (errx > termtol):
+        bdotx = dot(Bprev, X)
+        gwtx = g(bdotx)
+        gp_wtx = gp(bdotx)/siglen
+        B = dot(gwtx, X.T)/siglen - dot(np.diag(gp_wtx.mean(axis=1)), Bprev)
+        B = _sym_decorrelate(B)
+        errx = max(abs(abs(np.diag(dot(B, Bprev.T)))-1))
         Bprev = np.copy(B)
-        errvec.append(1-minAbsCos) # history of convergence
         iters += 1
+    if verbose:
+        if iters < max_iter:
+            print "Success: ICA Converged in %d tries" %iters
+        else:
+            print "Fail: reached maximum number of iterations %d reached"%maxiters
+    return B.real
 
-    if iters < maxiters:
-        print "Success: ICA Converged in %d tries" %iters
+def whiten_svd(X, ncomp=None):
+    n,p = map(float, X.shape)
+    Y = X - X.mean(axis=-1)[:, np.newaxis]
+    u, s, vh = linalg.svd(X, full_matrices=False)
+    K = (u/s).T[:ncomp]
+    return np.dot(K, X), K, s[:ncomp]
+
+def fastica(X, ncomp=None, whiten = True,
+            algorithm = 'symmetric',
+            tol = 1e-3, max_iter = 1e3, guess = None):
+    n,p = map(float, X.shape)
+    if whiten:
+        XW, K, _ = whiten_svd(X, ncomp) # whitened and projected data
     else:
-        print "Fail: reached maximum number of iterations %d reached"%maxiters
-
-    print "ICA finished in %03.2f sec" % (time.clock()- tick)
-    return B.real, errvec
+        XW = X.copy()
+    XW *= np.sqrt(p)
+    kwargs = {'termtol':tol, 'nonlinfn':pow3nonlin,
+              'max_iter':max_iter, 'guess':guess}
+    algorithms = {'symmetric':_ica_symm, 'deflation':None}
+    fun = algorithms.get(algorithm, 'symmetric')
+    W  = fun(XW, **kwargs)
+    if whiten:
+        S = dot(dot(W,K),X)
+    else:
+        S = dot(W,X)
+    return S, W
 
 def fastica_defl(X, nIC=None, guess=None,
-             nonlinfn = pow3_nonlinf,
-             #nonlinfn = pow2_nonlinf,
-             #nonlinfn = tanh_nonlinf,
+             nonlinfn = pow3nonlin,
              termtol = 5e-7, maxiters = 2e3):
     tick = time.clock()
     nPC, siglen = X.shape
@@ -227,7 +231,7 @@ def gauss_blur(X,size=1.5):
 
 def reshape_from_movie(mov):
     l,w,h = mov.shape
-    return transp(mov.reshape(l,w*h))
+    return mov.reshape(l,w*h)
 
 def reshape_to_movie(X,nrows,ncols):
     Np, Nt = X.shape
@@ -235,11 +239,11 @@ def reshape_to_movie(X,nrows,ncols):
 
 def sptemp_concat(filters, signals, mu):
     if mu == 0:
-        out= filters.T # spatial only
+        out= filters # spatial only
     elif mu == 1:
-        out= signals.T # temporal only
+        out= signals # temporal only
     else:
-        out =  np.concatenate(((1-mu)*filters.T, mu*signals.T),
+        out =  np.concatenate(((1-mu)*filters, mu*signals),
                               axis = 1)
     return out / np.sqrt(1-2*mu+2*mu**2)
 

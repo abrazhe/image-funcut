@@ -320,7 +320,8 @@ class FSeq_npy(FSeq_glob):
     loadfn= lambda self,y: np.load(y)
 
 class FSeq_imgleic(FSeq_img):
-    def __init__(self, pattern, ch=0, fns=[], xmlname = None):
+    def __init__(self, pattern, ch=0, fns=[], xmlname = None,
+                 dt = 1.0, dx = None, dy = None):
         FSeq_glob.__init__(self, pattern,ch=ch)
         if xmlname is None:
             xmlname = self.pattern.split('*')[0]
@@ -332,6 +333,9 @@ class FSeq_imgleic(FSeq_img):
             self.set_scale(self.lp.dx, self.lp.dy) # um/pix
         except Exception as e:
             print "Got exception, ", e
+            # Set fallback options
+            self.dt = dt
+            self.set_scale(dx,dy) # um/pix
             pass
 
 
