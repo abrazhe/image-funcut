@@ -310,16 +310,19 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
         confidence_contour(eds, extent, ax, confidence_level)
 
 def group_maps(maplist, ncols,
-               titles=None, imkw={}, cbkw ={}):
+               titles=None,
+	       draw_colorbar = True,
+	       imkw={}, cbkw ={}):
      import pylab as pl
      nrows = np.ceil(len(maplist)/float(ncols))
      pl.figure(figsize=(2*ncols,2*nrows))
      if not imkw.has_key('aspect'):
 	     imkw['aspect'] = 'equal'
      for i,f in enumerate(maplist):
-          _ = pl.subplot(nrows,ncols,i+1)
+          _ax = pl.subplot(nrows,ncols,i+1)
           pl.imshow(f, **imkw);
-          pl.colorbar(ax=_,**cbkw);
+	  if draw_colorbar:
+		  pl.colorbar(ax=_ax,**cbkw);
           if titles is not None: pl.title(titles[i])
 
 

@@ -32,7 +32,7 @@ def circle_from_struct(circ_props):
     cp = circ_props.copy()
     _  = cp.pop('func')
     center = cp.pop('center')
-    return Circle(center, **cp)
+    return pl.Circle(center, **cp)
 
 def line_from_struct(line_props):
     lp = line_props.copy()
@@ -87,21 +87,21 @@ def line_from_points(p1,p2):
 
 
 def extract_line(data, xind, f):
-    return array([data[int(i),int(f(i))] for i in xind])
+    return np.array([data[int(i),int(f(i))] for i in xind])
 
 
 def extract_line2(data, p1, p2):
     L = int(lib.eu_dist(p1,p2))
     f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
-    return array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
-                  for i in range(L)])
+    return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
+                     for i in range(L)])
 
 
 def color_walker():
     ar1 = lib.ar1
     red, green, blue = ar1(), ar1(), ar1()
     while True:
-        yield map(lambda x: mod(x.next(),1.0), (red,green,blue))
+        yield map(lambda x: np.mod(x.next(),1.0), (red,green,blue))
 
 
 
@@ -174,7 +174,7 @@ class DraggableObj:
             containsp, _ = self.obj.contains(event)
         return event.inaxes == self.obj.axes and \
                containsp and \
-               get_current_fig_manager().toolbar.mode ==''
+               pl.get_current_fig_manager().toolbar.mode ==''
 
     def connect(self):
         "connect all the needed events"
@@ -249,9 +249,9 @@ class LineScan(DraggableObj):
         x0, y0 = self.obj.get_xdata(), self.obj.get_ydata()
         dist1,dist2 = [lib.eu_dist(p,x) for x in self.endpoints()]
         if dist1/(dist1 + dist2) < 0.05:
-            dx,dy = array([dx, 0]), array([dy, 0])
+            dx,dy = np.array([dx, 0]), np.array([dy, 0])
         elif dist2/(dist1 + dist2) < 0.05:
-            dx,dy = array([0, dx]), array([0, dy])
+            dx,dy = np.array([0, dx]), np.array([0, dy])
         self.obj.set_data((x0 + dx,y0 + dy))
         self.pressed = p
         self.update_length_tag()
@@ -280,8 +280,8 @@ class LineScan(DraggableObj):
 
     def get_timeview(self):
         points = map(self.transform_point, self.check_endpoints())
-        timeview = array([extract_line2(frame, *points) for frame in
-                          self.parent.fseq.frames()])
+        timeview = np.array([extract_line2(frame, *points) for frame in
+                             self.parent.fseq.frames()])
         return timeview,points
 
     def show_timeview(self):
@@ -296,7 +296,7 @@ class LineScan(DraggableObj):
                       )
                       #aspect='equal')
             if self.scale_setp:
-                ax.set_xlabel('$\mu$m')
+                ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
             ax.figure.show()
@@ -373,8 +373,8 @@ class CircleROI(DraggableObj):
         ax = self.obj.axes
         p = self.obj.center
         r = self.obj.get_radius()
-        x = p[0] + sin(pi/4)*r
-        y = p[1] + sin(pi/4)*r
+        x = p[0] + np.sin(np.pi/4)*r
+        y = p[1] + np.sin(np.pi/4)*r
         if not hasattr(self, 'tagtext'):
             self.tagtext = ax.text(x,y, '%s'%self.obj.get_label(),
                                    size = 'small',
@@ -388,7 +388,7 @@ class CircleROI(DraggableObj):
         c = roi.center[0]/self.dx, roi.center[1]/self.dy
         fn = in_circle(c, roi.radius)
         shape = self.parent.fseq.shape()
-        X,Y = meshgrid(*map(range, shape[::-1]))
+        X,Y = np.meshgrid(*map(range, shape[::-1]))
         v = self.parent.fseq.mask_reduce(fn(X,Y))
         if normp:
             Lnorm = type(normp) is int and normp or len(v)
@@ -428,6 +428,9 @@ class DragRect(DraggableObj):
         self.obj.set_x(p[0])
         self.obj.set_y(p[1])
 
+def intens_measure(arr1, arr2):
+    pass
+
 def sse_measure(arr1,arr2, vrange=255.0):
     r,c = arr1.shape
     max_sse = r*c*vrange
@@ -456,9 +459,10 @@ class RectFollower(DragRect):
     def find_best_pos(self, frame, template, measure=sse_measure):
         acc = {}
         sw, sh = self.search_width, self.search_height
-        for w in range(-sw/2, sw/2):
-            for h in range(-sh/2, sh/2):
-                s = self.toslice(w,h)
+        _,limh, limw = self.arr.shape
+        for w in range(max(0,-sw/2), min(sw/2,limw)):
+            for h in range(max(0,-sh/2), min(limh,sh/2)):
+                s = self.toslice(h,w)
                 d = measure(frame[s], template)
                 acc[(w,h)] = d
         pos = sorted(acc.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
@@ -520,7 +524,7 @@ def track_vessels(frames, width=30, height=60, measure = sse_measure):
     f.canvas.mpl_connect('scroll_event',skip)
     #f.canvas.mpl_connect('key_press_event', skip)
     #f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
-    rects = axf.bar([100, 200], [height, height], [width,width], alpha=0.2)
+    rects = axf.bar([0, 60], [height, height], [width,width], alpha=0.2)
     drs = [RectFollower(r,frames) for r in rects]
     f.canvas.draw()
     return drs
@@ -547,14 +551,14 @@ class Picker:
         return self._Nf
     
     def on_click(self,event):
-        tb = get_current_fig_manager().toolbar
+        tb = pl.get_current_fig_manager().toolbar
         if event.inaxes != self.ax1 or tb.mode != '': return
 
         x,y = round(event.xdata), round(event.ydata)
         if event.button is 1 and \
            not self.any_roi_contains(event):
             label = unique_tag(self.roi_tags(), self.tagger)
-            c = Circle((x,y), 5, alpha = 0.5,
+            c = pl.Circle((x,y), 5, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
@@ -563,7 +567,7 @@ class Picker:
             #drc.connect()
         self.legend()    
         #self.ax1.legend()
-        draw()
+        pl.draw()
 
     def legend(self):
         if self._show_legend == True:
@@ -583,7 +587,7 @@ class Picker:
         if event.inaxes !=self.ax1 or \
                self.any_roi_contains(event) or \
                event.button != 3 or \
-               get_current_fig_manager().toolbar.mode !='':
+               pl.get_current_fig_manager().toolbar.mode !='':
             return
         self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
@@ -672,7 +676,7 @@ class Picker:
                                    for l in lines]))
 
         #self.ax1.legend()
-        draw() # redraw the axes
+        pl.draw() # redraw the axes
         return
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
@@ -690,7 +694,7 @@ class Picker:
         sy,sx = self.fseq.shape()
         vmin,vmax = self.fseq.data_range()
         if hasattr(self.fseq, 'ch'):
-            title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
+            pl.title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
         self.pl = self.ax1.imshow(self.fseq.mean_frame(),
                                   extent = (0, sx*dx, 0, sy*dy),
                                   interpolation = interpolation,
@@ -698,8 +702,8 @@ class Picker:
                                   vmax=vmax,  vmin=vmin,
                                   cmap=cmap)
         if scale_setp:
-            self.ax1.set_xlabel('$\mu m$')
-            self.ax1.set_ylabel('$\mu m$')
+            self.ax1.set_xlabel('um')
+            self.ax1.set_ylabel('um')
 
         self.disconnect()
         self.connect()
@@ -737,7 +741,7 @@ class Picker:
 
     def timevec(self):
         dt,Nf = self.dt, self.length()
-        return arange(0,Nf*dt, dt)[:Nf]
+        return np.arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, normp = False):
         rois = filter(self.isCircleROI, self.roi_objs.keys())
@@ -761,12 +765,12 @@ class Picker:
         t = self.timevec()
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             ax.plot(t, x, color = roi.get_facecolor())
-            xlim((0,t[-1]))
+            pl.xlim((0,t[-1]))
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
-        freqs = fftfreq(int(L), self.dt)[1:L/2]
+        freqs = np.fft.fftfreq(int(L), self.dt)[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
-            y = abs(fft(x))[1:L/2]
+            y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
         ax.set_xlabel("Frequency, Hz")
     def show_xcorrmap(self, roitag, figsize=(6,6),
@@ -841,8 +845,8 @@ class Picker:
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        return linspace(4.0/(self.length()*self.dt),
-                      0.5/self.dt, num=nfreqs)
+        return np.linspace(4.0/(self.length()*self.dt),
+                           0.5/self.dt, num=nfreqs)
 
     def roi_show_iterator(self, rois = None,
                               normp=False):
@@ -850,7 +854,7 @@ class Picker:
                          filter(self.isCircleROI, self.roi_objs.keys()))
             L = len(rois)
             if L < 1: return
-            fig = figure(figsize=(8,4.5), dpi=80)
+            fig = pl.figure(figsize=(8,4.5), dpi=80)
             for i, roi_label in enumerate(rois):
                 roi = self.roi_objs[roi_label].obj
                 ax = fig.add_subplot(L,1,i+1)
