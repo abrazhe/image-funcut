@@ -121,6 +121,18 @@ def estimate_sigma(arr, coefs, k=3, eps=0.01, max_iter=1e9):
 
 def estimate_sigma_mad(coefarr):
     return np.median(np.abs(coefarr))/(0.6745*sigmaej[2][0])
+
+def wavelet_enh_std(f, level=4, out = 'rec',absp = False):
+    fw = dec_atrous2d(f, level)
+    if absp:
+        supp = map(lambda x: abs(x) > x.std(), fw)
+    else:
+        supp = map(lambda x: x > x.std(), fw)
+    if out == 'rec':
+        filtcoef = [x*w for x,w in zip(supp, fw)]
+        return rec_atrous2d(filtcoef)
+    elif out == 'supp':
+        return represent_support(supp)
         
 def wavelet_denoise(f, k=[3,3,2,2], level = 4, noise_std = None):
     if np.iterable(k):

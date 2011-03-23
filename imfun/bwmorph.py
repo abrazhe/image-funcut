@@ -17,6 +17,19 @@ def locations(shape):
     return itt.product(*map(xrange, shape))
 
 
+def adaptive_threshold(arr, n = 3, k = 0):
+    nrows,ncols = arr.shape
+    out = zeros(arr.shape)
+    for row in xrange(nrows):
+        for col in xrange(ncols):
+            sl = (slice((row-n)%nrows,(row+n)%nrows),
+                  slice((col-n)%nrows,(col+n)%nrows))
+            m = np.mean(arr[sl])
+            if arr[row,col] > m - k:
+                out[row,col] = 1.0
+    return out
+
+
 def contiguous_regions(binarr):
     """    
     Given a binary 2d array, returns a sorted (by size) list of contiguous

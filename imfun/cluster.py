@@ -381,10 +381,11 @@ def points2array(points,dtype=np.float64):
 
 def surfconvert(frame):
     out = []
-    nr,nc = frame.shape
-    for r in range(nr):
-        for c in range(nc):
-            out.append([r,c,frame[r,c]])
+    nr,nc = map(float, frame.shape)
+    f = lib.rescale(frame)
+    for r in range(int(nr)):
+        for c in range(int(nc)):
+            out.append([c/nc,r/nr, f[r,c]])
     return np.array(out)
 
 
