@@ -179,10 +179,10 @@ class FrameSequence:
         fiter = self.frame_slices(sliceobj, fn)
         return itt.islice(fiter, maxN)
 
-    def as3darray(self, fn = None, maxN = None, sliceobj=None,
+    def as3darray(self,  maxN = None, fn = None, sliceobj=None,
                   dtype = np.float32):
         fiter = self.frame_slices(sliceobj, fn=fn)
-        shape = self.shape(sliceobj)
+        shape = self.shape(sliceobj, fn=fn)
         N =  self.length()*shape[0]*shape[1]
         out = memsafe_arr((self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
@@ -195,6 +195,7 @@ class FrameSequence:
     
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
+        print kwargs
         arr = self.as3darray(maxN, **kwargs)
         if mask== None:
             mask = np.ones(self.shape(), np.bool)
@@ -220,8 +221,8 @@ class FrameSequence:
         else:
             return self._length
 
-    def shape(self,sliceobj=None):
-        return self.frame_slices(sliceobj).next().shape
+    def shape(self,sliceobj=None, fn = None):
+        return self.frame_slices(sliceobj, fn = fn).next().shape
 
     def pw_transform(self, pwfn,**kwargs):
         """Create another frame sequence, pixelwise applying a function"""

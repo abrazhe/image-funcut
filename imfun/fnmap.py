@@ -89,7 +89,7 @@ def cwtmap(fseq,
     tstarts = map(lambda x: int(x[0]/fseq.dt), tranges)
     tstops = map(lambda x: int(x[1]/fseq.dt), tranges)
 
-    out = np.ones((len(tranges),)+shape, np.float64)
+    out = np.zeros((len(tranges),)+shape, np.float64)
     for eds,i,j in cwt_iter(fseq,frange,**kwargs):
         for tk, tr in enumerate(tranges):
             out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])

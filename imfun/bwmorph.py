@@ -23,7 +23,7 @@ def adaptive_threshold(arr, n = 3, k = 0):
     for row in xrange(nrows):
         for col in xrange(ncols):
             sl = (slice((row-n)%nrows,(row+n)%nrows),
-                  slice((col-n)%nrows,(col+n)%nrows))
+                  slice((col-n)%ncols,(col+n)%ncols))
             m = np.mean(arr[sl])
             if arr[row,col] > m - k:
                 out[row,col] = 1.0
