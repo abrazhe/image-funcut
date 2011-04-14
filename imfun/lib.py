@@ -17,7 +17,7 @@ def plane(pars, x,y):
 
 def remove_plane(arr, pars):
 	shape = arr.shape
-	X,Y = meshgrid(*map(range,shape))
+	X,Y = np.meshgrid(*map(range,shape[::-1]))
 	return arr - plane(pars, X, Y)
 
 try:
@@ -27,8 +27,8 @@ try:
 	    return stats.scoreatpercentile(arr.flatten(), p)
     def fit_plane(arr):
         def _plane_resid(pars, Z, shape):
-            Z = reshape(Z,shape)
-            X,Y = meshgrid(*map(range,shape))
+            Z = np.reshape(Z,shape)
+            X,Y = np.meshgrid(*map(range,shape[::-1]))
             return (Z - plane(pars,X,Y)).flatten()
         p0 = pl.randn(3)
 	p1 = opt.leastsq(_plane_resid, p0, (arr.flatten(), arr.shape))[0]
@@ -250,12 +250,14 @@ def mask4overlay(mask,colorind=0, alpha=0.9):
 
 	
 ###------------- Wavelet-related -------------	    
-def swanrgb():
+def _swanrgb():
     LUTSIZE = mpl.rcParams['image.lut']
     _rgbswan_data =  swancmap.get_rgbswan_data2()
     cmap = mpl.colors.LinearSegmentedColormap('rgbswan',
 					      _rgbswan_data, LUTSIZE)
     return cmap
+
+swanrgb = _swanrgb()
 
 def confidence_contour(esurf, extent, ax, L=3.0):
     # Show 95% confidence level (against white noise, v=3 \sigma^2)
@@ -299,7 +301,7 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
     im = ax.imshow(eds, extent = extent,
                    origin = 'low',
                    vmin = vmin, vmax = vmax,
-                   cmap = swanrgb(),
+                   cmap = swanrgb,
                    alpha = 0.95)
     if not cax:
         pl.colorbar(im, ax=ax)
