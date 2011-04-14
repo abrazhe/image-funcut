@@ -1,6 +1,6 @@
 
 # Classes for sequencies of frames
-
+import re
 import glob
 import itertools as itt
 import numpy as np
@@ -27,16 +27,10 @@ def memsafe_arr(shape, dtype=np.float32):
         _tmpfile.close()
         return out
     
-        
-    
-
-
-
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
     x = glob.glob(pat)
-    x.sort()
-    return x
+    return sorted(x)
 
 def iter_files(pattern, loadfn):
     "From a pattern, return iterator over data sequence"
@@ -59,36 +53,6 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
                     iter_files(pattern, loadfn))
 
 
-## def default_kernel():
-##     """
-##     Default kernel for conv_pix_iter
-##     Used in 2D convolution of each frame in the sequence
-##     """
-##     kern = np.ones((3,3))
-##     kern[1,1] = 4.0
-##     return kern/kern.sum()
-
-
-def fseq_to_mpg(seq, name, fps = 25, **kwargs):
-    "Creates an mpg  movie from frame sequence with mencoder"
-    import os, sys
-    import matplotlib.pyplot as plt
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    vmin = np.min(map(np.min, seq.frames())) # for scale
-    vmax = np.max(map(np.max, seq.frames())) # for scale
-    L = seq.length()
-    for i,frame in enumerate(seq.frames()):
-        ax.cla()
-        ax.imshow(frame, aspect='equal', vmin=vmin, vmax=vmax, **kwargs)
-        fname = '_tmp%06d.png'%i
-        fig.savefig(fname)
-        sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
-    print 'Running mencoder, this can take a while'
-    os.system("mencoder 'mf://_tmp*.png' -mf type=png:fps=%d -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"%(fps,name))
-    os.system("rm -f _tmp*.png")
-    
-
 def gauss_kern(xsize=1.5, ysize=None):
     """ Returns a normalized 2D gauss kernel for convolutions """
     xsize = int(xsize)
@@ -98,7 +62,7 @@ def gauss_kern(xsize=1.5, ysize=None):
     return g / g.sum()
 
 
-default_kernel = gauss_kern
+#default_kernel = gauss_kern
 
 
 def gauss_blur(X,size=1.0):
@@ -131,8 +95,9 @@ class FrameSequence:
         return float(a.std())
 
     def data_range(self):
-        minv = np.min(map(np.min, self.frames()))
-        maxv = np.max(map(np.max, self.frames()))
+        "Global range (minimal and maximal) values for the sequence"
+        ranges = np.array([(np.min(f), np.max(f)) for f in self.frames()])
+        minv,maxv = np.min(ranges[:,0]), np.max(ranges[:,1])
         return (minv, maxv)
 
     def data_percentile(self, p):
@@ -143,21 +108,20 @@ class FrameSequence:
     def timevec(self,):
         "vector of time values"
         L = self.length()
-        dt = self.dt
-        return np.arange(0, (L+2)*dt, dt)[:L]
+        return np.arange(0, (L+2)*self.dt, self.dt)[:L]
 
-    def mask_reduce(self,mask):
+    def mask_reduce(self, mask):
         "create 1D vector from mask (or slice)"
         return np.asarray([np.mean(f[mask]) for f in self.frames()])
 
-    def frame_slices(self, sliceobj,fn=None):
-        "iterator over subframes"
+    def frame_slices(self, sliceobj, fn=None):
+        "iterator over subframes (slices)"
         if sliceobj:
             return (f[sliceobj] for f in self.frames(fn))
         else:
             return self.frames(fn)
 
-    def mean_frame(self,nframes = None, fn=None):
+    def mean_frame(self, nframes = None, fn=None):
         "Create mean image over N frames (all by default)"
         L = self.length()
         frameit = itt.imap(np.float64, self.frames(fn))
@@ -180,7 +144,7 @@ class FrameSequence:
         return itt.islice(fiter, maxN)
 
     def as3darray(self,  maxN = None, fn = None, sliceobj=None,
-                  dtype = np.float32):
+                  dtype = np.float64):
         fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj, fn=fn)
         N =  self.length()*shape[0]*shape[1]
@@ -195,7 +159,6 @@ class FrameSequence:
     
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
-        print kwargs
         arr = self.as3darray(maxN, **kwargs)
         if mask== None:
             mask = np.ones(self.shape(), np.bool)
@@ -212,6 +175,7 @@ class FrameSequence:
         
 
     def length(self):
+        "Number of frames in the sequence"
         if not hasattr(self,'_length'):
             k = 0
             for _ in self.frames():
@@ -221,11 +185,12 @@ class FrameSequence:
         else:
             return self._length
 
-    def shape(self,sliceobj=None, fn = None):
+    def shape(self, sliceobj=None, fn = None):
+        "Returns shape of frames in the sequence"
         return self.frame_slices(sliceobj, fn = fn).next().shape
 
     def pw_transform(self, pwfn,**kwargs):
-        """Create another frame sequence, pixelwise applying a function"""
+        """Create another frame sequence, pixelwise applying a provided function"""
         nrows, ncols = self.shape()
         #out = np.zeros((self.length(), nrows, ncols))
         out = memsafe_arr((self.length(), nrows, ncols))
@@ -245,15 +210,14 @@ class FrameSequence:
         ax = fig.add_subplot(111)
         if stop is None:
             stop = self.length()
-        if vmin is None:
-            vmin = np.min(map(np.min, self.frames())) # for scale
-        if vmax is None:
-            vmax = np.max(map(np.max, self.frames())) # for scale
+        vmin = ifnot(vmin, np.min(map(np.min, self.frames()))) # for scale
+        vmax = ifnot(vmax, np.max(map(np.max, self.frames()))) # for scale
+        kwargs.update({'vmin':vmin, 'vmax':vmax})
         L = self.length()
         for i,frame in enumerate(self.frames()):
             if i > stop: break
             ax.cla()
-            ax.imshow(frame, aspect='equal', vmin=vmin, vmax=vmax, **kwargs)
+            ax.imshow(frame, aspect='equal', **kwargs)
             fname =  path + base + '%06d.png'%i
             if show_title:
                 ax.set_title('frame %06d (%3.3f s)'%(i, i*self.dt))
@@ -305,11 +269,11 @@ class FSeq_glob(FrameSequence):
         self.fns = fns
         self.set_scale(dx, dy)
             
-    def frames(self, fn = None):
+    def frames(self, fn = None, ch = None):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))
         ## Examples of processing functions can be found in scipy.ndimage module
         ## TODO: a list of hook functions
-        return itt.imap(fn, fseq_from_glob(self.pattern, self.ch, self.loadfn))
+        return itt.imap(fn, fseq_from_glob(self.pattern, ifnot(ch, self.ch), self.loadfn))
 
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)
@@ -350,7 +314,6 @@ class FSeq_mlf(FrameSequence):
         self.fns = []
         self.set_scale()
     def frames(self,  fn = None):
-        #fn = ifnot(fn,self.fn)
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
         #return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
@@ -379,3 +342,25 @@ class FSeq_multiff(FrameSequence):
             except EOFError:
                 break
             
+def open_seq(path, *args, **kwargs):
+    "Dispatches to a real class constructor depending on the file name"
+    images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff')
+    ending = re.findall('[^*\.]+', path)[-1]
+    if ending == 'txt':
+        return FSeq_txt(path, *args, **kwargs)
+    elif ending == 'mlf':
+        return FSeq_mlf(path, *args, **kwargs)
+    elif ending == 'npy':
+        return FSeq_npy(path, *args, **kwargs)
+    elif ending in images:  # A collection of images or a big tiff
+        if '*' in path: # many files
+            from imfun import leica
+            xml_try = leica.get_xmljob(path.split('*')[0])
+            if kwargs.has_key('xmlname') or xml_try:
+                return FSeq_imgleic(path, *args, **kwargs)
+            else:
+                return FSeq_img(path, *args, **kwargs)
+        elif ending in ('tif', 'tiff'): # single multi-frame tiff
+            return FSeq_multiff(path, *args, **kwargs)
+            
+    

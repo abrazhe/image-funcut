@@ -13,7 +13,9 @@ def get_xmljob(name, patt = "*[0-9].xml"):
         return name
     if name[-1] != '/':
         name += '/'
-    return glob.glob(name+patt)[0]
+    job =  glob.glob(name+patt)
+    if len(job) > 0: return job[0]
+    else: return None
 
 def ticks_to_ms(lo,hi):
     """

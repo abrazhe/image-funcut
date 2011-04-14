@@ -680,6 +680,8 @@ class Picker:
         return
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
+              mean_frame =True,
+              vmax = None, vmin = None, 
               cmap = 'gray',
               interpolation = 'nearest'):
         "Start picking up ROIs"
@@ -692,10 +694,16 @@ class Picker:
 
         dx,dy, scale_setp = self.fseq.get_scale()
         sy,sx = self.fseq.shape()
-        vmin,vmax = self.fseq.data_range()
+        avmin,avmax = self.fseq.data_range()
+        if vmin is None: vmin = avmin
+        if vmax is None: vmax = avmax
         if hasattr(self.fseq, 'ch'):
             pl.title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
-        self.pl = self.ax1.imshow(self.fseq.mean_frame(),
+        if mean_frame:
+            f = self.fseq.mean_frame()
+        else:
+            f = self.fseq.frames().next()
+        self.pl = self.ax1.imshow(f,
                                   extent = (0, sx*dx, 0, sy*dy),
                                   interpolation = interpolation,
                                   aspect='equal',
