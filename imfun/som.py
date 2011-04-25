@@ -1,7 +1,7 @@
 # Prototype of Kohonen's Self-Organizing Maps
 import numpy as np
 import itertools as itt
-from imfun.cluster import euclidean, cityblock, pearson, spearman, xcorrdist
+from cluster import euclidean, cityblock, pearson, spearman, xcorrdist
 
 
 import sys
