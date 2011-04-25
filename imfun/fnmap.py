@@ -229,9 +229,27 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
              keyfn = lambda x:x[0],
              normalize_signal=False):
     """
-    other variants for corrfn:
-     - scipy.stats.pearsonr
-     - scipy.stats.spearmanr
+    xcorrmap: frame sequence, signal -> 2D array
+    ========
+
+    Arguments:
+    ~~~~~~~~~~
+
+    - fseq, a frame sequence instance
+    - signal: a template signal (to correlate to)
+    - normL : N points to use for normalization
+    - normfn: a function to use for normalization [default: DFoSD]
+    - corrfn: a correlation function. can be {'pearson', 'spearman', 'correlate'} 
+      or user-provided function
+    - keyfn : a function to extract corr. coefficient from corrfn returned value.
+      default, [x->x]
+    - normalize_signal:  flag, whether to normalize the template signal [default: False]
+
+    Returned value:
+    ~~~~~~~~~~~~~~~
+
+    2D array, each value contains correlation coefficient of the provided frame
+    sequence to the template signal. 
     """
     if type(corrfn) == str:
         corrfn = _corrfuncs[corrfn]
@@ -270,9 +288,9 @@ def fftmap(fseq, frange, func=np.mean,
            **kwargs):
         """
         Fourier-based functional mapping
-        frange : a range of frequencies in Hz, e.g. (1.0, 1.5)
-        kern  : a kernel to convolve each frame with
-        func  : range reducing function. np.mean by default, may be np.sum as well
+        - frange : a range of frequencies in Hz, e.g. (1.0, 1.5)
+        - kern  : a kernel to convolve each frame with
+        - func  : range reducing function. np.mean by default, may be np.sum as well
         """
         tick = time.clock()
         L = fseq.length()
