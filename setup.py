@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.10',
+      version = '0.0.11',
       scripts = ['imfun/frame_viewer.py'],
       requires = ['swan'],
       py_modules = ['imfun.bwmorph',
@@ -14,6 +14,7 @@ setup(name='image-funcut',
                     'imfun.opt',
                     'imfun.pca',
                     'imfun.pica',
+                    'imfun.som',
                     'imfun.synthdata',
                     'imfun.ui',
                     'imfun.MLFImage'],)
