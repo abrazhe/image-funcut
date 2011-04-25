@@ -53,8 +53,9 @@ def rand_tag():
                        (consonants, vowels, consonants)))
 def tags_iter(tag_id =1):
     while True:
-        yield 'roi%03d'%tag_id
+        yield 'r%02d'%tag_id
         tag_id +=1
+        
 def rand_tags_iter():
     while True: yield rand_tag()
 
@@ -557,7 +558,7 @@ class Picker:
         x,y = round(event.xdata), round(event.ydata)
         if event.button is 1 and \
            not self.any_roi_contains(event):
-            label = unique_tag(self.roi_tags(), self.tagger)
+            label = unique_tag(self.roi_tags(), tagger=self.tagger)
             c = pl.Circle((x,y), 5, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
@@ -613,7 +614,7 @@ class Picker:
         if self.any_roi_contains(event): return
         if not hasattr(self, 'curr_line_handle'): return
         if len(self.curr_line_handle.get_xdata()) > 1:
-            tag = unique_tag(self.roi_tags(), self.tagger)
+            tag = unique_tag(self.roi_tags(), tagger=self.tagger)
             self.curr_line_handle.set_label(tag)
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
@@ -893,14 +894,14 @@ class Picker:
         t = self.timevec()
 
         pl.figure();
-        ax1= subplot(211);
+        ax1= pl.subplot(211);
         roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
-        plot(t,s1,color=roi1.get_color(), label=tag1)
-        plot(t,s2,color=roi2.get_color(), label = tag2)
+        pl.plot(t,s1,color=roi1.get_color(), label=tag1)
+        pl.plot(t,s2,color=roi2.get_color(), label = tag2)
         #legend()
-        ax2 = subplot(212, sharex = ax1);
+        ax2 = pl.subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
-        ax2.imshow(res, extent = ext, cmap = lib.swanrgb())
+        ax2.imshow(res, extent = ext, cmap = lib.swanrgb)
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 

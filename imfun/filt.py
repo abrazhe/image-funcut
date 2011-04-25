@@ -3,6 +3,14 @@ from __future__ import division
 import numpy as np
 from scipy import signal
 
+def gauss_kern(xsize=1.5, ysize=None):
+    """ Returns a normalized 2D gauss kernel for convolutions """
+    xsize = int(xsize)
+    ysize = ysize and int(ysize) or xsize
+    x, y = np.mgrid[-xsize:xsize+1, -ysize:ysize+1]
+    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
+    return g / g.sum()
+
 
 def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
