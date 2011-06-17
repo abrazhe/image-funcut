@@ -539,6 +539,7 @@ def track_vessels(frames, width=30, height=60, measure = sse_measure):
 class Picker:
     verbose = True
     def __init__(self, fseq):
+        self._corrfn = 'pearson'
         self.cw = color_walker()
 
         self._show_legend=False
@@ -791,7 +792,7 @@ class Picker:
         from scipy import ndimage
         roi =  self.roi_objs[roitag]
         signal = self.get_timeseries([roitag],normp=True)[0]
-        xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn='pearson',**kwargs)
+        xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
         mask = roi.in_circle(xcmap.shape)
         xshow = np.ma.masked_where(mask,xcmap)
         fig = pl.figure(figsize=figsize)
