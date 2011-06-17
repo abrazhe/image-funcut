@@ -56,6 +56,7 @@ def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
 
 def cluster_map_permutation(affs, perms, shape):
     "auxiliary function to map affiliations to 2D image"
+    import itertools as itt
     out = np.zeros(shape)
     coordinates = list(itt.product(*map(xrange,shape)))
     for k,a in enumerate(affs):
