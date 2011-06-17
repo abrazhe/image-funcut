@@ -434,12 +434,12 @@ def read_lasaf_txt(fname):
 
 
 def som_cluster_fseq(seq, **kwargs):
-	from itertools import product
+	import itertools as itt
 	from imfun import som
 	shape = seq.shape()
 	a = seq.as3darray()
 	tracks = np.array([a[:,i,j] for i,j in
-			   product(*map(xrange(shape)))])
+			   itt.product(*map(xrange, shape))])
 	perm = np.permutation(np.product(shape))
 	affiliations = som.som1(seq,**kwargs)
 	return som.cluster_map_permutation(affiliations, perm, shape)
