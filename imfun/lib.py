@@ -440,7 +440,7 @@ def som_cluster_fseq(seq, **kwargs):
 	a = seq.as3darray()
 	tracks = np.array([a[:,i,j] for i,j in
 			   itt.product(*map(xrange, shape))])
-	perm = np.permutation(np.product(shape))
-	affiliations = som.som1(seq,**kwargs)
+	perm = np.random.permutation(np.product(shape))
+	affiliations = som.som1(tracks,**kwargs)
 	return som.cluster_map_permutation(affiliations, perm, shape)
 	
