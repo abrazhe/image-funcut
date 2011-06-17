@@ -50,4 +50,5 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
 
 def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
               distance=euclidean):
+    print "Not implemented yet"
     pass
