@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import dot,argsort,diag,where,dstack,zeros, sqrt,float,real,linalg
 #from numpy import *
-from numpy.linalg import eigh, inv, eig, norm
+from numpy.linalg import eigh, inv, eig, norm, svd
 from numpy.random import randn, rand
 import time
 try:
@@ -14,79 +14,59 @@ except:
     _skew_loaded = False
 
 ## TODOs:
-## [ ] show how much variance is accounted by pcs
+## [ ] show how much variance is accounted for by pcs
 ## [X] function to reshape back to movie
 ## [X] behave nicely if no scipy available (can't sort by skewness then)
 ## [ ] simple GUI (traits?)
 ## [ ] masks from ICs or PCs    
 
-def pca_svd(X):
+
+def pca(X, ncomp=None):
+    """PCA decomposition via SVD
+    Input
+    ~~~~~~
+    X -- an array where each column contains observations from one probe
+         and each row is different probe (dimension)
+
+    Output
+    ~~~~~~~
+    Z -- whitened matrix
+    K -- PC matrix
+    s -- eigenvalues
+    X_mean -- sample mean
+    """
     ndata, ndim = X.shape
-    Y = X - X.mean(axis=-1)[:, np.newaxis] # remove mean
-    U,s,Vh = np.linalg.svd(X, full_matrices=False)
-    Vh = Vh[:ndata] #only makes sense to return the first num_data
-    return U,Vh,s
+    X_mean = X.mean(axis=-1)[:,np.newaxis]    
+    Xc = X - X_mean # remove mean
+    U,s,Vh = svd(Xc, full_matrices=False)
+    ## U is eigenvectors of ``Xc Xc.H`` in columns
+    ## Vh is eigenvectors of ``Xc.H Xc`` in rows
+    Z = Vh[:ncomp] # whitened data
+    ## equivalently,
+    ## Z = dot((U/s).T[:ncomp], Xc)
+    K = (U/s).T[:ncomp]
+    return Z, K, s[:ncomp], X_mean
 
-def pca1 (X, verbose=False):
-    """
-    Simple principal component analysis
-    X as Npix by Nt matrix
-    X should be normalized and centered beforehand
-    --
-    returns:
-    - EV (Nt by Nesq:esq>0), matrix of PC 'signals'
-     (eigenvalues of temporal covariance matrix). Signals are in columns
-    - esq, vector of eigenvalues
-    """
-    tick = time.clock()
-    Nx, Nt = X.shape
-    Y = X - X.mean(axis=-1)[:, np.newaxis] # remove mean
-    C = dot(Y, Y.T)/Nt # temporal covariance matrix
-
-    es, EV = eigh(C)  # eigenvalues, eigenvectors
-
-    ## take non-negative eigenvalues
-    non_neg, = where(es>=0)
-    neg = where(es<0)
-    if len(neg)>0:
-        if verbose:
-            print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
-        es = es[non_neg]
-        EV = EV[:,non_neg]
-    #S = diag(np.sqrt(es))
-    #whitenmat = dot(EV, inv(S)) # whitenting matrix
-    ki = argsort(es)[::-1]      # indices for sorted eigenvalues    
-    #U = dot(X, whitenmat)  # spatial filters
-    if verbose:
-        print "PCA finished in %03.2f sec" %(time.clock() - tick)
-    return EV[:,ki], es[ki]
-
-# note: returns EVs stored in columns, e.g.
-# [[x1, x2, ... xn],
-#  [y1, y2, ... yn],
-#  ...]
-
-## Whitening
-
-
-def whiten_mat1(X):
-    EV,es = pca1(X)
-    S = diag(np.sqrt(es))
-    return dot(EV, inv(S))
 
 def st_ica(X, ncomp = 20,  mu = 0.3):
     """Spatiotemporal ICA for sequences of images
     Input:
+    ~~~~~~
     X -- list of 2D arrays or 3D array with first axis = time
+    ncomp -- number of components to resolve
     mu -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+    Output:
+    ~~~~~~~
+    ica_filters, ica_signals
     """
-
     data = reshape_from_movie(X) # nframes x npixels
     sh = X[0].shape
     
-    pc_filters, pc_signals, ev = whiten_svd(data, ncomp)
+    #pc_f, pc_s, ev = whitenmat(data, ncomp)
+    pc_f, pc_s, ev, _ = whitenmat(data, ncomp)
+    print pc_f.shape, pc_s.shape
     
-    mux = sptemp_concat(pc_filters, pc_signals, mu)
+    mux = sptemp_concat(pc_f, pc_s, mu)
 
     _, W = fastica(mux, whiten=False)
     ica_sig = dot(W, pc_signals)
@@ -97,6 +77,17 @@ def st_ica(X, ncomp = 20,  mu = 0.3):
     else:
         skewsorted = range(nIC)
     return ica_filters[skewsorted], ica_sig[skewsorted]
+
+
+## Whitening
+
+def whitenmat(X, ncomp=None):
+    n,p = map(float, X.shape)
+    Y = X - X.mean(axis=-1)[:, np.newaxis]
+    U, s, Vh = svd(Y, full_matrices=False)
+    K = (U/s).T[:ncomp]
+    return np.dot(K, Y), K, s[:ncomp]
+
 
 
 def transp(m):
@@ -111,6 +102,8 @@ pow3nonlin = {'g':lambda X: X**3,
 pow3nonlinx = {'g':lambda X,args: X**3,
               'gprime': lambda X,args: 3*X**2}
 
+logcoshnonlin = {'g': lambda X: np.tanh(X),
+                 'gprime': lambda X: 1.0 - np.tanh(X)**2}
 
 def _sym_decorrelate(X):
     "W <- W \cdot (W^T \cdot W)^{-1/2}"
@@ -135,15 +128,15 @@ def _ica_symm(X, nIC=None, guess=None,
     B, Bprev = zeros(guess.shape, np.float64), guess
 
     iters, errx = 0,termtol+1
-    g, gp = pow3nonlin['g'], pow3nonlin['gprime']
+    g, gp = nonlinfn['g'], nonlinfn['gprime']
 
     while (iters < max_iter) and (errx > termtol):
         bdotx = dot(Bprev, X)
         gwtx = g(bdotx)
-        gp_wtx = gp(bdotx)/siglen
-        B = dot(gwtx, X.T)/siglen - dot(np.diag(gp_wtx.mean(axis=1)), Bprev)
+        gp_wtx = gp(bdotx)#/siglen
+        B = dot(gwtx, X.T)/siglen - dot(diag(gp_wtx.mean(axis=1)), Bprev)
         B = _sym_decorrelate(B)
-        errx = max(abs(abs(np.diag(dot(B, Bprev.T)))-1))
+        errx = max(abs(abs(diag(dot(B, Bprev.T)))-1))
         Bprev = np.copy(B)
         iters += 1
     if verbose:
@@ -153,29 +146,41 @@ def _ica_symm(X, nIC=None, guess=None,
             print "Fail: reached maximum number of iterations %d reached"%maxiters
     return B.real
 
-def whiten_svd(X, ncomp=None):
-    n,p = map(float, X.shape)
-    Y = X - X.mean(axis=-1)[:, np.newaxis]
-    u, s, vh = linalg.svd(X, full_matrices=False)
-    K = (u/s).T[:ncomp]
-    return np.dot(K, X), K, s[:ncomp]
 
 def fastica(X, ncomp=None, whiten = True,
             algorithm = 'symmetric',
-            tol = 1e-3, max_iter = 1e3, guess = None):
+            nonlinfn = pow3nonlin,
+            tol = 1e-04, max_iter = 1e3, guess = None):
+    """Fast ICA algorithm realisation.
+    Input:
+    ~~~~~~
+    X -- data matrix with observations in rows
+    ncomp -- number of components to resolve  [all possible]
+    whiten -- whether to whiten the input data [True]
+    nonlinfn -- nonlinearity function [pow3nonlin]
+    tol -- finalisation tolerance, [1e-04]
+    max_iter -- maximal number of iterations [1000]
+    guess -- initial guess [None]
+
+    Output:
+    ~~~~~~~
+    S -- estimated sources (in rows)
+    W -- unmixing matrix
+    """
     n,p = map(float, X.shape)
     if whiten:
-        XW, K, _ = whiten_svd(X, ncomp) # whitened and projected data
+        XW, Uh, s, _= pca(X, ncomp) # whitened data and projection matrix
+        #XW, Uh, _ = whitenmat(X, ncomp) # whitened data and projection matrix
     else:
         XW = X.copy()
     XW *= np.sqrt(p)
-    kwargs = {'termtol':tol, 'nonlinfn':pow3nonlin,
+    kwargs = {'termtol':tol, 'nonlinfn':nonlinfn,
               'max_iter':max_iter, 'guess':guess}
     algorithms = {'symmetric':_ica_symm, 'deflation':None}
     fun = algorithms.get(algorithm, 'symmetric')
     W  = fun(XW, **kwargs)
     if whiten:
-        S = dot(dot(W,K),X)
+        S = dot(dot(W,Uh),X)
     else:
         S = dot(W,X)
     return S, W
@@ -218,6 +223,7 @@ def fastica_defl(X, nIC=None, guess=None,
 
 ### Some general utility functions:
 ### --------------------------------
+
 def gauss_kern(xsize, ysize=None):
     """ Returns a normalized 2D gauss kernel for convolutions """
     xsize = int(xsize)
@@ -234,8 +240,8 @@ def reshape_from_movie(mov):
     return mov.reshape(l,w*h)
 
 def reshape_to_movie(X,nrows,ncols):
-    Np, Nt = X.shape
-    return X.T.reshape(Nt,nrows,ncols)
+    Nt, Np = X.shape
+    return X.reshape(Nt,nrows,ncols)
 
 def sptemp_concat(filters, signals, mu):
     if mu == 0:
@@ -317,3 +323,54 @@ def flcompose2(f1,f2):
 def flcompose(*funcs):
     "Compose a list of functions from left to right"
     return reduce(flcompose2, funcs)
+
+#### Old stuff
+
+def _pca_trick(X):
+    """PCA with transformation trick"""
+    ndata, ndim = X.shape
+    #X_mean = X.mean(axis=-1)[:, np.newaxis]
+    X_mean = X.mean(axis=0)[np.newaxis,:]    
+    Y = X - X_mean # remove mean
+    Y = X
+    e, C = eigh(dot(Y,Y.T))
+    print e
+    V = dot(Y.T, C)
+    return dot(V, inv(diag(sqrt(e)))), sqrt(e), X_mean
+
+
+
+def _pca1 (X, verbose=False):
+    """
+    Simple principal component decomposition (PCA)
+    X as Npix by Nt matrix
+    X should be normalized and centered beforehand
+    --
+    returns:
+    - EV (Nt by Nesq:esq>0), matrix of PC 'signals'
+     (eigenvalues of temporal covariance matrix). Signals are in columns
+    - esq, vector of eigenvalues
+    """
+    print "Please don't use this, it's not ready"
+    return
+    tick = time.clock()
+    n_data, n_dimension = X.shape # (m x n)
+    Y = X - X.mean(axis=0)[np.newaxis,:] # remove mean
+    #C = dot(Y, Y.T) # (n x n)  covariance matrix
+    C = dot(Y.T, Y)
+    print C.shape
+    es, EV = eigh(C)  # eigenvalues, eigenvectors
+
+    ## take non-negative eigenvalues
+    non_neg, = where(es>=0)
+    neg = where(es<0)
+    if len(neg)>0:
+        if verbose:
+            print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
+        es = es[non_neg]
+        EV = EV[:,non_neg]
+    #tmp = dot(Y.T, EV).T
+    #V1 = tmp[::-1]
+    #S1 = sqrt(es)[::-1]
+    return EV
+
