@@ -225,7 +225,7 @@ _corrfuncs = {'pearson':stats.pearsonr,
              'correlate':np.correlate} 
 
 def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
-             corrfn = np.correlate,
+             corrfn = 'pearson',
              keyfn = lambda x:x[0],
              normalize_signal=False):
     """

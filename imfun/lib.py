@@ -431,3 +431,16 @@ def read_lasaf_txt(fname):
         print "%s: Exception"%fname, type(inst)
         return None
 
+
+
+def som_cluster_fseq(seq, **kwargs):
+	import itertools as itt
+	from imfun import som
+	shape = seq.shape()
+	a = seq.as3darray()
+	tracks = np.array([a[:,i,j] for i,j in
+			   itt.product(*map(xrange, shape))])
+	perm = np.random.permutation(np.product(shape))
+	affiliations = som.som1(tracks,**kwargs)
+	return som.cluster_map_permutation(affiliations, perm, shape)
+	

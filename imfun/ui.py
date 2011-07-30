@@ -38,7 +38,7 @@ def line_from_struct(line_props):
     lp = line_props.copy()
     _ = lp.pop('func')
     xdata, ydata = lp.pop('xdata'), lp.pop('ydata')
-    return Line2D(xdata, ydata,**lp)
+    return LineScan(xdata, ydata,**lp)
 
 
 import pickle
@@ -333,7 +333,9 @@ class CircleROI(DraggableObj):
         tags = [self.tag]
         if event.key in ['t', '1']:
             self.parent.show_timeseries(tags)
-        if event.key in ['T', '!']:
+        elif event.key in ['c']:
+            self.parent.show_xcorrmap(self.tag)
+        elif event.key in ['T', '!']:
             self.parent.show_timeseries(tags, normp=True)
         elif event.key in ['w', '2']:
             self.parent.show_spectrogram_with_ts(self.tag)
@@ -383,14 +385,16 @@ class CircleROI(DraggableObj):
         else:
             self.tagtext.set_position((x,y))
 
-
-    def get_timeview(self, normp=False):
+    def in_circle(self, shape):
         roi = self.obj
         c = roi.center[0]/self.dx, roi.center[1]/self.dy
-        fn = in_circle(c, roi.radius)
-        shape = self.parent.fseq.shape()
+        fn = lib.in_circle(c, roi.radius/self.dx)
         X,Y = np.meshgrid(*map(range, shape[::-1]))
-        v = self.parent.fseq.mask_reduce(fn(X,Y))
+        return fn(X,Y)
+
+    def get_timeview(self, normp=False):
+        shape = self.parent.fseq.shape()
+        v = self.parent.fseq.mask_reduce(self.in_circle(shape))
         if normp:
             Lnorm = type(normp) is int and normp or len(v)
             return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
@@ -535,6 +539,7 @@ def track_vessels(frames, width=30, height=60, measure = sse_measure):
 class Picker:
     verbose = True
     def __init__(self, fseq):
+        self._corrfn = 'pearson'
         self.cw = color_walker()
 
         self._show_legend=False
@@ -667,8 +672,8 @@ class Picker:
         "Load stored ROIs from a file"
         saved_rois = pickle.load(file(fname))
         rois = [x['func'](x) for x in saved_rois]
-        circles = filter(lambda x: isinstance(x, Circle), rois)
-        lines = filter(lambda x: isinstance(x, Line2D), rois)
+        circles = filter(lambda x: isinstance(x, pl.Circle), rois)
+        lines = filter(lambda x: isinstance(x, LineScan), rois)
         map(self.ax1.add_patch, circles) # add points to the axes
         map(self.ax1.add_line, lines) # add points to the axes
         self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
@@ -784,11 +789,19 @@ class Picker:
         ax.set_xlabel("Frequency, Hz")
     def show_xcorrmap(self, roitag, figsize=(6,6),
                       **kwargs):
+        from scipy import ndimage
+        roi =  self.roi_objs[roitag]
         signal = self.get_timeseries([roitag],normp=True)[0]
-        xcmap = fnmap.xcorrmap(self.fseq, signal, **kwargs)
-        pl.figure(figsize=figsize)
-        pl.imshow(xcmap, aspect = 'equal')
-        pl.title('Correlation to %s'%roitag)
+        xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
+        mask = roi.in_circle(xcmap.shape)
+        xshow = np.ma.masked_where(mask,xcmap)
+        fig = pl.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        vmin, vmax = xshow.min(), xshow.max()
+        im = ax.imshow(ndimage.median_filter(xcmap,3), aspect = 'equal', vmin=vmin,
+                       vmax=vmax,cmap=lib.swanrgb)
+        pl.colorbar(im, ax=ax)
+        ax.set_title('Correlation to %s'%roitag)
         return xcmap
 
     def show_spectrograms(self, rois = None, freqs = None,

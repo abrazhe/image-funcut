@@ -19,6 +19,7 @@ def voronoi_inds(patterns, maps, distance):
 
 def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
          fade_coeff = 0.9,
+         min_reassign=10,
          distance=euclidean):
     """SOM as described in Bacao, Lobo and Painho, 2005"""
     niter, max_iter = 0, 1e5        # to limit run time
@@ -31,7 +32,7 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         grid[l] = patterns[k]
     affiliations = np.ones(Npts)*-1
     reassigned = len(affiliations)
-    while alpha > 1e-6 and niter < max_iter and reassigned > 0:
+    while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
         affiliations_prev = affiliations.copy()
         for k,p in enumerate(patterns):
             sys.stderr.write("%04d \r"%(Npts-k))
@@ -50,4 +51,14 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
 
 def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
               distance=euclidean):
+    print "Not implemented yet"
     pass
+
+def cluster_map_permutation(affs, perms, shape):
+    "auxiliary function to map affiliations to 2D image"
+    import itertools as itt
+    out = np.zeros(shape)
+    coordinates = list(itt.product(*map(xrange,shape)))
+    for k,a in enumerate(affs):
+        out[coordinates[perms[k]]] = a
+    return out
