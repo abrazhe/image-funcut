@@ -17,7 +17,7 @@ def voronoi_inds(patterns, maps, distance):
                                      for m in np.flatiter(maps)])
     return affiliations
 
-def distance_fns = {
+distance_fns = {
     'euclidean':euclidean,
     'cityblock':cityblock,
     'pearson':pearson,
