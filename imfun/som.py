@@ -17,6 +17,14 @@ def voronoi_inds(patterns, maps, distance):
                                      for m in np.flatiter(maps)])
     return affiliations
 
+def distance_fns = {
+    'euclidean':euclidean,
+    'cityblock':cityblock,
+    'pearson':pearson,
+    'spearman':spearman,
+    'xcorrdist':xcorrdist
+    }
+
 def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
          fade_coeff = 0.9,
          min_reassign=10,
@@ -24,6 +32,11 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
          distance=euclidean,
          verbose = 0):
     """SOM as described in Bacao, Lobo and Painho, 2005"""
+
+    if (type(distance) is str) and distance_fns.has_key(distance):
+        distance = distance_fns[distance]
+        
+    
     niter = 0
     Npts = len(patterns)            # number of patterns
     L = len(patterns[0])            # dimensionality
@@ -37,8 +50,8 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
         affiliations_prev = affiliations.copy()
         for k,p in enumerate(patterns):
-            if (not k%100) and verbose > 1:
-                sys.stderr.write("%04d \r"%(Npts-k))
+            if (not k%100) and verbose:
+                sys.stderr.write("%04d %06d, %06d \r"%(niter, reassigned, Npts-k))
             dists = [distance(grid[loc],p) for loc in locs]
             winner_ind = np.argmin(dists)
             affiliations[k] = winner_ind
@@ -50,7 +63,9 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         reassigned = np.sum(affiliations != affiliations_prev)
         niter +=1
         if verbose:
-            sys.stderr.write("%4.3e, %4.3e, %06d %06d \n"%(alpha, r, reassigned, niter))
+            outstr = "\r%4.3e, %4.3e, %06d %06d"%(alpha, r, reassigned, niter)
+            if verbose > 2: outstr = oustr + ' \n'
+            sys.stderr.write(outstr)
     return affiliations
 
 def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
