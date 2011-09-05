@@ -247,6 +247,17 @@ def mask4overlay(mask,colorind=0, alpha=0.9):
     stack[:,:,colorind] = mask
     return stack
 
+def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+    L = len(sig) 
+    padlen = len(phi)
+    assert L > padlen
+    indices = map(lambda i: mirrorpd(i, L),
+                  range(-padlen, 0) + range(0,L) + range(L, L+padlen))
+    padded_sig = sig[indices]
+    apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
+    return apprx
+
+
 
 	
 ###------------- Wavelet-related -------------	    
