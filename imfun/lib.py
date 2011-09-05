@@ -247,6 +247,12 @@ def mask4overlay(mask,colorind=0, alpha=0.9):
     stack[:,:,colorind] = mask
     return stack
 
+
+def mirrorpd(k, L):
+    if 0 <= k < L : return k
+    else: return -(k+1)%L
+
+
 def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     L = len(sig) 
     padlen = len(phi)
