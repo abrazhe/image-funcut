@@ -172,6 +172,8 @@ class GWOpts(HasTraits):
 
 class FrameSequenceOpts(HasTraits):
     mfilt7 = lambda v: signal.medfilt(v,7)
+    tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
+    normL = Int(250, label="N baseline frames")
     fw_presets = {
         '1. Do nothing' : [],
         '2. Gauss blur' : [fseq.gauss_blur],
@@ -183,8 +185,10 @@ class FrameSequenceOpts(HasTraits):
         '3. DF/F' : lib.DFoF,
         '4. DF/SD' : lib.DFoSD,
         '5. Med. filter ' : mfilt7,
-        '6. Med. filter + DF/F': lib.flcompose(mfilt7,lib.DFoF),
-        '7. Med. filter + DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
+        '6. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
+        '7. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
+        '8. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
+        '9. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }
     gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')

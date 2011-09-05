@@ -103,7 +103,7 @@ def filter_mask(mask, fn, args=()):
     """Split a mask into contiguous regions, filter their size,
     and return result as a mask
     """
-    regs = contiguous_regions_2d(mask)
+    regs = contiguous_regions(mask)
     filtered_regs = fn(regs, *args)
     z = np.zeros(mask.shape, dtype=np.bool)
     if len(filtered_regs) >1:

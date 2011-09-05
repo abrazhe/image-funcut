@@ -322,9 +322,9 @@ def group_maps(maplist, ncols,
 	     imkw['aspect'] = 'equal'
      for i,f in enumerate(maplist):
           _ax = pl.subplot(nrows,ncols,i+1)
-          pl.imshow(f, **imkw);
+          _im = pl.imshow(f, **imkw);
 	  if draw_colorbar:
-		  pl.colorbar(ax=_ax,**cbkw);
+		  pl.colorbar(_im, ax=_im.axes);
           if titles is not None: pl.title(titles[i])
 
 
