@@ -62,15 +62,15 @@ def st_ica(X, ncomp = 20,  mu = 0.3):
     data = reshape_from_movie(X) # nframes x npixels
     sh = X[0].shape
     
-    #pc_f, pc_s, ev = whitenmat(data, ncomp)
-    pc_f, pc_s, ev, _ = whitenmat(data, ncomp)
+    pc_f, pc_s, ev = whitenmat(data, ncomp)
+    #pc_f, pc_s, ev, _ = whitenmat(data, ncomp)
     print pc_f.shape, pc_s.shape
     
     mux = sptemp_concat(pc_f, pc_s, mu)
 
     _, W = fastica(mux, whiten=False)
-    ica_sig = dot(W, pc_signals)
-    ica_filters = dot(dot(diag(1.0/np.sqrt(ev)), W), pc_filters)
+    ica_sig = dot(W, pc_s)
+    ica_filters = dot(dot(diag(1.0/np.sqrt(ev)), W), pc_f)
 
     if _skew_loaded:
         skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
