@@ -48,13 +48,16 @@ def pca(X, ncomp=None):
     return Z, K, s[:ncomp], X_mean
 
 
-def st_ica(X, ncomp = 20,  mu = 0.3):
+def st_ica(X, ncomp = 20,  mu = 0.3, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
     Input:
     ~~~~~~
     X -- list of 2D arrays or 3D array with first axis = time
     ncomp -- number of components to resolve
     mu -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+    reshape_filters [True] -- if true, ICA filters are returned as a sequence
+    of images (3D array, Ncomponents x Npx x Npy)
+    
     Output:
     ~~~~~~~
     ica_filters, ica_signals
@@ -76,7 +79,11 @@ def st_ica(X, ncomp = 20,  mu = 0.3):
         skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
     else:
         skewsorted = range(nIC)
-    return ica_filters[skewsorted], ica_sig[skewsorted]
+    if reshape_filters:
+        ica_filters = reshape_to_movie(ica_filters[skewsorted], *sh)
+    else:
+        ica_filters = ica_filters[skewsorted]
+    return ica_filters, ica_sig[skewsorted]
 
 
 ## Whitening
