@@ -344,6 +344,15 @@ def group_maps(maplist, ncols,
 		  pl.colorbar(_im, ax=_im.axes);
           if titles is not None: pl.title(titles[i])
 
+def group_plots(ylist, ncols, x = None, imkw={}):
+    import pylab as pl
+    nrows = np.ceil(len(ylist)/float(ncols))
+    pl.figure(figsize=(2*ncols,2*nrows))
+    x = ifnot(x, range(len(f[0])))
+    for i,f in enumerate(ylist):
+        _ax = pl.subplot(nrows,ncols,i+1)
+	_im = pl.plot(x, f, **imkw)
+	if titles is not None: pl.title(titles[i])
 
 
 def default_freqs(Ns, f_s, num=100):
