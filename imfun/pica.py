@@ -48,15 +48,17 @@ def pca(X, ncomp=None):
     return Z, K, s[:ncomp], X_mean
 
 
-def st_ica(X, ncomp = 20,  mu = 0.3, reshape_filters=True):
+def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
     Input:
     ~~~~~~
     X -- list of 2D arrays or 3D array with first axis = time
     ncomp -- number of components to resolve
-    mu -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+    mu [0.3] -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+    npca [None] -- number of principal components to calculate (default, equals
+                   to the number of independent components
     reshape_filters [True] -- if true, ICA filters are returned as a sequence
-    of images (3D array, Ncomponents x Npx x Npy)
+                              of images (3D array, Ncomponents x Npx x Npy)
     
     Output:
     ~~~~~~~
@@ -64,8 +66,10 @@ def st_ica(X, ncomp = 20,  mu = 0.3, reshape_filters=True):
     """
     data = reshape_from_movie(X) # nframes x npixels
     sh = X[0].shape
+
+    npca = (npca is None) and ncomp or npca
     
-    pc_f, pc_s, ev = whitenmat(data, ncomp)
+    pc_f, pc_s, ev = whitenmat(data, npca)
     #pc_f, pc_s, ev, _ = whitenmat(data, ncomp)
     print pc_f.shape, pc_s.shape
     
