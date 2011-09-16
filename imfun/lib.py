@@ -356,12 +356,14 @@ def group_maps(maplist, ncols,
 
 def group_plots(ylist, ncols, x = None,
 		titles = None,
+		figsize = None,
 		new_figure = True,
 		imkw={}):
     import pylab as pl
     nrows = np.ceil(len(ylist)/float(ncols))
-    if new_figure: 
-	    pl.figure(figsize=(2*ncols,2*nrows))
+    figsize = ifnot(figsize, (2*ncols,2*nrows))
+    if new_figure:
+	    pl.figure(figsize=figsize)
     x = ifnot(x, range(len(ylist[0])))
     for i,f in enumerate(ylist):
         if i == 0:
