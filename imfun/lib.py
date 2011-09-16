@@ -339,19 +339,28 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
 
 def group_maps(maplist, ncols,
                titles=None,
-	       draw_colorbar = True,
+	       indiviual_colorbars = False,
+	       single_colorbar = True,
+	       hide_ticks = False,
 	       imkw={}, cbkw ={}):
      import pylab as pl
-     nrows = np.ceil(len(maplist)/float(ncols))
-     pl.figure(figsize=(2*ncols,2*nrows))
+     nrows = int(np.ceil(len(maplist)/float(ncols)))
+     figh = pl.figure(figsize=(2*ncols,2*nrows))
      if not imkw.has_key('aspect'):
-	     imkw['aspect'] = 'equal'
+     	     imkw['aspect'] = 'equal'
      for i,f in enumerate(maplist):
-          _ax = pl.subplot(nrows,ncols,i+1)
-          _im = pl.imshow(f, **imkw);
-	  if draw_colorbar:
-		  pl.colorbar(_im, ax=_im.axes);
+          ax = pl.subplot(nrows,ncols,i+1)
+          im = ax.imshow(f, **imkw);
+	  if hide_ticks:
+		  setp(ax, 'xticklabels', [],
+		       'yticklabels', [])
+	  if indiviual_colorbars:
+	      figh.colorbar(im, ax=ax);
           if titles is not None: pl.title(titles[i])
+     if single_colorbar:
+	     pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
+	     cax = pl.axes([0.85, 0.1, 0.03, 0.8])
+	     pl.colorbar(im, cax=cax)
      return
 
 def group_plots(ylist, ncols, x = None,
