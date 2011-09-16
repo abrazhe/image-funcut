@@ -465,8 +465,8 @@ class RectFollower(DragRect):
         acc = {}
         sw, sh = self.search_width, self.search_height
         _,limh, limw = self.arr.shape
-        for w in range(max(0,-sw/2), min(sw/2,limw)):
-            for h in range(max(0,-sh/2), min(limh,sh/2)):
+        for w in np.arange(max(0,-sw/2), min(sw/2,limw)):
+            for h in np.arange(max(0,-sh/2), min(limh,sh/2)):
                 s = self.toslice(h,w)
                 d = measure(frame[s], template)
                 acc[(w,h)] = d
