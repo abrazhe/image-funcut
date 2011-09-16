@@ -339,32 +339,38 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
 
 def group_maps(maplist, ncols,
                titles=None,
-	       indiviual_colorbars = False,
+	       figsize = None,
+	       suptitle = None,
+	       individual_colorbars = False,
 	       single_colorbar = True,
 	       hide_ticks = False,
 	       imkw={}, cbkw ={}):
      import pylab as pl
      nrows = int(np.ceil(len(maplist)/float(ncols)))
-     figh = pl.figure(figsize=(2*ncols,2*nrows))
+     figsize = ifnot (figsize, (2*ncols,2*nrows)) 
+     figh = pl.figure(figsize=figsize)
      if not imkw.has_key('aspect'):
      	     imkw['aspect'] = 'equal'
      for i,f in enumerate(maplist):
           ax = pl.subplot(nrows,ncols,i+1)
           im = ax.imshow(f, **imkw);
 	  if hide_ticks:
-		  setp(ax, 'xticklabels', [],
-		       'yticklabels', [])
-	  if indiviual_colorbars:
+		  pl.setp(ax, 'xticks', [],
+		       'yticks', [])
+	  if individual_colorbars:
 	      figh.colorbar(im, ax=ax);
           if titles is not None: pl.title(titles[i])
      if single_colorbar:
 	     pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
 	     cax = pl.axes([0.85, 0.1, 0.03, 0.8])
-	     pl.colorbar(im, cax=cax)
+	     pl.colorbar(im, cax=cax, **cbkw)
+     if suptitle:
+        pl.suptitle(suptitle)
      return
 
 def group_plots(ylist, ncols, x = None,
 		titles = None,
+		suptitle = None,
 		ylabels = None,
 		figsize = None,
 		new_figure = True,
@@ -383,6 +389,8 @@ def group_plots(ylist, ncols, x = None,
 	_im = pl.plot(x, f, **imkw)
 	if titles is not None: pl.title(titles[i])
 	if ylabels is not None: pl.ylabel(ylabels[i])
+    if suptitle:
+        pl.suptitle(suptitle)
     return
 
 
