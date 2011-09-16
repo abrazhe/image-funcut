@@ -356,6 +356,7 @@ def group_maps(maplist, ncols,
 
 def group_plots(ylist, ncols, x = None,
 		titles = None,
+		ylabels = None,
 		figsize = None,
 		new_figure = True,
 		imkw={}):
@@ -369,9 +370,10 @@ def group_plots(ylist, ncols, x = None,
         if i == 0:
 	    top = pl.subplot(nrows,ncols,i+1)
 	else:
-	    _ax = pl.subplot(nrows,ncols,i+1, share=top)
+	    _ax = pl.subplot(nrows,ncols,i+1, sharex=top)
 	_im = pl.plot(x, f, **imkw)
 	if titles is not None: pl.title(titles[i])
+	if ylabels is not None: pl.ylabel(ylabels[i])
     return
 
 
