@@ -18,6 +18,7 @@ def gauss_blur(X,size=1.0):
 def in_range(low, high):
     return lambda x: (x >=low)*(x < high)
 
+## this is used for noise estimation and support calculation
 sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D 
            [0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
            [0.889, 0.200, 0.086, 0.041, 0.020, 0.010, 0.005],   # 2D
@@ -77,6 +78,16 @@ def dec_atrous2d(arr2d, lev, kern=None, boundary='symm'):
         return [w, approx]
     else:
         return [w] + dec_atrous2d(approx,lev-1,upkern,boundary) 
+
+def atrous2dsep(arr2d):
+    "Separable atrous ... unfinished"
+    from swan import pydwt
+    row_wise = np.array([pydwt.dec_atrous(r, 1)[0] for r in arr2d])
+    col_wise = np.array([pydwt.dec_atrous(r, 1)[0] for r in arr2d.T]).T
+    print "col_wise done"
+    print row_wise.shape, col_wise.shape
+    details = col_wise+row_wise
+    return [details, arr2d-details]
 
 def zupsample(arr):
     "Upsample array by interleaving it with zero values"

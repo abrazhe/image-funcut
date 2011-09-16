@@ -215,6 +215,7 @@ class FrameSequence:
         kwargs.update({'vmin':vmin, 'vmax':vmax})
         L = self.length()
         for i,frame in enumerate(self.frames()):
+            if i < start: continue
             if i > stop: break
             ax.cla()
             ax.imshow(frame, aspect='equal', **kwargs)
@@ -234,11 +235,15 @@ class FrameSequence:
         self.export_img(path, base, **kwargs)
         L = self.length()
         if kwargs.has_key('stop'): L = kwargs['stop']
+        if kwargs.has_key('start'):
+            start = kwargs['start']
+        else:
+            start = 0
         print 'Running mencoder, this can take a while'
         mencoder_string = """mencoder mf://_tmp*.png -mf type=png:fps=%d\
         -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
         os.system(mencoder_string)
-        fnames = (path + base + '%06d.png'%i for i in xrange(L))
+        fnames = (path + base + '%06d.png'%i for i in xrange(start,L))
         map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):

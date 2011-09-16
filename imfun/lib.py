@@ -96,6 +96,15 @@ def take(N, seq):
     "Takes first N values from a sequence"	
     return [seq.next() for j in xrange(N)]
 
+def with_time(fn, *args, **kwargs):
+    "take a function and timer its evaluation"
+    import time
+    t = time.time()
+    out = fn(*args,**kwargs)
+    print "time lapsed", time.time() - t
+    return out
+    
+
 
 def fnchain(f,n):
     """
@@ -343,18 +352,25 @@ def group_maps(maplist, ncols,
 	  if draw_colorbar:
 		  pl.colorbar(_im, ax=_im.axes);
           if titles is not None: pl.title(titles[i])
+     return
 
 def group_plots(ylist, ncols, x = None,
 		titles = None,
+		new_figure = True,
 		imkw={}):
     import pylab as pl
     nrows = np.ceil(len(ylist)/float(ncols))
-    pl.figure(figsize=(2*ncols,2*nrows))
+    if new_figure: 
+	    pl.figure(figsize=(2*ncols,2*nrows))
     x = ifnot(x, range(len(ylist[0])))
     for i,f in enumerate(ylist):
-        _ax = pl.subplot(nrows,ncols,i+1)
+        if i == 0:
+	    top = pl.subplot(nrows,ncols,i+1)
+	else:
+	    _ax = pl.subplot(nrows,ncols,i+1, share=top)
 	_im = pl.plot(x, f, **imkw)
 	if titles is not None: pl.title(titles[i])
+    return
 
 
 def default_freqs(Ns, f_s, num=100):
