@@ -40,6 +40,14 @@ def adaptive_medianf(arr, k = 2):
     
 
 
+def opening_of_closing(a):
+    "performs binary opening of binary closing of an array"
+    from scipy import ndimage
+    bclose = ndimage.binary_closing
+    bopen = ndimage.binary_opening
+    return bopen(bclose(a))
+
+
 def dec_atrous2d(arr2d, lev, kern=None, boundary='symm'):
     """
     Do 2d a'trous wavelet transform with B3-spline scaling function
