@@ -4,7 +4,7 @@ from itertools import combinations
 
 
 from swan import pycwt
-from swan.gui import swancmap
+#from swan.gui import swancmap
 
 #from pylab import mpl
 import pylab as pl
@@ -22,6 +22,7 @@ def remove_plane(arr, pars):
 
 try:
     from scipy import optimize as opt
+    from scipy.interpolate import splev, splrep
     from scipy import stats
     def percentile(arr, p):
 	    return stats.scoreatpercentile(arr.flatten(), p)
@@ -273,17 +274,47 @@ def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     return apprx
 
 
+def mirrorpd(k, L):
+    if 0 <= k < L : return k
+    else: return -(k+1)%L
+
+def spl1st_derivative(ck):
+    L = len(ck)
+    d1ck = [0.5*(ck[mirrorpd(k+1,L)] - ck[mirrorpd(k-1,L)])  for k in range(L)]
+
+def spl2nd_derivative(ck):
+    L = len(ck)
+    return np.array([ck[mirrorpd(k+1,L)] + ck[mirrorpd(k-1,L)] - 2*ck[k] for k in range(L)])
+
+
+def locextr(v, x=None, refine = True, **kwargs):
+   "Finds local maxima "
+   if x is None: x = np.arange(len(v))
+   tck = splrep(x,v, **kwargs) # spline representation
+   if refine:
+	   xfit = np.linspace(x[0],x[-1], len(x)*10)
+   else:
+	   xfit = x
+   yfit = splev(xfit, tck)
+   der1 = splev(xfit, tck, der=1)
+   #der2 = splev(xfit, tck, der=2)
+   dersign = np.sign(der1)
+   maxima = np.where(np.diff(dersign) < 0)[0]
+   minima = np.where(np.diff(dersign) > 0)[0]
+
+   maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
+   minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
+   return xfit, yfit, der1, maxima, minima #, grad_ups, grad_downs
+
+def flections(v, *args, **kwargs):
+   xfit,yfit,der1,_,_ = locextr(v, *args, **kwargs)
+   xfit, _, der2, gups, gdowns = locextr(der1, x=xfit, refine=False)
+   return xfit, yfit, der2, gups, gdowns
 
 	
 ###------------- Wavelet-related -------------	    
-def _swanrgb():
-    LUTSIZE = mpl.rcParams['image.lut']
-    _rgbswan_data =  swancmap.get_rgbswan_data2()
-    cmap = mpl.colors.LinearSegmentedColormap('rgbswan',
-					      _rgbswan_data, LUTSIZE)
-    return cmap
-
-swanrgb = _swanrgb()
+import swan.gui
+swanrgb = swan.gui.swanrgb
 
 def confidence_contour(esurf, extent, ax, L=3.0):
     # Show 95% confidence level (against white noise, v=3 \sigma^2)
