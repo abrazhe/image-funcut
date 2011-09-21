@@ -100,7 +100,7 @@ def atrous2dsep(arr2d):
 def zupsample(arr):
     "Upsample array by interleaving it with zero values"
     sh = arr.shape
-    newsh = [d*2 for d in sh]
+    newsh = [d*2-1 for d in sh]
     o = np.zeros(newsh,dtype=arr.dtype)
     o[[slice(None,None,2) for d in sh]] = arr
     return o
@@ -170,3 +170,59 @@ def wavelet_denoise(f, k=[3,3,2,2], level = 4, noise_std = None):
     supp = get_support(coefs, np.array(k)*noise_std)
     filtcoef =  [c*s for c,s in zip(coefs, supp)]
     return rec_atrous2d(filtcoef)
+
+### ---- MVM ---------
+
+from imfun import bwmorph
+
+class Edge:
+    def __init__(self, node1, node2):
+        self.nodes = (node1,node2)
+    def __repr__(self):
+        return "Edge: " + str(self.nodes)
+
+
+class MVM_node:
+    def __init__(self, region, max_pos):
+        self.edges = []
+        self.region = region
+        self.max_pos = max_pos
+    def connect(self, node):
+        newedge = Edge(self, n)
+        self.edges.append(newedge)
+    def connected(self, node):
+        for e in self.edges:
+            if node in e.nodes:
+                return e
+        return False
+
+def connect_nodes(n1,n2):
+    newedge = Edge(n1, n2)
+    n1.edges.append(newedge)
+    n2.edges.append(newedge)
+    return newedge
+
+def disrupt_edge(n1,n2):
+    connection = n1.connected(n2)
+    n1.edges = [e for e in n1.edges if e != connection]
+    n2.edges = [e for e in n2.edges if e != connection]
+
+
+def get_structures(support, coefs):
+    for c,s in zip(coefs[:-1],support[:-1]):
+        yield [MVM_node(r, max_pos(r,c)) for r in bwmorph.contiguous_regions(s)]
+
+def max_pos(region, arr):
+    i = np.argmax([arr[loc] for loc in region.locs])
+    return region.locs[i]
+
+def connectivity_graph(support,coefs):
+    structures = list(get_structures(support, coefs))
+    acc = []
+    for j,sl in enumerate(structures[:-1]):
+        for node in sl:
+            for s in structures[j+1]:
+                if node.max_pos in s.region.locs:
+                    connect_nodes(node, s)
+        acc.append([n for n in sl if len(n.edges)])
+    return acc

@@ -155,6 +155,8 @@ def coefs2points(coefs):
     return points
 
 ### ---------- Particle search ------------------
+
+## What I almost missed here was collective behaviour
             
 class Particle(BasicNode):
     def __init__(self, vector):

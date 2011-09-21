@@ -273,22 +273,9 @@ def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
     return apprx
 
-
-def mirrorpd(k, L):
-    if 0 <= k < L : return k
-    else: return -(k+1)%L
-
-def spl1st_derivative(ck):
-    L = len(ck)
-    d1ck = [0.5*(ck[mirrorpd(k+1,L)] - ck[mirrorpd(k-1,L)])  for k in range(L)]
-
-def spl2nd_derivative(ck):
-    L = len(ck)
-    return np.array([ck[mirrorpd(k+1,L)] + ck[mirrorpd(k-1,L)] - 2*ck[k] for k in range(L)])
-
-
-def locextr(v, x=None, refine = True, **kwargs):
-   "Finds local maxima "
+def locextr(v, x=None, refine = True, output='full',
+	    **kwargs):
+   "Finds local extrema "
    if x is None: x = np.arange(len(v))
    tck = splrep(x,v, **kwargs) # spline representation
    if refine:
@@ -299,17 +286,26 @@ def locextr(v, x=None, refine = True, **kwargs):
    der1 = splev(xfit, tck, der=1)
    #der2 = splev(xfit, tck, der=2)
    dersign = np.sign(der1)
+
    maxima = np.where(np.diff(dersign) < 0)[0]
    minima = np.where(np.diff(dersign) > 0)[0]
-
    maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
    minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
-   return xfit, yfit, der1, maxima, minima #, grad_ups, grad_downs
 
-def flections(v, *args, **kwargs):
-   xfit,yfit,der1,_,_ = locextr(v, *args, **kwargs)
+   if output=='full':
+      return xfit, yfit, der1, maxima, minima 
+   elif output=='max':
+      return zip(xfit[maxima], yfit[maxima])
+   elif output =='min':
+      return zip(xfit[minima], yfit[minima])
+	
+	
+
+def extrema2(v, *args, **kwargs):
+   "First and second order extrema"
+   xfit,yfit,der1,maxima,minima = locextr(v, *args, **kwargs)
    xfit, _, der2, gups, gdowns = locextr(der1, x=xfit, refine=False)
-   return xfit, yfit, der2, gups, gdowns
+   return (xfit, yfit), (maxima, minima), (gups, gdowns)
 
 	
 ###------------- Wavelet-related -------------	    
@@ -375,13 +371,18 @@ def group_maps(maplist, ncols,
 	       individual_colorbars = False,
 	       single_colorbar = True,
 	       hide_ticks = False,
+	       samerange = True,
 	       imkw={}, cbkw ={}):
      import pylab as pl
      nrows = int(np.ceil(len(maplist)/float(ncols)))
      figsize = ifnot (figsize, (2*ncols,2*nrows)) 
      figh = pl.figure(figsize=figsize)
+     print samerange
+     if samerange:
+         imkw['vmin'], imkw['vmax'] = data_range(maplist)
      if not imkw.has_key('aspect'):
      	     imkw['aspect'] = 'equal'
+     print imkw
      for i,f in enumerate(maplist):
           ax = pl.subplot(nrows,ncols,i+1)
           im = ax.imshow(f, **imkw);
@@ -399,12 +400,18 @@ def group_maps(maplist, ncols,
         pl.suptitle(suptitle)
      return
 
+def data_range(datalist):
+   vmin = np.min(map(np.min, datalist))
+   vmax = np.max(map(np.max, datalist))
+   return vmin, vmax
+
 def group_plots(ylist, ncols, x = None,
 		titles = None,
 		suptitle = None,
 		ylabels = None,
 		figsize = None,
 		new_figure = True,
+		sameyscale = True,
 		imkw={}):
     import pylab as pl
     nrows = np.ceil(len(ylist)/float(ncols))
@@ -412,11 +419,14 @@ def group_plots(ylist, ncols, x = None,
     if new_figure:
 	    pl.figure(figsize=figsize)
     x = ifnot(x, range(len(ylist[0])))
+    ymin,ymax = data_range(ylist)
     for i,f in enumerate(ylist):
         if i == 0:
 	    top = pl.subplot(nrows,ncols,i+1)
 	else:
 	    _ax = pl.subplot(nrows,ncols,i+1, sharex=top)
+	if sameyscale:
+	    pl.ylim(ymin,ymax)
 	_im = pl.plot(x, f, **imkw)
 	if titles is not None: pl.title(titles[i])
 	if ylabels is not None: pl.ylabel(ylabels[i])
