@@ -32,7 +32,7 @@ def adaptive_threshold(arr, n = 3, k = 0):
 
 def contiguous_regions(binarr):
     """    
-    Given a binary 2d array, returns a sorted (by size) list of contiguous
+    Given a binary Nd array, returns a sorted (by size) list of contiguous
     regions (True everywhere)
     Version without recursion. Relies on scipy.ndimage
     """    
