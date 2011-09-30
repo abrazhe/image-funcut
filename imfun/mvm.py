@@ -48,23 +48,37 @@ def max_pos(arr, labels, ind, xslice):
     return tuple(x + offset)
 
 def get_structures(support, coefs):
+    acc = []
     for level,c,s in zip(xrange(len(support[:-1])), coefs[:-1], support[:-1]):
         labels,nlabs = ndimage.label(s)
         slices = ndimage.find_objects(labels)
         mps = [max_pos(c, labels, k+1, slices[k]) for k in range(nlabs)]
-        yield [MVMNode(k+1, labels, slices[k], mp, level) for k,mp in enumerate(mps)]
+        acc.append([[MVMNode(k+1, labels, slices[k], mp, level)
+		for k,mp in enumerate(mps)], labels])
+    return acc
 
+
+
+### NOTE: it only preserves structures that are connected up to the latest
+### level this is probably not always the desired behaviour
+### update: fixed, not tried yet
 def connectivity_graph(structures, min_nscales=3):
-    labels = [s[0].labels for s in structures]
-    for j,sl in enumerate(structures[:-1]):
+    labels = [s[1] for s in structures]
+    structs= [s[0]  for s in structures]
+    acc = []
+    for j,sl in enumerate(structs[:-1]):
         for n in sl:
             ind = labels[j+1][n.max_pos]
             if ind:
-                for np in structures[j+1]:
+                for np in structs[j+1]:
                     if np.ind == ind:
                         engraft(np, n)
                         continue
-    return [s  for s in structures[-1]
+            else: 
+                acc.append(n)
+    for n in structs[-1]:
+	acc.append(n)
+    return [s  for s in acc
             if len(s.branches) and nscales(s)>=min_nscales]
 
 
@@ -109,7 +123,7 @@ def restore_from_locs_only(arr, object):
 
 def restore_object(object, coefs, min_level=0):
     supp = supp_from_obj(object,min_level)
-    return rec_with_supp(coefs, supp)
+    return atrous.rec_with_support(coefs, supp)
 
 def nscales(object):
     "how many scales (levels) are linked with this object"
@@ -159,42 +173,34 @@ def deblend_all(objects, coefs):
     return lib.flatten([deblend_node(o,coefs) for o in objects])
 
 
-def embedding(arr, ax=None):
+def embedding(arr):
+    sh = arr.shape
     b = np.argwhere(arr)
     starts, stops = b.min(0), b.max(0)+1
-    if ax is None:
-        slices = [slice(*p) for p in zip(starts, stops)]
-	return arr[slices]
-    else:
-        return arr[starts[0]:stops[0],:,:]
+    slices = [slice(*p) for p in zip(starts, stops)]
+    return arr[slices], (sh, slices)
 
 def find_objects(arr, k = 3, level = 4, noise_std=None,
-                 strip = False,
                  min_px_size = 200,
                  min_nscales = 3):
-    print "Calculating decomposition..."
-    coefs = lib.with_time(atrous.decompose, arr, level)
+    if np.iterable(k):
+        level = len(k)
+    coefs = atrous.decompose(arr, level)
     if noise_std is None:
         noise_std = atrous.estimate_sigma_mad(coefs[0])
-    supp = get_support(coefs, k*noise_std)
+    supp = atrous.get_support(coefs, np.array(k)*noise_std)
+    structures = get_structures(supp, coefs)
+    g = connectivity_graph(structures)
 
-    print 'Calculating structures'
-    structures = lib.with_time(list, get_structures(supp, coefs))
-
-    print "Calculating connectivity graph"
-    g = lib.with_time(connectivity_graph, structures)
     gdeblended = deblend_all(g, coefs) # destructive
     check = lambda x: (nscales(x) >= min_nscales) and (len(tree_locations2(x)) > min_px_size)
-    print "Sorting and pre-pruning deblended objects"
     x = sorted([x for x in gdeblended if check(x)],
                key = lambda u: tree_mass(u), reverse=True)
-    print "starting object generator"            
-    waves = (atrous.rec_with_supp(coefs, supp_from_obj(o,0)) for o in x)
-    if strip:
-        waves = itt.imap(lambda x: embedding(x,0), waves)
-    for w in waves:
+    waves = (atrous.rec_with_support(coefs, supp_from_obj(o,0)) for o in x)
+    waves = itt.imap(embedding, waves)
+    for w,bounds in waves:
         if np.any(w>0) and np.sum(w>0) > min_px_size:
-            yield w*(w>0)
+            yield w*(w>0), bounds
 
 
 # ----------
@@ -202,13 +208,53 @@ def find_objects(arr, k = 3, level = 4, noise_std=None,
 th = 3*0.7
 #coefs = lib.with_time(dec_semisep_atrous, sn.data, 4)
 
+def embedded_to_full(x):
+    data, (shape, xslice) = x
+    out = np.zeros(shape)
+    out[xslice] = data
+    return out
 
+def framewise_objs(frames,*args,**kwargs):
+    return [list(find_objects(f, *args, **kwargs)) for f in frames]
+
+def connect_framewise_objs(objlist):
+    for frame in objlist:
+	for obj in frame:
+	    full = embedded_to_full(obj)
+
+def objects_to_array(objlist):
+    out = []
+    for frame in objlist:
+	out.append(np.sum(map(embedded_to_full, frame), axis=0))
+    return np.array(out)
+
+# scratchpad
+
+
+import pickle
 def test(a):
-    objects1 = find_objects(a, k = 4, strip=False, min_px_size=5000)
+    objects1 = find_objects(a, k = 4,  min_px_size=5000)
     for j,o in enumerate(objects1):
-        np.save('seq-3-wave-%d'%j, o)
+	pickle.dump(o, file('seq-3-wave-%d.pickle'%j,'w'))
+        #np.save('seq-3-wave-%d'%j, o)
         del o
         print j
 
+def test2(a):
+    xx = framewise_objs(s1n.data, k=4, min_nscales=3)
+    print "1"
+    y = objects_to_array(xx)
+    print '2'
+    labels,nlab = ndimage.label(y)
+    yobjs = ndimage.find_objects(labels)
+    print '3'
+    taking = map(lambda x: x[0].stop-x[0].start > 1, yobjs)
+    print '4'
+    masks = (labels == ind for ind in range(1,len(yobjs)+1) if taking[ind-1])
+    for j,m in enumerate(masks):
+	print j
+	o = where(m,y,0)
+	np.save('seq-3-wave-framewise-%d'%j,o)
+	del o
     
 
