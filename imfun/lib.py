@@ -101,6 +101,12 @@ def mask_num_std(mat, n, func=lambda a,b: a>b):
 def mask_median_SD(mat, n = 1.5, compfn = np.greater):
     return compfn(mat, np.median(mat) + n*mat.std())
 
+def invert_mask(m):
+    def _neg(a):
+        return not a
+    return np.vectorize(_neg)(m)
+
+
 def zero_in_mask(mat, mask):
 	out = np.copy(mat)
 	out[mask] = 0.0
@@ -108,6 +114,9 @@ def zero_in_mask(mat, mask):
 
 def zero_low_sd(mat, n = 1.5):
     return zero_in_mask(mat, mask_median_SD(mat,n,np.less))
+
+def arr_or(a1,a2):
+    return np.vectorize(lambda x,y: x or y)(a1,a2)
 
 def shorten_movie(m,n):
     return np.array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
