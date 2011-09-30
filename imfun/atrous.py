@@ -20,7 +20,7 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
 
 
 
-## Default spline wavelet
+## Default spline wavelet scaling function
 _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16])
 
 def locations(shape):
@@ -46,7 +46,7 @@ def decompose1d(sig, level, phi=_phi_):
     w = (sig - apprx) # wavelet coefs
     if level <= 0: return sig
     elif level == 1 or L < len(zupsample(phi)): return [w, apprx]
-    else: return [w] + dec_atrous(apprx, level-1, zupsample(phi))
+    else: return [w] + decompose1d(apprx, level-1, zupsample(phi))
 
 def decompose2d(arr2d, level, kern=None, boundary='symm'):
     """
@@ -89,7 +89,7 @@ def decompose2d(arr2d, level, kern=None, boundary='symm'):
         print "Maximum allowed decomposition level reached, not advancing any more"
         return [w, approx]
     else:
-        return [w] + dec_atrous2d(approx,level-1,upkern,boundary) 
+        return [w] + decompose2d(approx,level-1,upkern,boundary) 
 
 def f2d(phi):
     v = phi.reshape(1,-1)
@@ -118,7 +118,7 @@ def decompose3d(arr, level=1,
         print "Maximum allowed decomposition level reached, returning"
         return [details, approx]
     else:
-        return [details] + dec_semisep_atrous(approx, level-1, upkern)
+        return [details] + decompose3d(approx, level-1, upkern)
 
 def zupsample(arr):
     "Upsample array by interleaving it with zero values"
