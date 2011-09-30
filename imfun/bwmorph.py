@@ -46,7 +46,8 @@ def contiguous_regions(binarr):
     for j, o in enumerate(ndimage.find_objects(labels)):
         #sys.stderr.write('\rlocation %06d out of %06d'%(j+1, nlab))
         origin =  np.asarray([x.start for x in o])
-        x1 = np.asarray(np.where(labels[o] == j+1)).T
+        #x1 = np.asarray(np.where(labels[o] == j+1)).T
+        x1 = np.argwhere(labels[o] == j+1)
         regions.append( map(tuple, (x1 + origin)))
     
     regions.sort(key = lambda x: len(x), reverse=True)

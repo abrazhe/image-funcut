@@ -14,19 +14,6 @@ ifnot = lib.ifnot
 
 _maxshape_ = 1e8
 
-def memsafe_arr(shape, dtype=np.float32):
-    import tempfile as tmpf
-    from operator import mul
-    N = reduce(mul, shape)
-    if N < _maxshape_:
-        return np.zeros(shape, dtype=dtype)
-    else:
-        print "Using memory-mapped arrays..."
-        _tmpfile = tmpf.TemporaryFile()
-        out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
-        _tmpfile.close()
-        return out
-    
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
     x = glob.glob(pat)
@@ -148,7 +135,7 @@ class FrameSequence:
         fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj, fn=fn)
         N =  self.length()*shape[0]*shape[1]
-        out = memsafe_arr((self.length(), shape[0], shape[1]))
+        out = lib.memsafe_arr((self.length(), shape[0], shape[1]))
         for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
@@ -193,7 +180,7 @@ class FrameSequence:
         """Create another frame sequence, pixelwise applying a provided function"""
         nrows, ncols = self.shape()
         #out = np.zeros((self.length(), nrows, ncols))
-        out = memsafe_arr((self.length(), nrows, ncols))
+        out = lib.memsafe_arr((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
             out[:,row,col] = pwfn(v)
         if hasattr(out, 'flush'):
