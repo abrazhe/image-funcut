@@ -11,6 +11,30 @@ import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
+def flatten(x,acc=None):
+   acc = ifnot(acc,[])
+   if not np.iterable(x):
+	   acc.append(x)
+	   return 
+   for o in x:
+       flatten(o, acc)
+   return acc
+
+def memsafe_arr(shape, dtype=np.float64):
+   _maxshape_ = 1e8
+   import tempfile as tmpf
+   from operator import mul
+   N = reduce(mul, shape)
+   if N < _maxshape_:
+      return np.zeros(shape, dtype=dtype)
+   else:
+      print "Using memory-mapped arrays..."
+      _tmpfile = tmpf.TemporaryFile()
+      out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
+      _tmpfile.close()
+      return out
+    
+
 def plane(pars, x,y):
 	kx,ky,z = pars
         return x*kx + y*ky + z
@@ -372,14 +396,17 @@ def group_maps(maplist, ncols,
 	       single_colorbar = True,
 	       hide_ticks = False,
 	       samerange = True,
-	       imkw={}, cbkw ={}):
+	       imkw=None, cbkw ={}):
      import pylab as pl
+     if imkw is None:
+	     imkw = {}
      nrows = int(np.ceil(len(maplist)/float(ncols)))
      figsize = ifnot (figsize, (2*ncols,2*nrows)) 
      figh = pl.figure(figsize=figsize)
      print samerange
      if samerange:
-         imkw['vmin'], imkw['vmax'] = data_range(maplist)
+	vmin,vmax = data_range(maplist)
+	imkw.update(dict(vmin=vmin, vmax=vmax))
      if not imkw.has_key('aspect'):
      	     imkw['aspect'] = 'equal'
      print imkw
@@ -398,6 +425,7 @@ def group_maps(maplist, ncols,
 	     pl.colorbar(im, cax=cax, **cbkw)
      if suptitle:
         pl.suptitle(suptitle)
+     imkw = {}
      return
 
 def data_range(datalist):
