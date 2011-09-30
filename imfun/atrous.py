@@ -1,6 +1,6 @@
+# -*- coding: utf-8 -*-
 """ Functions for à trous wavelet transforms
 Synonyms: stationary wavelet transform, non-decimated wavelet transform
-
 """
 from __future__ import division
 
@@ -47,7 +47,6 @@ def decompose1d(sig, level, phi=_phi_):
     if level <= 0: return sig
     elif level == 1 or L < len(zupsample(phi)): return [w, apprx]
     else: return [w] + dec_atrous(apprx, level-1, zupsample(phi))
-
 
 def decompose2d(arr2d, level, kern=None, boundary='symm'):
     """
