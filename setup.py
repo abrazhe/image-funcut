@@ -12,7 +12,7 @@ setup(name='image-funcut',
                     'imfun.fseq',
                     'imfun.lib',
                     'imfun.leica',
-                    'imfun.mvm'
+                    'imfun.mvm',
                     'imfun.opt',
                     'imfun.pca',
                     'imfun.pica',
