@@ -19,15 +19,24 @@ def cwt_iter(fseq,
              wavelet = pycwt.Morlet(),
              normL = None,
              max_pixels = None,
-             verbose = True,
+             verbose = False,
              **kwargs):
     """
     Iterate over cwt of the time series for each pixel
+
+    Arguments:
     *fseq* -- frame sequence
     *frange* -- frequency range or vector of frequencies
-    *wavelet* -- wavelet object (default pycwt.Morlet())
-    *normL* -- length of normalizing part (baseline) of the time series
+    *nfreqs* -- number of frequencies/scales for decomposition [128]
+    *wavelet* -- wavelet object [pycwt.Morlet()]
+    *normL* -- length of normalizing part (baseline) of the time series [None]
+    *max_pixels* -- upper limit on number of pixels to iterate over [None]
+    *verbose* -- become verbose [False]
+    other keyword arguments are passed to fseq.pix_iter
 
+    Output:
+    generator over cwt-derived measure, i, j
+    (where i,j are frame indices)
     """
     tick = time.clock()
     L = fseq.length()

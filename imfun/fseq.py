@@ -260,13 +260,22 @@ class FSeq_glob(FrameSequence):
         self.dt = dt
         self.fns = fns
         self.set_scale(dx, dy)
+	self.file_names = sorted_file_names(pattern)
+    def length(self):
+	return len(self.file_names)
             
     def frames(self, fn = None, ch = None):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))
         ## Examples of processing functions can be found in scipy.ndimage module
         ## TODO: a list of hook functions
-        return itt.imap(fn, fseq_from_glob(self.pattern, ifnot(ch, self.ch), self.loadfn))
-
+        return itt.imap(fn, fseq_from_glob(self.pattern,
+					   ifnot(ch, self.ch), self.loadfn))
+    def __getitem__(self, val):
+	pngflag = self.file_names[0][-3:] == 'png'
+	seq =  map(self.loadfn, self.file_names[val])
+	seq = [img_getter(f, self.ch, pngflag) for f in seq]
+	return map(lib.flcompose(identity, *self.fns), seq)
+	
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)
 
