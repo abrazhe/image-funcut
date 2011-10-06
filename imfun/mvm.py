@@ -223,38 +223,47 @@ def connect_framewise_objs(objlist):
 	    full = embedded_to_full(obj)
 
 def objects_to_array(objlist):
+    print "objects 2 array"
     out = []
+    sh = None
     for frame in objlist:
-	out.append(np.sum(map(embedded_to_full, frame), axis=0))
+	if len(frame):
+	    sh = frame[0][1][0]
+	    break
+    if sh is None:
+	return []
+    for frame in objlist:
+	if len(frame):
+	    out.append(np.sum(map(embedded_to_full, frame), axis=0))
+	else:
+	    out.append(np.zeros(sh))
     return np.array(out)
 
 # scratchpad
 
 
 import pickle
-def test(a):
-    objects1 = find_objects(a, k = 4,  min_px_size=5000)
-    for j,o in enumerate(objects1):
-	pickle.dump(o, file('seq-3-wave-%d.pickle'%j,'w'))
-        #np.save('seq-3-wave-%d'%j, o)
-        del o
-        print j
+def test(arr, prefix='seq-'):
+    objects = list(find_objects(arr, k = 4,  min_px_size=4000))
+    pickle.dump(objects, file(prefix+'-objects.pickle','w'))
+    del objects
 
-def test2(a):
-    xx = framewise_objs(s1n.data, k=4, min_nscales=3)
-    print "1"
+def test2(a, prefix='seq-framewise', min_frames=10):
+    xx = framewise_objs(a, k=4, min_px_size=100)
+    print "--1"
     y = objects_to_array(xx)
-    print '2'
+    if y == []:
+	return 
+    print '--2'
     labels,nlab = ndimage.label(y)
     yobjs = ndimage.find_objects(labels)
-    print '3'
-    taking = map(lambda x: x[0].stop-x[0].start > 1, yobjs)
-    print '4'
+    print '--3'
+    taking = map(lambda x: x[0].stop-x[0].start >= min_frames, yobjs)
+    print '--4'
     masks = (labels == ind for ind in range(1,len(yobjs)+1) if taking[ind-1])
-    for j,m in enumerate(masks):
-	print j
-	o = where(m,y,0)
-	np.save('seq-3-wave-framewise-%d'%j,o)
-	del o
+    objects = [embedding(np.where(m,y,0)) for m in masks]
+    pickle.dump(objects, file(prefix+'-framewise-objects.pickle','w'))
+    del objects
+
     
 

@@ -142,8 +142,14 @@ def get_support(coefs, th, neg=False):
     nd = len(coefs[0].shape)
     fn = neg and np.less or np.greater
     for j,w in enumerate(coefs[:-1]):
-        t  = np.iterable(th) and th[j] or th
-        out.append(fn(np.abs(w), t*sigmaej[nd][j]))
+	if np.iterable(th): t = th[j]
+	else: t = th
+	sj= sigmaej[nd][j]
+	if np.iterable(t):
+	    wa = np.abs(w)
+	    out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
+	else:
+	    out.append(fn(np.abs(w), t*sj))
     out.append(np.ones(coefs[-1].shape)*(not neg))
     return out
 
