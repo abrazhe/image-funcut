@@ -131,11 +131,15 @@ def nscales(object):
     return np.max(levels) - np.min(levels) + 1
 
             
-def supp_from_obj(object, min_level=1):
+def supp_from_obj(object, min_level=0, verbose=1):
     sh = object.labels.shape
     new_shape = [object.level+1] + list(sh)
-    out = np.zeros((new_shape), np.bool)
-    for n in flat_tree(object):
+    out = lib.memsafe_arr(new_shape, np.bool)
+    flat = flat_tree(object)
+    nfl = len(flat)
+    for j,n in enumerate(flat):
+	if verbose :
+	    sys.stderr.write('\rnode %d out of %d'%(j+1, nfl))
         if n.level > min_level:
             out[n.level][n.labels==n.ind] = True
     return out
