@@ -3,13 +3,6 @@ import time, sys
 #from imfun.aux_utils import ifnot
 from swan import pycwt
 
-import itertools as itt
-
-## def ifnot(a, b):
-##     "if a is not None, return a, else return b"
-##     if a == None: return b
-##     else: return a
-
 from imfun import lib, bwmorph
 ifnot = lib.ifnot
 
@@ -164,9 +157,7 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
             fi1, fi2  = rhfreqs[k] - rhsd, rhfreqs[k] + rhsd
             out[k,i,j] = np.sum(eds[fi1:fi2,k])
         #out[:,i,j] /= eds.mean()
-
     return out
-
     
 
 def tanh_step(start,stop):
@@ -186,9 +177,6 @@ def MH_onoff(start,stop):
         return v
     return _
 
-## def norm1(v, L):
-##     return (v - np.mean(v[:L]))/np.std(v[:L])
-
 DFoSD = lib.DFoSD # Normalization function
 
 def detrend(y, ord=2, take=None):
@@ -200,6 +188,7 @@ def detrend(y, ord=2, take=None):
 
 
 def meanactmap(fseq, (start,stop), normL=None):
+    "Average activation map"
     L = fseq.length()
     normL = ifnot(normL, L)
     out = np.zeros(fseq.shape())
@@ -261,8 +250,8 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
     return out
 
 def local_corr_map(arr, normL=None, normfn=lib.DFoSD,
-                   corrfn = np.correlate,
-                   keyfn = lambda x:x[0],
+                   corrfn=np.correlate,
+                   keyfn=lambda x:x[0],
                    verbose=False):
     if type(corrfn) == str:
         corrfn = _corrfuncs[corrfn]
@@ -283,8 +272,8 @@ def local_corr_map(arr, normL=None, normfn=lib.DFoSD,
 
 
 def fftmap(fseq, frange, func=np.mean,
-           normL = None,
-           verbose = True,
+           normL=None,
+           verbose=True,
            **kwargs):
         """
         Fourier-based functional mapping
