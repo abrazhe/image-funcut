@@ -285,10 +285,18 @@ def embedded_to_full(x):
     out[xslice] = data
     return out
 
-def compactness(obj):
+def density(obj):
     data, (shape, xslice) = obj
     N = np.float(np.product(data.shape))
-    return np.sum(data > 0)/N
+    return npixels(obj)/N
+
+def npixels(obj):
+    data, _ = obj
+    return np.sum(data != 0)
+
+def energy(obj):
+    data, _ = obj
+    return np.sum(data)
 
 def framewise_objs(frames,*args,**kwargs):
     return 
