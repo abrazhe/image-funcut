@@ -19,6 +19,7 @@ def cwt_iter(fseq,
              wavelet = pycwt.Morlet(),
              normL = None,
              max_pixels = None,
+	     cwtfn = pycwt.eds,
              verbose = False,
              **kwargs):
     """
@@ -31,6 +32,7 @@ def cwt_iter(fseq,
     *wavelet* -- wavelet object [pycwt.Morlet()]
     *normL* -- length of normalizing part (baseline) of the time series [None]
     *max_pixels* -- upper limit on number of pixels to iterate over [None]
+    *cwt_fn* -- function to process wavelet coefficients [pycwt.eds]
     *verbose* -- become verbose [False]
     other keyword arguments are passed to fseq.pix_iter
 
@@ -97,9 +99,16 @@ def cwtmap(fseq,
             out[tk,i,j] = func(eds[:,tstarts[tk]:tstops[tk]])
     return out
 
+def cwtphase_map(fseq, ):
+    pass
+
 def loc_max_pos(v):
+    x = range(0,len(v))
+    p = np.polyfit(x,v,1)
+    vx = v - np.polyval(p,x)
+    vx[1:]-vx[:-1] > 0
     return [i for i in xrange(1,len(v)-1)
-            if (v[i] > v[i-1]) and (v[i] > v[i+1])]
+            if (vx[i] > vx[i-1]) and (vx[i] > vx[i+1])]
 
 def cwt_freqmap(fseq,
                 tranges,
@@ -110,6 +119,7 @@ def cwt_freqmap(fseq,
     Maps dominant frequency in the given frequency band, creates
     maps for a list of specified time ranges
     """
+    from matplotlib import mlab
     if len(frange) > 2:
         freqs = frange
     else:
@@ -118,20 +128,22 @@ def cwt_freqmap(fseq,
         ma = np.mean(arr,1) 
         if np.max(ma) < 1e-7:
             print "mean wavelet power %e too low"%np.mean(ma)
-            return -1.0
-        x = loc_max_pos(ma)
-        if x:
-            xma = ma[x]
-            xma1 = (xma>=np.max(xma)).nonzero()[0]
-            n = x[xma1]
-        else:
-            print "No local maxima. This shouldn't have happened!"
-            x = (ma>=np.max(ma)).nonzero()[0]
-            try: n = x[0]
-            except:
-                n = 0
-                print x,ma
-        return freqs[n]
+            return np.nan
+	i = np.argmax(mlab.detrend_linear(ma))
+	return freqs[i]
+        ## #x = loc_max_pos(ma)
+        ## if x:
+        ##     xma = ma[x]
+        ##     xma1 = (xma>=np.max(xma)).nonzero()[0]
+        ##     n = x[xma1]
+        ## else:
+        ##     print "No local maxima. This shouldn't have happened!"
+        ##     x = (ma>=np.max(ma)).nonzero()[0]
+        ##     try: n = x[0]
+        ##     except:
+        ##         n = 0
+        ##         print x,ma
+        ## return freqs[n]
     return cwtmap(fseq,tranges,freqs,func=_dominant_freq,**kwargs)
 
 
