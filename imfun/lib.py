@@ -11,6 +11,16 @@ import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
+from imfun import fnutils
+
+## these functions were in this file, but were moved to fnutils
+fnchain = fnutils.fnchain
+fniter = fnutils.fniter
+flcompose = fnutils.flcompose
+take = fnutils.take
+
+
+
 def flatten(x,acc=None):
    acc = ifnot(acc,[])
    if not np.iterable(x):
@@ -126,43 +136,29 @@ def ma2d(m, n):
     for i in xrange(0,len(m)-n,):
         yield np.mean(m[i:i+n,:],0)
 
-def take(N, seq):
-    "Takes first N values from a sequence"	
-    return [seq.next() for j in xrange(N)]
+
+
+def with_time_dec(fn):
+    "decorator to time function evaluation"
+    def _(*args, **kwargs):
+	import time
+	t = time.time()
+	out = fn(*args,**kwargs)
+        print "time lapsed %03.3e in %s"%(time.time() - t, str(fn))
+	return out
+    return _
+
 
 def with_time(fn, *args, **kwargs):
     "take a function and timer its evaluation"
     import time
     t = time.time()
     out = fn(*args,**kwargs)
-    print "time lapsed", time.time() - t
+    print "time lapsed %03.3e in %s"%(time.time() - t, str(fn))
     return out
     
 
 
-def fnchain(f,n):
-    """
-    returns lambda *args, **kwargs: f(..n times..f(*args, **kwargs))
-    """
-    return flcompose(*[f]*n)
-	
-
-def fniter(f,x):
-    "Same as fnchain, but as an iterator"
-    out = x
-    while True:
-        out = f(out)
-	yield out
-
-def flcompose2(f1,f2):
-    "Compose two functions from left to right"
-    def _(*args,**kwargs):
-        return f2(f1(*args,**kwargs))
-    return _
-                  
-def flcompose(*funcs):
-    "Compose a list of functions from left to right"
-    return reduce(flcompose2, funcs)
 
 def ensure_dir(f):
 	import os
@@ -182,7 +178,7 @@ def imresize(a, nx, ny, **kw):
         a, [(a.shape[0]-1)*1.0/nx, (a.shape[1]-1)*1.0/ny],
         output_shape=[nx,ny], **kw) 
 
-def best (scoref, lst):
+def __best (scoref, lst):
     if len(lst) > 0:
         n,winner = 0, lst[0]
         for i, item in enumerate(lst):
@@ -190,7 +186,7 @@ def best (scoref, lst):
             return n,winner
     else: return -1,None
 
-def min1(scoref, lst):
+def __min1(scoref, lst):
     return best(lambda x,y: x < y, map(scoref, lst))
 
 def allpairs0(seq):
@@ -290,21 +286,17 @@ def mask4overlay(mask,colorind=0, alpha=0.9):
     stack[:,:,colorind] = mask
     return stack
 
+def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
+    """
+    Put a binary mask in some color channel
+    and make regions where the mask is False transparent
+    """
+    sh = mask.shape
+    ch = lambda i: np.where(mask, color[i],0)
+    stack = np.dstack((ch(0),ch(1),ch(2),alpha*np.ones(sh)*mask))
+    return stack
 
-def mirrorpd(k, L):
-    if 0 <= k < L : return k
-    else: return -(k+1)%L
 
-
-def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
-    L = len(sig) 
-    padlen = len(phi)
-    assert L > padlen
-    indices = map(lambda i: mirrorpd(i, L),
-                  range(-padlen, 0) + range(0,L) + range(L, L+padlen))
-    padded_sig = sig[indices]
-    apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
-    return apprx
 
 def locextr(v, x=None, refine = True, output='full',
 	    **kwargs):
@@ -371,20 +363,21 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
                      cax = None,
                      vmin=None, vmax=None,
                      correct = None,
+		     cwt_fn = pycwt.eds,
                      confidence_level = False):
     wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
     print padding
-    eds = pycwt.eds(wcoefs, wavelet.f0)
-    if vmax is None: vmax = percentile(eds, 99.0)
-    if vmin is None: vmin = percentile(eds, 1.0)
+    surf = cwt_fn(wcoefs, wavelet.f0)
+    if vmax is None: vmax = percentile(surf, 99.0)
+    if vmin is None: vmin = percentile(surf, 1.0)
     
     if correct == 'freq1':
         coefs = freqs*2.0/np.pi
-        for i in xrange(eds.shape[1]):
-            eds[:,i] *= coefs
+        for i in xrange(surf.shape[1]):
+            surf[:,i] *= coefs
     endtime = len(signal)/f_s
     extent=[0, endtime, freqs[0], freqs[-1]]
-    im = ax.imshow(eds, extent = extent,
+    im = ax.imshow(surf, extent = extent,
                    origin = 'low',
                    vmin = vmin, vmax = vmax,
                    cmap = swanrgb,

@@ -20,6 +20,22 @@ def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
 
 
+def mirrorpd(k, L):
+    if 0 <= k < L : return k
+    else: return -(k+1)%L
+
+
+def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+    L = len(sig) 
+    padlen = len(phi)
+    assert L > padlen
+    indices = map(lambda i: mirrorpd(i, L),
+                  range(-padlen, 0) + range(0,L) + range(L, L+padlen))
+    padded_sig = sig[indices]
+    apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
+    return apprx
+
+
 
 # TODO: make it faster
 def adaptive_medianf(arr, k = 2):

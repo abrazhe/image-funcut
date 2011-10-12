@@ -12,7 +12,10 @@ from scipy.ndimage import convolve1d
 import itertools as itt
 
 
+_dtype_ = np.float32
+
 ## this is used for noise estimation and support calculation
+## level =  1      2      3      4      5      6      7
 sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D 
            [0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
            [0.889, 0.200, 0.086, 0.041, 0.020, 0.010, 0.005],   # 2D
@@ -21,7 +24,7 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
 
 
 ## Default spline wavelet scaling function
-_phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16])
+_phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
 
 def locations(shape):
     return itt.product(*map(xrange, shape))
@@ -42,6 +45,7 @@ def decompose(arr, *args, **kwargs):
 
 def decompose1d(sig, level, phi=_phi_):
     "1d stationary wavelet transform"
+    sig = sig.astype(_dtype_)
     apprx = convolve1d(sig, phi, mode='mirror')
     w = (sig - apprx) # wavelet coefs
     if level <= 0: return sig
@@ -70,13 +74,14 @@ def decompose2d(arr2d, level, kern=None, boundary='symm'):
     list of wavelet details + last approximation
     
     """
-    _b3spline1d = np.array(_phi_)
+    _b3spline1d = np.array(_phi_, _dtype_)
     __x = _b3spline1d.reshape(1,-1)
     _b3spl2d = np.dot(__x.T,__x)
     if kern is None: kern = _b3spl2d
     if level <= 0: return arr2d
     shapecheck = map(lambda a,b:a>b, arr2d.shape, kern.shape)
     assert np.all(shapecheck)
+    arr2d = arr2d.astype(_dtype_)
     # approximation:
     approx = signal.convolve2d(arr2d, kern, mode='same',
                                boundary=boundary)  
@@ -95,17 +100,43 @@ def f2d(phi):
     v = phi.reshape(1,-1)
     return np.dot(v.T,v)
 
+
+def decompose2p5d(arr, level=1,
+                  phi = _phi_,
+                  boundary = 'mirror'):
+    "Semi-separable \'a trous wavelet decomposition for 3D data"
+    phi2d = f2d(phi)
+    if level <= 0: return arr
+    arr = arr.astype(_dtype_)
+    approx = np.zeros(arr.shape,_dtype_)
+    for k in xrange(arr.shape[0]):
+        approx[k] = signal.convolve2d(arr[k], phi2d, mode='same',
+                                      boundary='symm')
+    details = arr - approx
+    upkern = zupsample(phi)
+    shapecheck = map(lambda a,b:a>b, arr.shape, upkern.shape)
+    if level == 1:
+        return [details, approx]
+    elif not np.all(shapecheck):
+        print "Maximum allowed decomposition level reached, returning"
+        return [details, approx]
+    else:
+        return [details] + decompose2p5d(approx, level-1, upkern)
+
+
+
 def decompose3d(arr, level=1,
                   phi = _phi_,
                   boundary = 'mirror'):
     "Semi-separable \'a trous wavelet decomposition for 3D data"
     phi2d = f2d(phi)
     if level <= 0: return arr
-    tapprox = np.zeros(arr.shape)
+    arr = arr.astype(_dtype_)
+    tapprox = np.zeros(arr.shape,_dtype_)
     for loc in locations(arr.shape[1:]):
         v = arr[:,loc[0], loc[1]]
         tapprox[:,loc[0], loc[1]] = convolve1d(v, phi, mode=boundary)
-    approx = np.zeros(arr.shape)
+    approx = np.zeros(arr.shape,_dtype_)
     for k in xrange(arr.shape[0]):
         approx[k] = signal.convolve2d(tapprox[k], phi2d, mode='same',
                                       boundary='symm')
@@ -137,19 +168,22 @@ def represent_support(supp):
     out = [2**(j+1)*supp[j] for j in range(len(supp)-1)]
     return np.sum(out, axis=0)
 
-def get_support(coefs, th, neg=False):
+def get_support(coefs, th, neg=False, modulus = True):
     out = []
     nd = len(coefs[0].shape)
     fn = neg and np.less or np.greater
     for j,w in enumerate(coefs[:-1]):
+	sj= sigmaej[nd][j]
+
 	if np.iterable(th): t = th[j]
 	else: t = th
-	sj= sigmaej[nd][j]
+
+	if modulus: wa = np.abs(w)
+	else: wa = w
+
 	if np.iterable(t):
-	    wa = np.abs(w)
 	    out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
-	else:
-	    out.append(fn(np.abs(w), t*sj))
+	else: out.append(fn(wa, t*sj))
     out.append(np.ones(coefs[-1].shape)*(not neg))
     return out
 
@@ -196,5 +230,5 @@ def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
             noise_std = estimate_sigma(f, coefs) / 0.974 # magic value
         else:
             noise_std = estimate_sigma_mad(coefs[0])
-    supp = get_support(coefs, np.array(k)*noise_std)
+    supp = get_support(coefs, np.array(k, _dtype_)*noise_std, modulus=False)
     return rec_with_support(coefs, supp)

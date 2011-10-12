@@ -116,6 +116,22 @@ def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
                 n +=1
         if n > nmasks: break
     return out[1:]
+
+
+def gauss3d(tscale=10, xscale=20, yscale=20):
+    tscale, xscale, yscale = map(np.float, [tscale, xscale, yscale])
+    t,x,y = np.mgrid[-tscale:tscale, -yscale:yscale, -xscale:xscale]
+    return np.exp(-t**2/tscale - y**2/xscale - x**2/yscale)
+
+
+def _____waves(shape, nobj=5):
+    #out = np.zeros(shape, np.float32)
+    xs,ys = shape[1:]
+    objs = [gauss3d(*np.random.poisson(40,size=3)) for i in range(nobj)]
+    tlocs = np.random.uniform(20, shape[0]-20, size=nobjs)
+    xlocs = np.random.uniform(20, xs-20, size=nobjs)
+    ylocs = np.random.uniform(20, ys-20, size=nobjs)
+    tmax = objs[-1].shape[0] + tlocs[-1] + 5
     
 
 class LineSegment:
@@ -148,3 +164,30 @@ class LineSegment:
     
     
 
+### Simple iterative map to model Ca waves 
+### ---------------------------------------
+
+
+#from imfun import bwmorph
+#neighbours = bwmorph.neighbours
+#neighbours2 = bwmorph.neighbours_2
+#locations = bwmorph.locations
+#def cawmap(x, threshold=0.7, threshold2=1.0,
+#	   pstim = 0.00001):
+#    new = x.copy()
+#    a,d = x[0], x[1]
+#    for loc in locations(a.shape):
+#       nn = np.random.permutation(neighbours2(loc, a.shape))[:4] #neighbours
+#       nn = map(tuple, nn)
+#       vamax = np.max([a[n] for n in nn])
+#       if vamax > threshold and d[loc] < threshold2:
+#          new[0][loc] = vamax*0.95   # spread 
+#          new[1][loc] = 1.5          # start deactivation
+#       else:
+#          new[0][loc] = a[loc]/(1.1 + 0.1*d[loc]) + \     # fade
+#                        (np.random.uniform() < pstim) + \ # excite
+#                        np.random.normal(scale=0.01)      # noise
+#          new[1][loc] = 0.9*d[loc] 
+#    return new
+    
+    

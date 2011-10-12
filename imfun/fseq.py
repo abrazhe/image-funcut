@@ -1,5 +1,6 @@
 
 # Classes for sequencies of frames
+import sys
 import re
 import glob
 import itertools as itt
@@ -176,12 +177,14 @@ class FrameSequence:
         "Returns shape of frames in the sequence"
         return self.frame_slices(sliceobj, fn = fn).next().shape
 
-    def pw_transform(self, pwfn,**kwargs):
+    def pw_transform(self, pwfn, verbose=False, **kwargs):
         """Create another frame sequence, pixelwise applying a provided function"""
         nrows, ncols = self.shape()
         #out = np.zeros((self.length(), nrows, ncols))
         out = lib.memsafe_arr((self.length(), nrows, ncols))
         for v, row, col in self.pix_iter(**kwargs):
+	    if verbose:
+		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
             out[:,row,col] = pwfn(v)
         if hasattr(out, 'flush'):
             out.flush()
