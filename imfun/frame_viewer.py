@@ -25,15 +25,15 @@ from matplotlib.figure import Figure
 #from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx as NToolbar
 
-from enthought.traits.api import *
-from enthought.traits.ui.api import *
+from traits.api import *
+from traitsui.api import *
 
 
-from enthought.traits.ui.menu \
+from traitsui.menu \
      import Action, CloseAction, Menu, MenuBar, OKCancelButtons, Separator
 
-from enthought.traits.ui.wx.editor import Editor
-from enthought.traits.ui.basic_editor_factory import BasicEditorFactory
+from traitsui.wx.editor import Editor
+from traitsui.basic_editor_factory import BasicEditorFactory
 
 
 class _MPLFigureEditor(Editor):
