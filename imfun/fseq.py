@@ -8,12 +8,13 @@ import numpy as np
 import tempfile as tmpf
 from scipy import signal
 
+
+_dtype_ = np.float64
+
 from matplotlib.pyplot import imread
 
 from imfun import lib
 ifnot = lib.ifnot
-
-_maxshape_ = 1e8
 
 def sorted_file_names(pat):
     "Returns a sorted list of file names matching a pattern"
@@ -88,6 +89,9 @@ class FrameSequence:
         minv,maxv = np.min(ranges[:,0]), np.max(ranges[:,1])
         return (minv, maxv)
 
+    def pipeline(self):
+	return lib.flcompose(identity, *self.fns)
+
     def data_percentile(self, p):
         from scipy.stats import scoreatpercentile
         arr = self.as3darray().flatten()
@@ -112,7 +116,7 @@ class FrameSequence:
     def mean_frame(self, nframes = None, fn=None):
         "Create mean image over N frames (all by default)"
         L = self.length()
-        frameit = itt.imap(np.float64, self.frames(fn))
+        frameit = itt.imap(_dtype_, self.frames(fn))
         res = np.copy(frameit.next())
         nframes = min(ifnot(nframes,L), L)
         for k,frame in enumerate(frameit):
@@ -132,18 +136,16 @@ class FrameSequence:
         return itt.islice(fiter, maxN)
 
     def as3darray(self,  maxN = None, fn = None, sliceobj=None,
-                  dtype = np.float64):
+                  dtype = _dtype_):
         fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj, fn=fn)
         N =  self.length()*shape[0]*shape[1]
-        out = lib.memsafe_arr((self.length(), shape[0], shape[1]))
+        out = lib.memsafe_arr((self.length(), shape[0], shape[1]), dtype)
         for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
             out.flush()
         return out
-        #return np.asarray(self.aslist(*args, **kwargs))
-
     
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
@@ -181,14 +183,21 @@ class FrameSequence:
         """Create another frame sequence, pixelwise applying a provided function"""
         nrows, ncols = self.shape()
         #out = np.zeros((self.length(), nrows, ncols))
-        out = lib.memsafe_arr((self.length(), nrows, ncols))
+	if kwargs.has_key('dtype'):
+	    dtype = kwargs['dtype']
+	else:
+	    dtype = _dtype_
+	testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
+	L = len(testv)
+	out = lib.memsafe_arr((L, nrows, ncols), dtype)
         for v, row, col in self.pix_iter(**kwargs):
 	    if verbose:
 		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
             out[:,row,col] = pwfn(v)
-        if hasattr(out, 'flush'):
-            out.flush()
-        return FSeq_arr(out, dt = self.dt, dx=self.dx, dy = self.dy)
+	    if hasattr(out, 'flush'):
+		out.flush()
+	dt = self.dt*self.length()/L
+        return FSeq_arr(out, dt = dt, dx=self.dx, dy = self.dy)
 
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
                    start = 0, stop = None, show_title = True,
@@ -248,7 +257,7 @@ class FSeq_arr(FrameSequence):
         return self.data.shape[0]
     def frames(self, fn=None):
         #fn = ifnot(fn, self.fn)
-        fn = ifnot(fn, lib.flcompose(identity, *self.fns))
+        fn = ifnot(fn, self.pipeline())
         return itt.imap(fn, (frame for frame in self.data))
 
 
@@ -268,7 +277,7 @@ class FSeq_glob(FrameSequence):
 	return len(self.file_names)
             
     def frames(self, fn = None, ch = None):
-        fn = ifnot(fn, lib.flcompose(identity, *self.fns))
+        fn = ifnot(fn, self.pipeline())
         ## Examples of processing functions can be found in scipy.ndimage module
         ## TODO: a list of hook functions
         return itt.imap(fn, fseq_from_glob(self.pattern,
@@ -308,23 +317,45 @@ class FSeq_imgleic(FSeq_img):
             pass
 
 
-from imfun.MLFImage import MLF_Image
+#from imfun.MLFImage import MLF_Image
+from imfun import MLFImage
+
 
 class FSeq_mlf(FrameSequence):
     "Class for MLF multi-frame images"
     def __init__(self, fname, fns = []):
-        self.mlfimg = MLF_Image(fname)
+        self.mlfimg = MLFImage.MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
         self.fns = []
         self.set_scale()
     def frames(self,  fn = None):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
-        #return itt.imap(lambda x: x[0], self.mlfimg.frame_iter())
-#    def shape(self): # return it back afterwards
-#        return self.mlfimg.ydim,self.mlfimg.xdim
+    def __getitem__(self, val, fn = None):
+	fn = ifnot(fn, self.pipeline())
+	if type(val) is int:
+	    return fn(self.mlfimg[val])
+	else:
+	    indices = range(self.mlfimg.nframes)
+	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
     def length(self):
         return self.mlfimg.nframes
+    def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
+        "Iterator over time signals from each pixel"
+        if mask== None:
+            mask = np.ones(self.shape(), np.bool)
+        nrows, ncols = self.shape()
+	if kwargs.has_key('dtype'):
+	    dtype = kwargs['dtype']
+	else: dtype=_dtype_
+        rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
+        if rand: rcpairs = np.random.permutation(rcpairs)
+        for row,col in rcpairs:
+            if mask[row,col]:
+		v = [f[row,col] for f in self[:maxN]]
+                ## asarray to convert from memory-mapped array
+                yield np.asarray(v, dtype=dtype), row, col
+
 
 import PIL.Image as Image
 import matplotlib.image as mpl_img

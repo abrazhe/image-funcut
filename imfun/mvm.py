@@ -256,7 +256,10 @@ def find_objects(arr, k = 3, level = 4, noise_std=None,
     if coefs is None:
         coefs = atrous.decompose(arr, level)
     if noise_std is None:
-        noise_std = atrous.estimate_sigma_mad(coefs[0])
+	if arr.ndim > 2:
+	    noise_std = atrous.estimate_sigma_mad(coefs[0])
+	else:
+	    noise_std = atrous.estimate_sigma(arr, coefs)
     ## calculate support taking only positive coefficients (light sources)
     if supp is None:
         supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
@@ -304,6 +307,7 @@ def framewise_objs(frames,*args,**kwargs):
 ### Obvious todo: parallelize!
 @lib.with_time_dec
 def framewise_find_objects(frames, min_frames=5,
+			   binary_structure = (3,2),
 			   *args, **kwargs):
     framewise = lib.with_time(list, (find_objects(f, *args, **kwargs) for f in frames))
     print "all frames computed"
@@ -311,7 +315,7 @@ def framewise_find_objects(frames, min_frames=5,
     if fullrestored is None:
 	print "No objects in any frame"
 	return
-    s = ndimage.generate_binary_structure(3,2)
+    s = ndimage.generate_binary_structure(*binary_structure)
     labels,nlab = ndimage.label(fullrestored) # re-label 3D-contiguous objects
     "re-labeled"
     pre_objs = ndimage.find_objects(labels)

@@ -48,6 +48,7 @@ def decompose1d(sig, level, phi=_phi_):
     sig = sig.astype(_dtype_)
     apprx = convolve1d(sig, phi, mode='mirror')
     w = (sig - apprx) # wavelet coefs
+    L = len(sig)
     if level <= 0: return sig
     elif level == 1 or L < len(zupsample(phi)): return [w, apprx]
     else: return [w] + decompose1d(apprx, level-1, zupsample(phi))

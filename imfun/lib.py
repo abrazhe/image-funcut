@@ -30,19 +30,20 @@ def flatten(x,acc=None):
        flatten(o, acc)
    return acc
 
+_maxshape_ = 1e8
 def memsafe_arr(shape, dtype=np.float64):
-   _maxshape_ = 1e8
-   import tempfile as tmpf
-   from operator import mul
-   N = reduce(mul, shape)
-   if N < _maxshape_:
-      return np.zeros(shape, dtype=dtype)
-   else:
-      print "Using memory-mapped arrays..."
-      _tmpfile = tmpf.TemporaryFile()
-      out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
-      _tmpfile.close()
-      return out
+    print dtype
+    import tempfile as tmpf
+    from operator import mul
+    N = reduce(mul, shape)
+    if N < _maxshape_:
+	return np.zeros(shape, dtype=dtype)
+    else:
+	print "Using memory-mapped arrays..."
+	_tmpfile = tmpf.TemporaryFile()
+	out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
+	_tmpfile.close()
+    return out
     
 
 def plane(pars, x,y):
@@ -396,39 +397,39 @@ def group_maps(maplist, ncols,
 	       suptitle = None,
 	       individual_colorbars = False,
 	       single_colorbar = True,
-	       hide_ticks = False,
+	       show_ticks = False,
 	       samerange = True,
 	       imkw=None, cbkw ={}):
-     import pylab as pl
-     if imkw is None:
-	     imkw = {}
-     nrows = int(np.ceil(len(maplist)/float(ncols)))
-     figsize = ifnot (figsize, (2*ncols,2*nrows)) 
-     figh = pl.figure(figsize=figsize)
-     print samerange
-     if samerange:
+    import pylab as pl
+    if imkw is None:
+        imkw = {}
+    nrows = int(np.ceil(len(maplist)/float(ncols)))
+    figsize = ifnot (figsize, (2*ncols,2*nrows)) 
+    figh = pl.figure(figsize=figsize)
+    print samerange
+    if samerange:
 	vmin,vmax = data_range(maplist)
 	imkw.update(dict(vmin=vmin, vmax=vmax))
-     if not imkw.has_key('aspect'):
-     	     imkw['aspect'] = 'equal'
-     print imkw
-     for i,f in enumerate(maplist):
-          ax = pl.subplot(nrows,ncols,i+1)
-          im = ax.imshow(f, **imkw);
-	  if hide_ticks:
-		  pl.setp(ax, 'xticks', [],
-		       'yticks', [])
-	  if individual_colorbars:
-	      figh.colorbar(im, ax=ax);
-          if titles is not None: pl.title(titles[i])
-     if single_colorbar:
-	     pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
-	     cax = pl.axes([0.85, 0.1, 0.03, 0.8])
-	     pl.colorbar(im, cax=cax, **cbkw)
-     if suptitle:
+    else:
+	single_colorbar=False
+    if not imkw.has_key('aspect'):
+	imkw['aspect'] = 'equal'
+    for i,f in enumerate(maplist):
+	ax = pl.subplot(nrows,ncols,i+1)
+	im = ax.imshow(f, **imkw);
+	if not show_ticks:
+	    pl.setp(ax, 'xticks', [], 'yticks', [],
+		    'frame_on', False)
+	if individual_colorbars:
+	    figh.colorbar(im, ax=ax);
+	if titles is not None: pl.title(titles[i])
+    if single_colorbar:
+	pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
+	cax = pl.axes([0.85, 0.1, 0.03, 0.8])
+	pl.colorbar(im, cax=cax, **cbkw)
+    if suptitle:
         pl.suptitle(suptitle)
-     imkw = {}
-     return
+    return
 
 def data_range(datalist):
    vmin = np.min(map(np.min, datalist))

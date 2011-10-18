@@ -35,14 +35,33 @@ class MLF_Image:
         self.sfilter = self.read_value(mlfdescr['sfilter'])
         self.mode = self.read_value(mlfdescr['mode'])
         self.tfilter = self.read_value(mlfdescr['tfilter'])
+	self.shape = (self.ydim, self.xdim)
         self.dim = self.xdim*self.ydim
         
     def read_value(self, pos, dtype=np.uint32):
         return long(read_at(self.fid, pos, 1, dtype))
 
-    def read_frame(self, pos=0, seek_opt=1):
+    def read_next_frame(self, pos=0, seek_opt=1):
         arr = read_at(self.fid, pos, self.dim, seek_opt=seek_opt)
         return arr.reshape((self.ydim,self.xdim))
+
+    def read_frame(self, n):
+	n = n%self.nframes
+	pos = n*self.dim*4 + mlfdescr['data_start']
+	frame = read_at(self.fid, pos, self.dim)
+	return frame.reshape(self.shape)
+
+    def __getitem__(self, val):
+	indices = range(self.nframes)
+	if type(val) is int:
+	    return self.read_frame(val)
+	else:
+	    return map(self.read_frame, indices[val])
+
+    def get_tvec(self, pos, frange=slice(None)):
+	v = [self.read_frame(i)[pos]
+	     for i in range(self.nframes)[frange]]
+	return np.array(v)
 
     def flux_frame_iter(self):
         frame_count = 0
@@ -51,8 +70,8 @@ class MLF_Image:
         while frame_count < self.nframes:
         #while True:
             try:
-                flux_frame = self.read_frame() # seek from current
-                dc_frame = self.read_frame() # seek from current
+                flux_frame = self.read_next_frame() # get "flux frame"
+		self.fid.seek(self.dim*2, 1) # omit "dc frame"
                 frame_count += 1
                 yield flux_frame
             except:
@@ -64,7 +83,7 @@ class MLF_Image:
         self.fid.seek(mlfdescr['data_start'])
         shift = self.xdim*self.ydim
         while frame_count < self.nframes:
-            flux_frame = self.read_frame() # seek from current
-            dc_frame = self.read_frame() # seek from current
+            flux_frame = self.read_next_frame() # seek from current
+            dc_frame = self.read_next_frame() # seek from current
             frame_count += 1
             yield flux_frame, dc_frame
