@@ -380,6 +380,7 @@ class FrameSequenceOpts(HasTraits):
         print "fns1 set"
         self.fs2_needs_reload = True
         self.get_fs2()
+	print 'fs2 set'
         return
 
     def _gw_opts_default(self):
@@ -400,9 +401,13 @@ class FrameSequenceOpts(HasTraits):
             del self.parent.frames
             self.parent.frames = None
         self.reset_fs()
+	print 'reset_fs done'
         self.vmin, self.vmax = self.fs2.data_range()
+	print 'vmin,vmax done'
         self.dt = self.fs.dt
+	print 'dt done'
         self.parent._recalc_btn_fired()
+	print 'recalc'
 
 class Test(HasTraits):
     fso = Instance(FrameSequenceOpts)

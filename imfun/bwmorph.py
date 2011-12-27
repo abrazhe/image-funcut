@@ -88,12 +88,13 @@ def filter_proximity(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
                     out[row,col] = True
     return out
 
-def majority(mask, th = 5, mod = True):
+def majority(mask, th = 5, mod = False):
     rows, cols = mask.shape
     out = np.zeros((rows,cols), np.bool)
-    for row in xrange(rows):
-        for col in xrange(cols):
-            x = np.sum([mask[n] for n in neighbours((row,col),mask.shape)])
+    for row in xrange(1,rows):
+        for col in xrange(1,cols):
+	    sl = (slice(row-1,row+2), slice(col-1,col+2))
+            x = np.sum(mask[sl])
             out[(row,col)] = (x >= th)
             if mod:
                out[(row,col)] *= mask[row,col]
@@ -187,7 +188,7 @@ class RegionND:
         return (l for l in self.locs if
                 len(filter(lambda x: x not in self.locs, neighbours(l,self.shape))))
     def linsize(self,):
-        dists = [lib.eu_dist(*pair) for pair in lib.allpairs0(self.borders())]
+        dists = [lib.eu_dist(*pair) for pair in lib.allpairs(self.borders())]
         return reduce(max, dists, 0)
                                
         pass
