@@ -65,8 +65,8 @@ def neighbours_2(loc, shape):
     "list of adjacent locations"
     r,c = loc
     return filter(lambda x: valid_loc(x, shape),
-                  [(r,c+1),(r,c-1),(r+1,c),(r-1,c),
-                   (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)])
+                  ((r,c+1),(r,c-1),(r+1,c),(r-1,c),
+                   (r-1,c-1), (r+1,c-1), (r-1, c+1), (r+1,c+1)))
 
 neighbours = neighbours_x
 

@@ -176,27 +176,33 @@ from imfun import bwmorph
 neighbours = bwmorph.neighbours
 neighbours2 = bwmorph.neighbours_2
 locations = bwmorph.locations
+def n3neighbors(r,c):
+    return (slice(r-1,r+2), slice(c-1,c+2))
 def cawmap(x,
+	   act_start = 1.0,
+	   deact_max = 1.5,
+	   deact_const = 0.07,
+	   fade_d = 0.9,
 	   threshold_a=0.7,
-	   threshold_d=1.0,
-	   fade_const = 1.0,
-	   fade_d = 0.07,
-	   pstim = 0.000004):
-   new = x.copy()
-   a,d = x[0], x[1]
-   for loc in locations(a.shape):
-      nn = np.random.permutation(neighbours2(loc, a.shape))[:4] #neighbours
-      nn = map(tuple, nn)
-      vamax = np.max([a[n] for n in nn])
-      if vamax > threshold_a and d[loc] < threshold_d:
-         new[0][loc] = vamax*0.95   # spread 
-         new[1][loc] = 1.5          # start deactivation
-      else:
-	 fade = a[loc]/(1.1 + fade_d*d[loc])
-	 excite = (np.random.uniform() < pstim)
-	 noise = np.random.normal(scale=0.01)
-         new[0][loc] = fade + excite+noise
-         new[1][loc] = 0.9*d[loc] 
-   return new
+	   transfer_coef = 0.975,
+	   pstim = 0.035):
+    pstim = pstim/np.multiply(*x.shape[1:])
+    uniform,poisson = np.random.uniform,np.random.poisson
+    new = x.copy()
+    a,d = x[0], x[1]
+    for loc in locations(a.shape):
+	local = a[n3neighbors(*loc)]
+	vamax = a[loc]
+	if np.any(local):
+	    vamax = np.max(local*(uniform(size=local.shape)>0.5))
+	if vamax > threshold_a:
+	    new[0][loc] = vamax*transfer_coef # spread 
+	    new[1][loc] = deact_max           # start deactivation
+	else:
+	    faded = a[loc]/(1.0/fade_d + deact_const*d[loc])
+	    excite = act_start*(uniform() < pstim)
+	    new[0][loc] = faded + excite
+	    new[1][loc] = fade_d*d[loc]
+    return new
     
     
