@@ -920,7 +920,7 @@ class Picker:
 
 
     def show_xwt(self, **kwargs):
-        for p in lib.allpairs0(filter(self.isCircleROI, self.roi_objs.keys())):
+        for p in lib.allpairs(filter(self.isCircleROI, self.roi_objs.keys())):
             self.show_xwt_roi(*p,**kwargs)
 
 

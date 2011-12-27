@@ -57,7 +57,7 @@ def gauss_kern(xsize=1.5, ysize=None):
 def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
 
-class FrameSequence:
+class FrameSequence(object):
     "Base class for sequence of frames"
     def get_scale(self):
         if hasattr(self, '_scale_set'):
@@ -113,17 +113,20 @@ class FrameSequence:
         else:
             return self.frames(fn)
 
-    def mean_frame(self, nframes = None, fn=None):
+    def mean_frame(self, start = None, stop=None, fn=None):
         "Create mean image over N frames (all by default)"
         L = self.length()
         frameit = itt.imap(_dtype_, self.frames(fn))
         res = np.copy(frameit.next())
-        nframes = min(ifnot(nframes,L), L)
+	if start is None: start =0
+        stop = min(ifnot(stop,L), L)
+	count = 0
         for k,frame in enumerate(frameit):
+	    if k < stop: continue
+	    elif k>=nframes: break
             res += frame
-            if k >= nframes:
-                break
-        return res/(k+2)
+	    count += 1
+        return res/(count+1)
 
 
     def aslist(self, fn = None, maxN=None, sliceobj=None):
@@ -187,8 +190,9 @@ class FrameSequence:
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
-	testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
-	L = len(testv)
+	L = len(pwfn(np.random.randn(self.length())))
+	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
+	#L = len(testv)
 	out = lib.memsafe_arr((L, nrows, ncols), dtype)
         for v, row, col in self.pix_iter(**kwargs):
 	    if verbose:
@@ -255,6 +259,16 @@ class FSeq_arr(FrameSequence):
         self.set_scale(dx, dy)
     def length(self):
         return self.data.shape[0]
+    def __getitem__(self, val):
+	x = self.data[val]
+	if self.fns == []:
+	    return self.data[val]
+	if type(val) is int:
+	    return self.pipeline()(x)
+	out = np.zeros(x.shape,x.dtype)
+	for j,f in enumerate(x):
+	    out[j] = self.pipeline()(x)
+	return out
     def frames(self, fn=None):
         #fn = ifnot(fn, self.fn)
         fn = ifnot(fn, self.pipeline())
@@ -284,9 +298,14 @@ class FSeq_glob(FrameSequence):
 					   ifnot(ch, self.ch), self.loadfn))
     def __getitem__(self, val):
 	pngflag = self.file_names[0][-3:] == 'png'
-	seq =  map(self.loadfn, self.file_names[val])
-	seq = [img_getter(f, self.ch, pngflag) for f in seq]
-	return map(lib.flcompose(identity, *self.fns), seq)
+	if type(val) is int:
+	    frame = img_getter(self.loadfn(self.file_names[val]),
+			       self.ch, pngflag)
+	    return self.pipeline()(frame)
+	else:
+	    seq =  map(self.loadfn, self.file_names[val])
+	    seq = [img_getter(f, self.ch, pngflag) for f in seq]
+	    return map(lib.flcompose(identity, *self.fns), seq)
 	
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)
@@ -320,7 +339,6 @@ class FSeq_imgleic(FSeq_img):
 #from imfun.MLFImage import MLF_Image
 from imfun import MLFImage
 
-
 class FSeq_mlf(FrameSequence):
     "Class for MLF multi-frame images"
     def __init__(self, fname, fns = []):
@@ -332,6 +350,7 @@ class FSeq_mlf(FrameSequence):
         fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
     def __getitem__(self, val, fn = None):
+	L = self.length()
 	fn = ifnot(fn, self.pipeline())
 	if type(val) is int:
 	    return fn(self.mlfimg[val])
@@ -342,20 +361,26 @@ class FSeq_mlf(FrameSequence):
         return self.mlfimg.nframes
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
-        if mask== None:
-            mask = np.ones(self.shape(), np.bool)
-        nrows, ncols = self.shape()
-	if kwargs.has_key('dtype'):
-	    dtype = kwargs['dtype']
-	else: dtype=_dtype_
-        rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
-        if rand: rcpairs = np.random.permutation(rcpairs)
-        for row,col in rcpairs:
-            if mask[row,col]:
-		v = [f[row,col] for f in self[:maxN]]
-                ## asarray to convert from memory-mapped array
-                yield np.asarray(v, dtype=dtype), row, col
-
+	if self.fns == []:
+	    if mask== None:
+		mask = np.ones(self.shape(), np.bool)
+	    nrows, ncols = self.shape()
+	    if kwargs.has_key('dtype'):
+		dtype = kwargs['dtype']
+	    else: dtype=_dtype_
+	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
+	    if rand: rcpairs = np.random.permutation(rcpairs)
+	    for row,col in rcpairs:
+		if mask[row,col]:
+		    v = [f[row,col] for f in self[:maxN]]
+		    yield np.asarray(v, dtype=dtype), row, col
+	else:
+	    x = super(FSeq_mlf,self)
+	    for a in x.pix_iter(mask=mask,maxN=maxN,
+				rand=rand,**kwargs):
+		yield a
+		
+	    #FrameSequence.pix_iter(self, mask=mask,maxN=maxN,rand=rand,**kwargs)
 
 import PIL.Image as Image
 import matplotlib.image as mpl_img
@@ -366,9 +391,8 @@ class FSeq_multiff(FrameSequence):
         self.fns = []
         self.im = Image.open(fname)
         self.set_scale()
-    def frames(self, fn = None):
-        fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
-        count = 0
+    def frames(self, fn = None,count=0):
+        fn = ifnot(fn, self.pipeline())        
         while True:
             try:
                 self.im.seek(count)
@@ -380,6 +404,8 @@ class FSeq_multiff(FrameSequence):
 def open_seq(path, *args, **kwargs):
     "Dispatches to a real class constructor depending on the file name"
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff')
+    if type(path) is np.ndarray:
+	return FSeq_arr(path, *args, **kwargs)
     ending = re.findall('[^*\.]+', path)[-1]
     if ending == 'txt':
         return FSeq_txt(path, *args, **kwargs)

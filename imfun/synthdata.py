@@ -118,6 +118,10 @@ def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
     return out[1:]
 
 
+def gauss2d(xmu=0, ymu=0, xsigma=10, ysigma=10):
+    xsigma, ysigma = map(np.float, [xsigma, ysigma])
+    return lambda x,y: np.exp(-(x-xmu)**2/(2*xsigma**2) - (y-ymu)**2/(2*ysigma**2))
+
 def gauss3d(tscale=10, xscale=20, yscale=20):
     tscale, xscale, yscale = map(np.float, [tscale, xscale, yscale])
     t,x,y = np.mgrid[-tscale:tscale, -yscale:yscale, -xscale:xscale]
@@ -168,26 +172,31 @@ class LineSegment:
 ### ---------------------------------------
 
 
-#from imfun import bwmorph
-#neighbours = bwmorph.neighbours
-#neighbours2 = bwmorph.neighbours_2
-#locations = bwmorph.locations
-#def cawmap(x, threshold=0.7, threshold2=1.0,
-#	   pstim = 0.00001):
-#    new = x.copy()
-#    a,d = x[0], x[1]
-#    for loc in locations(a.shape):
-#       nn = np.random.permutation(neighbours2(loc, a.shape))[:4] #neighbours
-#       nn = map(tuple, nn)
-#       vamax = np.max([a[n] for n in nn])
-#       if vamax > threshold and d[loc] < threshold2:
-#          new[0][loc] = vamax*0.95   # spread 
-#          new[1][loc] = 1.5          # start deactivation
-#       else:
-#          new[0][loc] = a[loc]/(1.1 + 0.1*d[loc]) + \     # fade
-#                        (np.random.uniform() < pstim) + \ # excite
-#                        np.random.normal(scale=0.01)      # noise
-#          new[1][loc] = 0.9*d[loc] 
-#    return new
+from imfun import bwmorph
+neighbours = bwmorph.neighbours
+neighbours2 = bwmorph.neighbours_2
+locations = bwmorph.locations
+def cawmap(x,
+	   threshold_a=0.7,
+	   threshold_d=1.0,
+	   fade_const = 1.0,
+	   fade_d = 0.07,
+	   pstim = 0.000004):
+   new = x.copy()
+   a,d = x[0], x[1]
+   for loc in locations(a.shape):
+      nn = np.random.permutation(neighbours2(loc, a.shape))[:4] #neighbours
+      nn = map(tuple, nn)
+      vamax = np.max([a[n] for n in nn])
+      if vamax > threshold_a and d[loc] < threshold_d:
+         new[0][loc] = vamax*0.95   # spread 
+         new[1][loc] = 1.5          # start deactivation
+      else:
+	 fade = a[loc]/(1.1 + fade_d*d[loc])
+	 excite = (np.random.uniform() < pstim)
+	 noise = np.random.normal(scale=0.01)
+         new[0][loc] = fade + excite+noise
+         new[1][loc] = 0.9*d[loc] 
+   return new
     
     

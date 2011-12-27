@@ -18,10 +18,20 @@ _dtype_ = np.float32
 ## level =  1      2      3      4      5      6      7
 sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D 
            [0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
-           [0.889, 0.200, 0.086, 0.041, 0.020, 0.010, 0.005],   # 2D
+           [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]] # 3D
 
-
+def mc_levels(size=(256,256),level=3, N = 1e3):
+    import sys
+    images = (randn(*size) for i in arange(N))
+    out  = np.zeros((N,level))
+    for n,im in enumerate(images):
+	x = np.mean(out[:n], axis=0)
+	#sys.stderr.write('\r image %06d out of %d, current: %05.3f'%(n+1,N, x))
+	print n+1, 'current: ', x
+	out[n] = map(np.std, decompose(im, level)[:-1])
+    return np.mean(out, axis=0)
+    	   
 
 ## Default spline wavelet scaling function
 _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
@@ -169,7 +179,7 @@ def represent_support(supp):
     out = [2**(j+1)*supp[j] for j in range(len(supp)-1)]
     return np.sum(out, axis=0)
 
-def get_support(coefs, th, neg=False, modulus = True):
+def get_support(coefs, th, neg=False, modulus = True, ):
     out = []
     nd = len(coefs[0].shape)
     fn = neg and np.less or np.greater
@@ -207,6 +217,12 @@ def estimate_sigma(arr, coefs, k=3, eps=0.01, max_iter=1e9):
 def estimate_sigma_mad(coefarr):
     return np.median(np.abs(coefarr))/(0.6745*sigmaej[2][0])
 
+def smooth(arr, level=1):
+    return decompose(arr, level)[-1]
+
+def detrend(arr, level=7):
+    return arr - decompose(arr, level)[-1]
+
 def wavelet_enh_std(f, level=4, out = 'rec', absp = False):
     fw = dec_atrous2d(f, level)
     if absp:
@@ -221,6 +237,9 @@ def wavelet_enh_std(f, level=4, out = 'rec', absp = False):
 def rec_with_support(coefs, supp):
     return rec_atrous([c*s for c,s in zip(coefs, supp)])
 
+def qmf(filt = _phi_):
+    L = len(filt)
+    return [(-1)**(l+1)*filt[L-l-1] for l in range(len(filt))]
         
 def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
     if np.iterable(k):

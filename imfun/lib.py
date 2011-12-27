@@ -30,9 +30,8 @@ def flatten(x,acc=None):
        flatten(o, acc)
    return acc
 
-_maxshape_ = 1e8
+_maxshape_ = 1e9
 def memsafe_arr(shape, dtype=np.float64):
-    print dtype
     import tempfile as tmpf
     from operator import mul
     N = reduce(mul, shape)
@@ -112,11 +111,14 @@ def mask_num_std(mat, n, func=lambda a,b: a>b):
 def mask_median_SD(mat, n = 1.5, compfn = np.greater):
     return compfn(mat, np.median(mat) + n*mat.std())
 
+def mask_low_percentile(mat, threshold = 15.0):
+    low = np.percentile(np.ravel(mat), threshold)
+    return mat < low
+
 def invert_mask(m):
     def _neg(a):
         return not a
     return np.vectorize(_neg)(m)
-
 
 def zero_in_mask(mat, mask):
 	out = np.copy(mat)
@@ -159,8 +161,6 @@ def with_time(fn, *args, **kwargs):
     return out
     
 
-
-
 def ensure_dir(f):
 	import os
 	d = os.path.dirname(f)
@@ -190,10 +190,10 @@ def __best (scoref, lst):
 def __min1(scoref, lst):
     return best(lambda x,y: x < y, map(scoref, lst))
 
-def allpairs0(seq):
+def allpairs(seq):
     return combinations(seq,2)
 
-def allpairs(seq):
+def allpairs0(seq):
     if len(seq) <= 1: return []
     else:
         return [[seq[0], s] for s in seq[1:]] + allpairs(seq[1:])
@@ -333,65 +333,8 @@ def extrema2(v, *args, **kwargs):
    xfit, _, der2, gups, gdowns = locextr(der1, x=xfit, refine=False)
    return (xfit, yfit), (maxima, minima), (gups, gdowns)
 
-	
-###------------- Wavelet-related -------------	    
-import swan.gui
-swanrgb = swan.gui.swanrgb
 
-def confidence_contour(esurf, extent, ax, L=3.0):
-    # Show 95% confidence level (against white noise, v=3 \sigma^2)
-    ax.contour(esurf, [L], extent=extent,
-               cmap=mpl.cm.gray)
-
-def cone_infl(freqs, extent, wavelet, ax):
-    try:
-        ax.fill_betweenx(freqs,
-                         extent[0],
-                         extent[0]+wavelet.cone(freqs),
-                         alpha=0.5, color='black')
-        ax.fill_betweenx(freqs,
-                         extent[1]+wavelet.cone(-freqs),
-                         extent[1],
-                         alpha=0.5, color='black')
-    except:
-        print("Can't use fill_betweenx function: update\
-        maptlotlib?")
-
-
-def wavelet_specgram(signal, f_s, freqs,  ax,
-                     wavelet = pycwt.Morlet(),
-                     padding = 'zpd',
-                     cax = None,
-                     vmin=None, vmax=None,
-                     correct = None,
-		     cwt_fn = pycwt.eds,
-                     confidence_level = False):
-    wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
-    print padding
-    surf = cwt_fn(wcoefs, wavelet.f0)
-    if vmax is None: vmax = percentile(surf, 99.0)
-    if vmin is None: vmin = percentile(surf, 1.0)
-    
-    if correct == 'freq1':
-        coefs = freqs*2.0/np.pi
-        for i in xrange(surf.shape[1]):
-            surf[:,i] *= coefs
-    endtime = len(signal)/f_s
-    extent=[0, endtime, freqs[0], freqs[-1]]
-    im = ax.imshow(surf, extent = extent,
-                   origin = 'low',
-                   vmin = vmin, vmax = vmax,
-                   cmap = swanrgb,
-                   alpha = 0.95)
-    if not cax:
-        pl.colorbar(im, ax=ax)
-    else:
-        pl.colorbar(im, cax = cax)
-    cone_infl(freqs, extent, wavelet, ax)
-    if confidence_level:
-        confidence_contour(eds, extent, ax, confidence_level)
-
-def group_maps(maplist, ncols,
+def group_maps(maplist, ncols=None,
                titles=None,
 	       figsize = None,
 	       suptitle = None,
@@ -403,6 +346,8 @@ def group_maps(maplist, ncols,
     import pylab as pl
     if imkw is None:
         imkw = {}
+    if ncols is None:
+	ncols = min(10, len(maplist))
     nrows = int(np.ceil(len(maplist)/float(ncols)))
     figsize = ifnot (figsize, (2*ncols,2*nrows)) 
     figh = pl.figure(figsize=figsize)
@@ -464,6 +409,64 @@ def group_plots(ylist, ncols, x = None,
     if suptitle:
         pl.suptitle(suptitle)
     return
+
+	
+###------------- Wavelet-related -------------	    
+import swan.gui
+swanrgb = swan.gui.swanrgb
+
+def confidence_contour(esurf, extent, ax, L=3.0):
+    # Show 95% confidence level (against white noise, v=3 \sigma^2)
+    ax.contour(esurf, [L], extent=extent,
+               cmap=mpl.cm.gray)
+
+def cone_infl(freqs, extent, wavelet, ax):
+    try:
+        ax.fill_betweenx(freqs,
+                         extent[0],
+                         extent[0]+wavelet.cone(freqs),
+                         alpha=0.5, color='black')
+        ax.fill_betweenx(freqs,
+                         extent[1]+wavelet.cone(-freqs),
+                         extent[1],
+                         alpha=0.5, color='black')
+    except:
+        print("Can't use fill_betweenx function: update\
+        maptlotlib?")
+
+
+def wavelet_specgram(signal, f_s, freqs,  ax,
+                     wavelet = pycwt.Morlet(),
+                     padding = 'zpd',
+                     cax = None,
+                     vmin=None, vmax=None,
+                     correct = None,
+		     cwt_fn = pycwt.eds,
+                     confidence_level = False):
+    wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
+    print padding
+    surf = cwt_fn(wcoefs, wavelet.f0)
+    if vmax is None: vmax = percentile(surf, 99.0)
+    if vmin is None: vmin = percentile(surf, 1.0)
+    
+    if correct == 'freq1':
+        coefs = freqs*2.0/np.pi
+        for i in xrange(surf.shape[1]):
+            surf[:,i] *= coefs
+    endtime = len(signal)/f_s
+    extent=[0, endtime, freqs[0], freqs[-1]]
+    im = ax.imshow(surf, extent = extent,
+                   origin = 'low',
+                   vmin = vmin, vmax = vmax,
+                   cmap = swanrgb,
+                   alpha = 0.95)
+    if not cax:
+        pl.colorbar(im, ax=ax)
+    else:
+        pl.colorbar(im, cax = cax)
+    cone_infl(freqs, extent, wavelet, ax)
+    if confidence_level:
+        confidence_contour(eds, extent, ax, confidence_level)
 
 
 def default_freqs(Ns, f_s, num=100):

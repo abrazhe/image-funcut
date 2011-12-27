@@ -1,5 +1,6 @@
 ### Functional programming utils for imfun package (moved from lib.py)
 
+import sys
 
 def fnchain(f,n):
     """
@@ -8,11 +9,14 @@ def fnchain(f,n):
     return flcompose(*[f]*n)
 	
 
-def fniter(f,x):
+def fniter(f,x,verbose=False):
     "Same as fnchain, but as an iterator"
-    out = x
+    counter,out = 0,x
     while True:
+	if verbose and not (counter%10):
+	    sys.stderr.write('\r iteration %05d'%counter)
         out = f(out)
+	counter += 1
 	yield out
 
 
