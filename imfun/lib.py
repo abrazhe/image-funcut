@@ -65,7 +65,7 @@ try:
             Z = np.reshape(Z,shape)
             X,Y = np.meshgrid(*map(range,shape[::-1]))
             return (Z - plane(pars,X,Y)).flatten()
-        p0 = pl.randn(3)
+        p0 = np.random.randn(3)
 	p1 = opt.leastsq(_plane_resid, p0, (arr.flatten(), arr.shape))[0]
         return p1
 except:
