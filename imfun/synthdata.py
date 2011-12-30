@@ -128,6 +128,23 @@ def gauss3d(tscale=10, xscale=20, yscale=20):
     return np.exp(-t**2/tscale - y**2/xscale - x**2/yscale)
 
 
+def simple_wave(sstart = 1.0, alpha=1.0, shape=(128,128)):
+    origin = (63.,63.)
+    sigma = sstart
+    amp = sstart
+    count = 0
+    for k in xrange(500):
+	fn = gauss2d(origin[0], origin[1], sigma,sigma)
+	def _(x,y):
+	    return tanh(5*amp*fn(x,y))
+	yield _
+	sigma += sqrt(alpha*k/sigma)
+	amp *= 0.75
+	if amp < 0.05:
+	    amp = 0
+	
+	
+
 def _____waves(shape, nobj=5):
     #out = np.zeros(shape, np.float32)
     xs,ys = shape[1:]
@@ -168,41 +185,3 @@ class LineSegment:
     
     
 
-### Simple iterative map to model Ca waves 
-### ---------------------------------------
-
-
-from imfun import bwmorph
-neighbours = bwmorph.neighbours
-neighbours2 = bwmorph.neighbours_2
-locations = bwmorph.locations
-def n3neighbors(r,c):
-    return (slice(r-1,r+2), slice(c-1,c+2))
-def cawmap(x,
-	   act_start = 1.0,
-	   deact_max = 1.5,
-	   deact_const = 0.07,
-	   fade_d = 0.9,
-	   threshold_a=0.7,
-	   transfer_coef = 0.975,
-	   pstim = 0.035):
-    pstim = pstim/np.multiply(*x.shape[1:])
-    uniform,poisson = np.random.uniform,np.random.poisson
-    new = x.copy()
-    a,d = x[0], x[1]
-    for loc in locations(a.shape):
-	local = a[n3neighbors(*loc)]
-	vamax = a[loc]
-	if np.any(local):
-	    vamax = np.max(local*(uniform(size=local.shape)>0.5))
-	if vamax > threshold_a:
-	    new[0][loc] = vamax*transfer_coef # spread 
-	    new[1][loc] = deact_max           # start deactivation
-	else:
-	    faded = a[loc]/(1.0/fade_d + deact_const*d[loc])
-	    excite = act_start*(uniform() < pstim)
-	    new[0][loc] = faded + excite
-	    new[1][loc] = fade_d*d[loc]
-    return new
-    
-    
