@@ -252,3 +252,14 @@ def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
             noise_std = estimate_sigma_mad(coefs[0])
     supp = get_support(coefs, np.array(k, _dtype_)*noise_std, modulus=False)
     return rec_with_support(coefs, supp)
+
+def DFoF(v, level=6):
+    """DF/F0 for F0 taken as approximation at given level"""
+    approx = decompose(v, level)[-1]
+    return v/approx - 1.0
+
+def DFoSD(v, level=6):
+    approx = decompose(v, level)[-1]
+    vd = v-approx
+    return vd/np.std(vd)
+    
