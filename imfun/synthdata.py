@@ -32,9 +32,6 @@ def rand_arrivals(interval, sigma = None, rand_process = ar1):
         yield x
         x += rnit.next()
 
-def take(N, seq):
-    return [seq.next() for j in xrange(N)]
-
 
 def random_spikes(tvec, isi=1.2, amp=10, tau=0.15,
                   sigma = None, spikef= None,
@@ -128,18 +125,19 @@ def gauss3d(tscale=10, xscale=20, yscale=20):
     return np.exp(-t**2/tscale - y**2/xscale - x**2/yscale)
 
 
-def simple_wave(sstart = 1.0, alpha=1.0, shape=(128,128)):
+def simple_wave(sstart = 1.0, alpha=0.8, shape=(128,128)):
     origin = (63.,63.)
     sigma = sstart
     amp = sstart
     count = 0
-    for k in xrange(500):
+    for k in xrange(50):
 	fn = gauss2d(origin[0], origin[1], sigma,sigma)
 	def _(x,y):
-	    return tanh(5*amp*fn(x,y))
+	    print amp, sigma, 1/sigma**0.25
+	    return tanh(10*amp*fn(x,y))
 	yield _
 	sigma += sqrt(alpha*k/sigma)
-	amp *= 0.75
+	amp -= 0.05*sigma**0.25
 	if amp < 0.05:
 	    amp = 0
 	

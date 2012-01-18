@@ -393,11 +393,21 @@ class CircleROI(DraggableObj):
         return fn(X,Y)
 
     def get_timeview(self, normp=False):
+	"""return timeseries from roi
+	if normp is False, returns raw timeseries v
+	if normp is a function f, returns f(v)
+	if normp is a number N, returns \Delta v/v_0, where
+	   v_0 is calculated over N first points 
+	else, returns \Delta v/v 
+	"""
         shape = self.parent.fseq.shape()
         v = self.parent.fseq.mask_reduce(self.in_circle(shape))
         if normp:
-            Lnorm = type(normp) is int and normp or len(v)
-            return (v-np.mean(v[:Lnorm]))/np.std(v[:Lnorm])
+	    if callable(normp):
+		return normp(v)
+	    else:
+		Lnorm = type(normp) is int and normp or len(v)
+		return lib.DFoF(v)
         else: return v
 
     def to_struct(self):
@@ -739,17 +749,14 @@ class Picker:
             print "disconnecting old callbacks"
             map(self.fig.canvas.mpl_disconnect, self.cid.values())
             
-    def list_roi_timeseries_from_labels(self, roi_tags, **keywords):
-        "Returns timeseres for a list of roi labels"
-        return [self.roi_timeseries_from_label(tag, **keywords)
-                for tag in roi_tags]
-
     def isCircleROI(self,tag):
         return isinstance(self.roi_objs[tag], CircleROI)
-    
+
+    def get_circle_roi_tags(self):
+	return sorted(filter(self.isCircleROI, self.roi_objs.keys()))
     def get_timeseries(self, rois=None, normp=False):
         rois = ifnot(rois,
-                     filter(self.isCircleROI, self.roi_objs.keys()))
+                     sorted(filter(self.isCircleROI, self.roi_objs.keys())))
         return [self.roi_objs[tag].get_timeview(normp)
                 for tag in  rois]
 
@@ -758,7 +765,7 @@ class Picker:
         return np.arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, normp = False):
-        rois = filter(self.isCircleROI, self.roi_objs.keys())
+        rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
         ts = self.get_timeseries(normp=normp)
         t = self.timevec()        
         fd = file(fname, 'w')
@@ -787,11 +794,12 @@ class Picker:
             y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
         ax.set_xlabel("Frequency, Hz")
+
     def show_xcorrmap(self, roitag, figsize=(6,6),
                       **kwargs):
         from scipy import ndimage
         roi =  self.roi_objs[roitag]
-        signal = self.get_timeseries([roitag],normp=True)[0]
+        signal = self.get_timeseries([roitag],normp=False)[0]
         xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
         mask = roi.in_circle(xcmap.shape)
         xshow = np.ma.masked_where(mask,xcmap)
@@ -832,7 +840,7 @@ class Picker:
         if not self.isCircleROI(roitag):
             print "This is not a circle ROI, exiting"
             return
-        signal = self.get_timeseries([roitag],normp=normp)[0]
+        signal = self.get_timeseries([roitag],normp=lib.DFoSD)[0]
         Ns = len(signal)
         f_s = 1/self.dt
         freqs = ifnot(freqs,self.default_freqs())

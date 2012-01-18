@@ -270,7 +270,7 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
         out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
     return out
 
-def local_corr_map(arr, normL=None, normfn=lib.DFoSD,
+def local_corr_map(arr, normfn=lib.DFoSD,
                    corrfn=np.correlate,
                    keyfn=lambda x:x[0],
                    verbose=False):
@@ -280,7 +280,11 @@ def local_corr_map(arr, normL=None, normfn=lib.DFoSD,
     out = np.zeros(sh)
     pixel_counter,npix = 0,np.prod(sh)
     def _v(l):
-        return arr[:,l[0],l[1]] 
+        v =  arr[:,l[0],l[1]]
+	if normfn:
+	    return normfn(v)
+	else:
+	    return v
     for loc in locations(sh):
         pixel_counter+= 1
         if verbose and not (pixel_counter % 100):
