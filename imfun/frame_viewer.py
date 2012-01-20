@@ -283,7 +283,7 @@ class FrameSequenceOpts(HasTraits):
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
-		Group('load_rois_dict_btn',
+		Group(Item('load_rois_dict_btn',show_label=False),
 		      label = 'ROIs',
 		      show_border=True),
 		label='Loading'),
