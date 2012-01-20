@@ -15,7 +15,7 @@ import numpy as np
 import pylab
 
 
-from imfun import fseq, fnmap, lib, leica, bwmorph
+from imfun import fseq, fnmap, lib, leica, bwmorph, atrous
 from imfun import ui as ifui
 import glob as Glob
 
@@ -183,18 +183,20 @@ class FrameSequenceOpts(HasTraits):
         '1. Do nothing' : lambda x:x,
         '2. Norm to SD' : lambda x: x/np.std(x),
         '3. DF/F' : lib.DFoF,
-        '4. DF/SD' : lib.DFoSD,
-        '5. Med. filter ' : mfilt7,
-        '6. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
-        '7. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
-        '8. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
-        '9. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
+        '4. DF/sigma' : lib.DFoSD,
+	'5. DF/F with detrend': atrous.DFoF,
+	'6. DF/sigma with detrend': atrous.DFoSD,	
+        '7. Med. filter ' : mfilt7,
+        '8. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
+        '9. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
+        '10. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
+        '11. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }
     gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
     ch = Enum('green', 'red', 'blue', label='Color channel')
-    glob = Str('*.tif', label='Glob', description='Image name contains...')
+    glob = Str('*_t*.tif', label='Glob', description='Image name contains...')
     leica_xml = File('', label='Leica XML', description='Leica properties file')
 
     fw_trans1 = Enum(*sorted(fw_presets.keys()),
@@ -228,54 +230,106 @@ class FrameSequenceOpts(HasTraits):
 
     export_movie_filename = File('', description='where to save the movie')
     export_fps = Float(25.0)
+    export_start = Int(0)
+    export_stop = Int(-1)
+
+
+    _export_rois_dict = File()
+    _load_rois_dict = File()
+    export_rois_dict_btn = Button('Export current ROIs')
+    load_rois_dict_btn = Button('Load ROIs from file')
+    _export_timeseries_file = File()
+    export_timeseries_btn = Button('Export timeseries from ROIs')
+
     
     reset_range_btn = Button("Set")
-    load_btn = Button("Load images",)
+    load_btn = Button("Load images")
     export_btn = Button('Export movie')
 
-    ## view for FSO
-    view = View(Group(Item('fig_path', ),
-                      Item('glob'),
-                      Item('leica_xml', width = 100),
-                      Item('ch'),
-                      Item('dt'),
-                      Item('load_btn', show_label=False),
-                      label='Loading'),
-                Group(Item('gw_opts', show_label=False,style='custom'),
-                      show_border=False,
-                      label='GW'),
-                Group(Item('fw_trans1'),
-                      Item('pw_trans'),
-                      Item('fw_trans2'),
-                      label='Post-process'),
-                Group(Group(Item('low_percentile'),
-                            Item('high_percentile'),
-                            Item('apply_percentile', show_label=False),
-                            label='Percentile',
-                            show_border=True,
-                            orientation='horizontal'),
-                      Group(Item('low_sd_lim'),
-                            Item('high_sd_lim'),
-                            Item('apply_sd_lim', show_label=False),
-                            label='%SD',
-                            show_border=True,
-                            orientation='horizontal'),
-                      HSplit(Item('vmax'),
-                             Item('vmin'),
-                             Item('reset_range_btn',show_label=False),
-                             show_border=True,
-                             label='Limits',
-                             springy=True),
-                      HSplit(Item('interpolation'),
-                             Item('colormap'),
-                             show_border=True,
-                             label='Matplotlib'),
-                      label='Display'),
-                Group(Item('export_movie_filename',label='Export to'),
-                      Item('export_fps', label='Frames/sec'),
-                      Item('export_btn', show_label=False),
-                      label='Export'),
-                width = 800, )
+    load_rois_dict_view = View(
+     	Item('_load_rois_dict'), 
+     	buttons = OKCancelButtons,
+     	kind = 'livemodal',
+     	width = 600,
+     	title = "Load ROIs from file",
+     	resizable = True,)
+    
+
+    export_rois_dict_view = View(
+     	Item('_export_rois_dict'), 
+     	buttons = OKCancelButtons,
+     	kind = 'livemodal',
+     	width = 600,
+     	title = "Export current ROIs to a dictionary",
+     	resizable = True,)
+
+    export_timeseries_view = View(
+     	Item('_export_timeseries_file'), 
+     	buttons = OKCancelButtons,
+     	kind = 'livemodal',
+     	width = 600,
+     	title = "Export timeseries from current ROIs",
+     	resizable = True,)
+
+    
+
+    def default_traits_view(self):
+	## has to be a method so we can declare views for dialogs !?
+	view = View(
+	    Group(
+		Group('fig_path', 'glob',
+		      Item('leica_xml', width = 100),
+		      'ch', 'dt',
+		      Item('load_btn', show_label=False),
+		      label = 'Frame sequence',
+		      show_border=True),
+		Group('load_rois_dict_btn',
+		      label = 'ROIs',
+		      show_border=True),
+		label='Loading'),
+	    Group(Item('gw_opts', show_label=False,style='custom'),
+		  show_border=False,
+		  label='GW'),
+	    Group('fw_trans1', 'pw_trans', 'fw_trans2',
+		  label='Post-process'),
+	    Group(Group(Item('low_percentile'),
+			Item('high_percentile'),
+			Item('apply_percentile', show_label=False),
+			label='Percentile',
+			show_border=True,
+			orientation='horizontal'),
+		  Group(Item('low_sd_lim'),
+			Item('high_sd_lim'),
+			Item('apply_sd_lim', show_label=False),
+			label='%SD',
+			show_border=True,
+			orientation='horizontal'),
+		  HSplit(Item('vmax'),
+			 Item('vmin'),
+			 Item('reset_range_btn',show_label=False),
+			 show_border=True,
+			 label='Limits',
+			 springy=True),
+		  HSplit(Item('interpolation'),
+			 Item('colormap'),
+			 show_border=True,
+			 label='Matplotlib'),
+		  label='Display'),
+	    Group(Group(Item('export_movie_filename',label='Export to'),
+			Item('export_fps', label='Frames/sec'),
+			Item('export_start', label='Start frame'),
+			Item('export_stop', label='Stop frame'),
+			Item('export_btn', show_label=False),
+			show_border=True,
+			label='Movie'),
+		  Group('export_rois_dict_btn',
+			'export_timeseries_btn',
+			show_border=True,
+			show_labels=False,
+			label='ROIs'),
+		  label="Export"),
+	    width = 800, )
+	return view
     def __init__(self, parent):
         self.parent = parent
         self.get_fs = self.get_fs2
@@ -283,7 +337,7 @@ class FrameSequenceOpts(HasTraits):
     def _fig_path_changed(self):
         png_pattern = str(self.fig_path + os.sep + '*.png')
         if len(fseq.sorted_file_names(png_pattern)) > 30:
-            self.glob = '*.png'
+            self.glob = '*_t*.png'
         self.leica_xml = leica.get_xmljob(self.fig_path)
 
     def _glob_changed(self):
@@ -387,15 +441,42 @@ class FrameSequenceOpts(HasTraits):
         gw_opts = GWOpts(self)
         return gw_opts
 
+
     def _export_btn_fired(self):
         seq = self.get_fs2()
         seq.export_mpeg(self.export_movie_filename,
                         fps = self.export_fps,
+			start = self.export_start,
+			stop = self.export_stop,
                         cmap=self.colormap,
                         interpolation = self.interpolation,
                         vmin = self.vmin,
                         vmax=self.vmax)
 
+    def _load_rois_dict_btn_fired(self):
+	ui = self.edit_traits(view='load_rois_dict_view')
+	if ui.result == True:
+	    print self._load_rois_dict
+	    picker = self.parent.picker
+	    picker.load_rois(self._load_rois_dict)
+
+
+    def _export_rois_dict_btn_fired(self):
+	print "in _export_rois_dict_btn_fired"
+	ui = self.edit_traits(view='export_rois_dict_view')
+	if ui.result == True:
+	    print self._export_rois_dict
+	    picker = self.parent.picker
+	    picker.save_rois(self._export_rois_dict)
+
+    def _export_timeseries_btn_fired(self):
+	print "_export_timeseries_btn_fired"
+	ui = self.edit_traits(view='export_timeseries_view')
+	if ui.result == True:
+	    print self._export_timeseries_file
+	    picker = self.parent.picker
+	    picker.save_time_series_to_file(self._export_timeseries_file)
+	
     def _load_btn_fired(self):
         if self.parent.frames is not None:
             del self.parent.frames
@@ -409,7 +490,7 @@ class FrameSequenceOpts(HasTraits):
         self.parent._recalc_btn_fired()
 	print 'recalc'
 
-class Test(HasTraits):
+class FrameViewer(HasTraits):
     fso = Instance(FrameSequenceOpts)
     figure = Instance(Figure, ())
     max_frames = Int(100)
@@ -438,9 +519,6 @@ class Test(HasTraits):
                        Item('fso', style='custom'),
                        springy = True,
                        show_labels=False),
-                #menubar = MenuBar(Separator(),
-                #                  CloseAction,
-                #                  name = 'File'),
                 width=1200,
                 height=600,
                 resizable=True,
@@ -516,7 +594,7 @@ class Test(HasTraits):
 
 
 def main():
-    Test().configure_traits()
+    FrameViewer().configure_traits()
 
 if __name__ == "__main__":
     main()
