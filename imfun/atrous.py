@@ -265,8 +265,9 @@ def DFoF(v, level=6):
 def DFoSD(v, level=6):
     approx = decompose(v, level)[-1]
     vd = v-approx
-    zi = np.where(np.abs(vd) < 1e-6)
     sd = np.std(vd)
-    sd[zi] = 1.0
+    if sd ==0:
+	return np.zeros(vd.shape)
     return vd/sd
     
+
