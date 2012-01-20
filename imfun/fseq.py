@@ -122,8 +122,8 @@ class FrameSequence(object):
         stop = min(ifnot(stop,L), L)
 	count = 0
         for k,frame in enumerate(frameit):
-	    if k < stop: continue
-	    elif k>=nframes: break
+	    if k < start: continue
+	    elif k>=stop: break
             res += frame
 	    count += 1
         return res/(count+1)
