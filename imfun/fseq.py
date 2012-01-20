@@ -211,7 +211,7 @@ class FrameSequence(object):
         lib.ensure_dir(path)
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
-        if stop is None:
+        if stop is None or stop == -1:
             stop = self.length()
         vmin = ifnot(vmin, np.min(map(np.min, self.frames()))) # for scale
         vmax = ifnot(vmax, np.max(map(np.max, self.frames()))) # for scale

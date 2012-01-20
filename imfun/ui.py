@@ -583,7 +583,7 @@ class Picker:
             #drc.connect()
         self.legend()    
         #self.ax1.legend()
-        pl.draw()
+        self.ax1.figure.canvas.draw()
 
     def legend(self):
         if self._show_legend == True:
@@ -692,7 +692,7 @@ class Picker:
                                    for l in lines]))
 
         #self.ax1.legend()
-        pl.draw() # redraw the axes
+        self.ax1.figure.canvas.draw() # redraw the axes
         return
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
