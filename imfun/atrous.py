@@ -256,10 +256,17 @@ def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
 def DFoF(v, level=6):
     """DF/F0 for F0 taken as approximation at given level"""
     approx = decompose(v, level)[-1]
-    return v/approx - 1.0
+    zi = np.where(np.abs(approx) < 1e-6)
+    approx[zi] = 1.0
+    out = v/approx - 1.0
+    out[zi] = 0
+    return out
 
 def DFoSD(v, level=6):
     approx = decompose(v, level)[-1]
     vd = v-approx
-    return vd/np.std(vd)
+    zi = np.where(np.abs(vd) < 1e-6)
+    sd = np.std(vd)
+    sd[zi] = 1.0
+    return vd/sd
     
