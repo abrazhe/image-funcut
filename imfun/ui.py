@@ -714,8 +714,10 @@ class Picker:
         if vmin is None: vmin = avmin
         if vmax is None: vmax = avmax
         if hasattr(self.fseq, 'ch'):
-            pl.title("Channel: %s" % ('red', 'green')[self.fseq.ch] )
-        if mean_frame:
+            pl.title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
+        if type(mean_frame) is np.ndarray:
+	    f = mean_frame
+	elif mean_frame:
             f = self.fseq.mean_frame()
         else:
             f = self.fseq.frames().next()
