@@ -201,21 +201,28 @@ def get_support(coefs, th, neg=False, modulus = True, ):
 
 def estimate_sigma(arr, coefs, k=3, eps=0.01, max_iter=1e9):
     sprev = estimate_sigma_mad(coefs[0])
-    #sprev = arr.std()
     for j in xrange(int(max_iter)):
         supp = get_support(coefs, sprev*k, neg=True)
         mask = np.prod(supp[:-1], axis=0)
         snext =  np.std((arr-coefs[-1])[mask])
-        #print snext, sprev
-        assert np.sum(mask) > 0
         if abs(sprev-snext)/snext <= eps:
             return snext
         sprev = snext
     return sprev
 
+def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
+    d = np.ravel(decompose(arr,1)[0])
+    for j in xrange(max_iter):
+	d = d[abs(d) < k*np.std(d)]
+    return np.std(d)
 
-def estimate_sigma_mad(coefarr):
-    return np.median(np.abs(coefarr))/(0.6745*sigmaej[2][0])
+def estimate_sigma_mad(arr, is_details = False):
+    if is_details:
+	w1 = arr
+    else:
+	w1 = decompose(arr,1)[0]
+    nd = w1.ndim
+    return np.median(np.abs(w1))/(0.6745*sigmaej[nd][0])
 
 def smooth(arr, level=1):
     return decompose(arr, level)[-1]
@@ -249,7 +256,7 @@ def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
         if f.ndim < 3:
             noise_std = estimate_sigma(f, coefs) / 0.974 # magic value
         else:
-            noise_std = estimate_sigma_mad(coefs[0])
+            noise_std = estimate_sigma_mad(coefs[0], True)
     supp = get_support(coefs, np.array(k, _dtype_)*noise_std, modulus=False)
     return rec_with_support(coefs, supp)
 
