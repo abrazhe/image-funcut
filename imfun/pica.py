@@ -47,6 +47,25 @@ def pca(X, ncomp=None):
     K = (U/s).T[:ncomp]
     return Z, K, s[:ncomp], X_mean
 
+def pca_svd(X):
+    """Variant for ellipse fitting
+    Input:
+    X : data points, dimensions are columns, independent observarions are rows
+
+    Output:
+    Vh : PC vectors
+    phi: rotation of main axis (in degrees)
+    ranges: data ranges of projections on PC axes
+    center: center of the data
+    """
+    c0 = X.mean(axis=0)
+    X1 = (X - c0)
+    U,s,Vh = svd(X1, full_matrices=False)
+    ax, ay = Vh.T
+    Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
+    ranges = [y.max() - y.min() for y in Y]
+    phi = np.rad2deg(np.arctan(Vh[0,1]/Vh[0,0])) # rotation of main axis (for Ellipse)
+    return Vh, phi, ranges, c0
 
 def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
@@ -366,7 +385,7 @@ def _pca1 (X, verbose=False):
     - esq, vector of eigenvalues
     """
     print "Please don't use this, it's not ready"
-    return
+    #return
     tick = time.clock()
     n_data, n_dimension = X.shape # (m x n)
     Y = X - X.mean(axis=0)[np.newaxis,:] # remove mean
