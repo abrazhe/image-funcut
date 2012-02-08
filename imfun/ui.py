@@ -123,8 +123,9 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
     if vmin is None:
         vmin = np.min(map(np.min, frames))
 
-
-    sy,sx = fseq.shape()
+    sh = fseq.shape()
+    sy,sx = sh[:2]
+	
     dy,dx, scale_setp = fseq.get_scale()
 
     plf = axf.imshow(frames[0],
@@ -789,6 +790,7 @@ class Picker:
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             ax.plot(t, x, color = roi.get_facecolor())
             pl.xlim((0,t[-1]))
+	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
         freqs = np.fft.fftfreq(int(L), self.dt)[1:L/2]
@@ -882,20 +884,21 @@ class Picker:
 
     def roi_show_iterator(self, rois = None,
                               normp=False):
-            rois = ifnot(rois,
-                         filter(self.isCircleROI, self.roi_objs.keys()))
-            L = len(rois)
-            if L < 1: return
-            fig = pl.figure(figsize=(8,4.5), dpi=80)
-            for i, roi_label in enumerate(rois):
-                roi = self.roi_objs[roi_label].obj
-                ax = fig.add_subplot(L,1,i+1)
-                x = self.roi_objs[roi_label].get_timeview(normp=normp)
-                if i == L-1:
-                    ax.set_xlabel("time, sec")
-                ax.set_ylabel(roi_label)
-                yield x, roi_label, roi, ax
-            fig.show()
+	rois = ifnot(rois,
+                     sorted(filter(self.isCircleROI, self.roi_objs.keys())))
+	
+	L = len(rois)
+	if L < 1: return
+	fig = pl.figure(figsize=(8,4.5), dpi=80)
+	for i, roi_label in enumerate(rois):
+	    roi = self.roi_objs[roi_label].obj
+	    ax = fig.add_subplot(L,1,i+1)
+	    x = self.roi_objs[roi_label].get_timeview(normp=normp)
+	    if i == L-1:
+		ax.set_xlabel("time, sec")
+	    ax.set_ylabel(roi_label)
+	    yield x, roi_label, roi, ax
+	fig.show()
 
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,

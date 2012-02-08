@@ -20,6 +20,33 @@ def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')
 
 
+def gauss_smooth(sig, sigma=1., dt = 1.0, order=0):
+    sigma = sigma/dt
+    ndim = np.ndim(sig)
+    if ndim == 1:
+	fn = ndimage.gaussian_filter1d
+    else:
+	fn = ndimage.gaussian_filter
+    return fn(sig, sigma, order=order)
+
+
+def mavg_DFoF(v, tau=90., dt=1.):
+    baseline = gauss_smooth(v, tau, dt)
+    zi = np.where(np.abs(baseline) < 1e-6)
+    baseline[zi] = 1.0
+    out = v/baseline - 1.0
+    out[zi] = 0
+    return out
+
+def mavg_DFoSD(v, tau=90., dt=1.):
+    baseline = gauss_smooth(v, tau, dt)
+    vd = v - baseline
+    sd = np.std(vd)
+    if sd < 1e-6:
+	return np.zeros(vd.shape)
+    return vd/sd
+
+
 def mirrorpd(k, L):
     if 0 <= k < L : return k
     else: return -(k+1)%L
@@ -43,7 +70,7 @@ def adaptive_medianf(arr, k = 2):
     out = arr.copy()
     for row in xrange(1,sh[0]-1):
         for col in xrange(1,sh[1]-1):
-            sl = (slice(row-1,row+1), slice(col-1,col+1))
+            sl = (slice(row-1,row+2), slice(col-1,col+2))
             m = np.mean(arr[sl])
             sd = np.std(arr[sl])
             if (arr[row,col] > m+k*sd) or \

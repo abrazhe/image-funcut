@@ -394,16 +394,16 @@ def group_plots(ylist, ncols, x = None,
     figsize = ifnot(figsize, (2*ncols,2*nrows))
     if new_figure:
 	    pl.figure(figsize=figsize)
-    x = ifnot(x, range(len(ylist[0])))
     ymin,ymax = data_range(ylist)
     for i,f in enumerate(ylist):
+	x1 = ifnot(x, range(len(f)))
         if i == 0:
 	    top = pl.subplot(nrows,ncols,i+1)
 	else:
 	    _ax = pl.subplot(nrows,ncols,i+1, sharex=top)
 	if sameyscale:
 	    pl.ylim(ymin,ymax)
-	_im = pl.plot(x, f, **imkw)
+	_im = pl.plot(x1, f, **imkw)
 	if titles is not None: pl.title(titles[i])
 	if ylabels is not None: pl.ylabel(ylabels[i])
     if suptitle:
