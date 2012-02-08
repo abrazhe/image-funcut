@@ -1,6 +1,8 @@
+### Functional mapping tools 
+
+
 import numpy as np
 import time, sys
-#from imfun.aux_utils import ifnot
 from swan import pycwt
 
 from imfun import lib, bwmorph
@@ -131,19 +133,6 @@ def cwt_freqmap(fseq,
             return np.nan
 	i = np.argmax(mlab.detrend_linear(ma))
 	return freqs[i]
-        ## #x = loc_max_pos(ma)
-        ## if x:
-        ##     xma = ma[x]
-        ##     xma1 = (xma>=np.max(xma)).nonzero()[0]
-        ##     n = x[xma1]
-        ## else:
-        ##     print "No local maxima. This shouldn't have happened!"
-        ##     x = (ma>=np.max(ma)).nonzero()[0]
-        ##     try: n = x[0]
-        ##     except:
-        ##         n = 0
-        ##         print x,ma
-        ## return freqs[n]
     return cwtmap(fseq,tranges,freqs,func=_dominant_freq,**kwargs)
 
 
@@ -198,7 +187,7 @@ def MH_onoff(start,stop):
         return v
     return _
 
-DFoSD = lib.DFoSD # Normalization function
+DFoSD = lib.DFoSD # Simple normalization function
 
 def detrend(y, ord=2, take=None):
     x = np.arange(len(y))
@@ -269,6 +258,21 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
     for s,j,k in fseq.pix_iter():
         out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
     return out
+
+def xcorr_lag(fseq, signal, **kwargs):
+    from imfun import atrous
+    tv = fseq.timevec
+    tv1 = np.concatenate((-tv[::-1], tv[1:]))
+    def fn(v):
+	xcorr = np.correlate(signal, v, mode='full')
+	xcorr = atrous.smooth(xcorr, 6)
+	maxima = lib.locextr(xcorr, x=tv1, output='max')
+	k = argmax([x[1] for x in maxima])
+	return maxima[k]
+    
+    return xcorrmap(fseq, signal, corrfn=fn,
+		    keyfn = lambda x:x[0],
+		    **kwargs)
 
 def local_corr_map(arr, normfn=lib.DFoSD,
                    corrfn=np.correlate,
