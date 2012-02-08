@@ -6,7 +6,7 @@ import glob
 import itertools as itt
 import numpy as np
 import tempfile as tmpf
-from scipy import signal
+#from scipy import signal
 
 
 _dtype_ = np.float64
@@ -42,20 +42,15 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
                     iter_files(pattern, loadfn))
 
 
-def gauss_kern(xsize=1.5, ysize=None):
-    """ Returns a normalized 2D gauss kernel for convolutions """
-    xsize = int(xsize)
-    ysize = ysize and int(ysize) or xsize
-    x, y = np.mgrid[-xsize:xsize+1, -ysize:ysize+1]
-    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
-    return g / g.sum()
+def fseq_from_glob_2(pattern, ch=None, loadfn=np.load):
+    "Sequence of frames from filenames matching a glob"
+    pngflag = (pattern[-3:] == 'png')
+    if ch is not None:
+	return itt.imap(lambda frame: img_getter(frame, ch, pngflag),
+			iter_files(pattern, loadfn))
+    else:
+	return iter_files(pattern, loadfn)
 
-
-#default_kernel = gauss_kern
-
-
-def gauss_blur(X,size=1.0):
-    return signal.convolve2d(X,gauss_kern(size),'same')
 
 class FrameSequence(object):
     "Base class for sequence of frames"
@@ -93,9 +88,9 @@ class FrameSequence(object):
 	return lib.flcompose(identity, *self.fns)
 
     def data_percentile(self, p):
-        from scipy.stats import scoreatpercentile
+        #from scipy.stats import scoreatpercentile
         arr = self.as3darray().flatten()
-        return scoreatpercentile(arr,p)
+        return np.percentile(arr,p)
 
     def timevec(self,):
         "vector of time values"
@@ -120,13 +115,13 @@ class FrameSequence(object):
         res = np.copy(frameit.next())
 	if start is None: start =0
         stop = min(ifnot(stop,L), L)
-	count = 0
+	count = 1
         for k,frame in enumerate(frameit):
 	    if k < start: continue
 	    elif k>=stop: break
             res += frame
 	    count += 1
-        return res/(count+1)
+        return res/(count)
 
 
     def aslist(self, fn = None, maxN=None, sliceobj=None):
@@ -142,8 +137,8 @@ class FrameSequence(object):
                   dtype = _dtype_):
         fiter = self.frame_slices(sliceobj, fn=fn)
         shape = self.shape(sliceobj, fn=fn)
-        N =  self.length()*shape[0]*shape[1]
-        out = lib.memsafe_arr((self.length(), shape[0], shape[1]), dtype)
+	newshape = [self.length()] + list(shape)
+        out = lib.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(fiter, maxN)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
@@ -182,9 +177,26 @@ class FrameSequence(object):
         "Returns shape of frames in the sequence"
         return self.frame_slices(sliceobj, fn = fn).next().shape
 
+    def norm_mavg(self, tau=90., **kwargs):
+	"Returns normalized frame sequence"
+	from scipy import ndimage
+	if kwargs.has_key('dtype'):
+	    dtype = kwargs['dtype']
+	else:
+	    dtype = _dtype_
+	dt = self.dt
+	arr = self.as3darray(**kwargs)
+	sigma = tau/dt
+	smooth =  ndimage.gaussian_filter1d(arr, sigma, axis=0)
+	zi = np.where(np.abs(smooth) < 1e-6)
+	out  = arr/smooth - 1.0
+	out[zi] = 0
+	return FSeq_arr(out, dt = dt, dx=self.dx, dy = self.dy)
+	
+
     def pw_transform(self, pwfn, verbose=False, **kwargs):
         """Create another frame sequence, pixelwise applying a provided function"""
-        nrows, ncols = self.shape()
+	nrows, ncols = self.shape()[:2]
         #out = np.zeros((self.length(), nrows, ncols))
 	if kwargs.has_key('dtype'):
 	    dtype = kwargs['dtype']
@@ -216,37 +228,38 @@ class FrameSequence(object):
         vmin = ifnot(vmin, np.min(map(np.min, self.frames()))) # for scale
         vmax = ifnot(vmax, np.max(map(np.max, self.frames()))) # for scale
         kwargs.update({'vmin':vmin, 'vmax':vmax})
-        L = self.length()
+	print path+base
+        L = min(stop-start, self.length())
+	fnames = []
         for i,frame in enumerate(self.frames()):
             if i < start: continue
             if i > stop: break
             ax.cla()
             ax.imshow(frame, aspect='equal', **kwargs)
             fname =  path + base + '%06d.png'%i
+	    fnames.append(fname)
             if show_title:
                 ax.set_title('frame %06d (%3.3f s)'%(i, i*self.dt))
             fig.savefig(fname)
             sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
         plt.close()
+	return fnames
     def export_mpeg(self, mpeg_name, fps = None, **kwargs):
         import os
         "Creates an mpg  movie from frame sequence with mencoder"
         print "Saving frames as png"
-        path, base = './', '_tmp'
         if fps is None:
-            fps = 1/self.dt
-        self.export_img(path, base, **kwargs)
-        L = self.length()
-        if kwargs.has_key('stop'): L = kwargs['stop']
-        if kwargs.has_key('start'):
-            start = kwargs['start']
-        else:
-            start = 0
+            fps = 10/self.dt
+	if not kwargs.has_key('path'):
+	    kwargs['path'] = './'
+	if not kwargs.has_key('base'):
+	    kwargs['base'] = '-mpeg-export'
+	path,base = kwargs['path'], kwargs['base']
+	fnames = self.export_img(**kwargs)
         print 'Running mencoder, this can take a while'
-        mencoder_string = """mencoder mf://_tmp*.png -mf type=png:fps=%d\
-        -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(fps,mpeg_name)
+        mencoder_string = """mencoder mf://%s*.png -mf type=png:fps=%d\
+        -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(path+base,fps,mpeg_name)
         os.system(mencoder_string)
-        fnames = (path + base + '%06d.png'%i for i in xrange(start,L))
         map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):
@@ -294,18 +307,21 @@ class FSeq_glob(FrameSequence):
         fn = ifnot(fn, self.pipeline())
         ## Examples of processing functions can be found in scipy.ndimage module
         ## TODO: a list of hook functions
-        return itt.imap(fn, fseq_from_glob(self.pattern,
+        return itt.imap(fn, fseq_from_glob_2(self.pattern,
 					   ifnot(ch, self.ch), self.loadfn))
     def __getitem__(self, val):
 	pngflag = self.file_names[0][-3:] == 'png'
+	fn = self.pipeline()
 	if type(val) is int:
-	    frame = img_getter(self.loadfn(self.file_names[val]),
-			       self.ch, pngflag)
-	    return self.pipeline()(frame)
+	    frame = self.loadfn(self.file_names[val])
+	    if self.ch is not None:
+		frame = img_getter(frame, self.ch, pngflag)
+	    return fn(frame)
 	else:
 	    seq =  map(self.loadfn, self.file_names[val])
-	    seq = [img_getter(f, self.ch, pngflag) for f in seq]
-	    return map(lib.flcompose(identity, *self.fns), seq)
+	    if self.ch is not None:
+		seq = [img_getter(f, self.ch, pngflag) for f in seq]
+	    return map(fn, seq)
 	
 class FSeq_img(FSeq_glob):
     loadfn = lambda self,y: imread(y)

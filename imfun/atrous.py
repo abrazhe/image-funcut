@@ -200,7 +200,7 @@ def get_support(coefs, th, neg=False, modulus = True, ):
 
 
 def estimate_sigma(arr, coefs, k=3, eps=0.01, max_iter=1e9):
-    sprev = estimate_sigma_mad(coefs[0])
+    sprev = estimate_sigma_mad(coefs[0], True)
     for j in xrange(int(max_iter)):
         supp = get_support(coefs, sprev*k, neg=True)
         mask = np.prod(supp[:-1], axis=0)
