@@ -16,6 +16,7 @@ import pylab
 
 
 from imfun import fseq, fnmap, lib, leica, bwmorph, atrous
+from imfun import filt
 from imfun import ui as ifui
 import glob as Glob
 
@@ -137,7 +138,7 @@ class GWOpts(HasTraits):
                 pwfn = lib.flcompose2(fn1,
                                       medfilt_fn(self.tmedian_k))
             seq1 = seq.pw_transform(pwfn)
-            seq1.fns = [partial(fseq.gauss_blur, size=self.gauss_size)]
+            seq1.fns = [partial(filt.gauss_blur, size=self.gauss_size)]
             arr = seq1.as3darray()     # new array with spatially-smoothed data
             sds = float(np.std(arr))   # standard deviation in all data
             binarr = arr > sds*self.sigma_thresh
@@ -176,19 +177,19 @@ class FrameSequenceOpts(HasTraits):
     normL = Int(250, label="N baseline frames")
     fw_presets = {
         '1. Do nothing' : [],
-        '2. Gauss blur' : [fseq.gauss_blur],
+        '2. Gauss blur' : [filt.gauss_blur],
         '3. Median filter' : [lambda v:signal.medfilt(v,3)]
         }
     pw_presets = {
-        '1. Do nothing' : lambda x:x,
-        '2. Norm to SD' : lambda x: x/np.std(x),
-        '3. DF/F' : lib.DFoF,
-        '4. DF/sigma' : lib.DFoSD,
-	'5. DF/F with detrend': atrous.DFoF,
-	'6. DF/sigma with detrend': atrous.DFoSD,	
-        '7. Med. filter ' : mfilt7,
-        '8. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
-        '9. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
+        '01. Do nothing' : lambda x:x,
+        '02. Norm to SD' : lambda x: x/np.std(x),
+        '03. DF/F' : lib.DFoF,
+        '04. DF/sigma' : lib.DFoSD,
+	'05. DF/F with detrend': atrous.DFoF,
+	'06. DF/sigma with detrend': atrous.DFoSD,	
+        '07. Med. filter ' : mfilt7,
+        '08. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
+        '09. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
         '10. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
         '11. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }

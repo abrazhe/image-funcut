@@ -30,6 +30,7 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
          min_reassign=10,
          max_iter = 1e5,
          distance=euclidean,
+	 output = 'last',
          verbose = 0):
     """SOM as described in Bacao, Lobo and Painho, 2005"""
 
@@ -47,6 +48,7 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         grid[l] = patterns[k]
     affiliations = np.ones(Npts)*-1
     reassigned = len(affiliations)
+    out = []
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
         affiliations_prev = affiliations.copy()
         for k,p in enumerate(patterns):
@@ -62,11 +64,14 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         r *= fade_coeff
         reassigned = np.sum(affiliations != affiliations_prev)
         niter +=1
-        if verbose:
-            outstr = "\r%4.3e, %4.3e, %06d %06d"%(alpha, r, reassigned, niter)
-            if verbose > 2: outstr = oustr + ' \n'
-            sys.stderr.write(outstr)
-    return affiliations
+        ## if verbose:
+        ##     outstr = "\r %4.3e, %4.3e, %06d %06d"%(alpha, r, reassigned, niter)
+        ##     if verbose > 2: outstr = oustr + ' \n'
+        ##     sys.stderr.write(outstr)
+	out.append(affiliations.copy())
+    if output == 'last':
+	out = affiliations
+    return out
 
 def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
               distance=euclidean):
