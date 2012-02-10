@@ -261,17 +261,16 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
 
 def xcorr_lag(fseq, signal, **kwargs):
     from imfun import atrous
-    tv = fseq.timevec
+    tv = fseq.timevec()
     tv1 = np.concatenate((-tv[::-1], tv[1:]))
-    def fn(v):
-	xcorr = np.correlate(signal, v, mode='full')
-	xcorr = atrous.smooth(xcorr, 6)
+    def fn(v1,v2):
+	xcorr = np.correlate(v1, v2, mode='full')
+	xcorr = atrous.smooth(xcorr, 2)
 	maxima = lib.locextr(xcorr, x=tv1, output='max')
-	k = argmax([x[1] for x in maxima])
+	k = np.argmax([x[1] for x in maxima])
 	return maxima[k]
     
     return xcorrmap(fseq, signal, corrfn=fn,
-		    keyfn = lambda x:x[0],
 		    **kwargs)
 
 def local_corr_map(arr, normfn=lib.DFoSD,
