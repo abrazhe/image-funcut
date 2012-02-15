@@ -931,6 +931,28 @@ class Picker:
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 
+    def show_roi_xcorrs(self, corrfn = None, normp = lib.DFoSD,
+			getter = lambda x: x[0]):
+	if corrfn == None:
+	    corrfn = fnmap.stats.pearsonr
+	rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
+	ts = self.get_timeseries(normp=normp)
+        t = self.timevec()
+	nrois = len(rois)
+	if nrois < 2:
+	    print "not enough rois, pick more"
+	    return
+        out = np.zeros((nrois, nrois))
+	for k1, k2 in lib.allpairs(range(nrois)):
+	    coef = getter(corrfn(ts[k1], ts[k2]))
+	    out[k2,k1] = coef
+	pl.figure();
+	ax = pl.imshow(out, aspect='equal', interpolation='nearest')
+	ticks = np.arange(nrois)
+	pl.setp(ax.axes, xticks=ticks, yticks=ticks),
+	pl.setp(ax.axes, xticklabels=rois, yticklabels=rois)
+	pl.colorbar()
+	return out
 
     def show_xwt(self, **kwargs):
         for p in lib.allpairs(filter(self.isCircleROI, self.roi_objs.keys())):

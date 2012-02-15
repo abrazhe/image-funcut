@@ -20,6 +20,8 @@ flcompose = fnutils.flcompose
 take = fnutils.take
 
 
+import sys
+sys.setrecursionlimit(10000)
 
 def flatten(x,acc=None):
    acc = ifnot(acc,[])

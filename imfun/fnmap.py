@@ -259,18 +259,27 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
         out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
     return out
 
-def xcorr_lag(fseq, signal, **kwargs):
-    from imfun import atrous
-    tv = fseq.timevec()
-    tv1 = np.concatenate((-tv[::-1], tv[1:]))
-    def fn(v1,v2):
-	xcorr = np.correlate(v1, v2, mode='full')
+def corrlag(timevec):
+    """Factory: takes time vector. Returns a function,
+    which takes two vectors, returns position and amplitude
+    of the main peak in cross-correlation function
+    """
+    from imfun import atrous, lib
+    tv1 = tv1 = np.concatenate((-timevec[::-1], timevec[1:]))
+    def _(v1,v2):
+	v1n = lib.DFoSD(v1)/len(v1)
+	xcorr = np.correlate(v1n, lib.DFoSD(v2), mode='full')
 	xcorr = atrous.smooth(xcorr, 2)
 	maxima = lib.locextr(xcorr, x=tv1, output='max')
 	k = np.argmax([x[1] for x in maxima])
 	return maxima[k]
-    
-    return xcorrmap(fseq, signal, corrfn=fn,
+    return _
+
+
+def xcorr_lag(fseq, **kwargs):
+    from imfun import atrous
+    tv = fseq.timevec()
+    return xcorrmap(fseq, signal, corrfn=corrlag(tv),
 		    **kwargs)
 
 def local_corr_map(arr, normfn=lib.DFoSD,

@@ -11,6 +11,8 @@ from imfun import cluster
 
 import sys
 
+sys.setrecursionlimit(10000)
+
 _dtype_ = atrous._dtype_
 _show_time_ = False
 
@@ -376,9 +378,12 @@ def framewise_find_objects(frames, min_frames=5,
     print ""
     linkables = make_linkable(framewise)
     res = connect_framewise_objs(linkables, testfn=testfn)
-    res = [r for r in res if nframes_linked(r) >=min_frames] 
+    res = filter_linked(res, min_frames)
     return [restore_linked(r,L) for r in res]
 
+@lib.with_time_dec
+def filter_linked(res, min_frames):
+    return [r for r in res if nframes_linked(r) >=min_frames] 
 
 def slice2range(_slice):
     "returns arange from a slice"
@@ -416,6 +421,10 @@ def last_leaf(root):
     if root.branches == []: return root.frame
     else: return np.max([last_leaf(n) for n in root.branches])
 
+def _last_leaf(root):
+    n = root.frame
+    pass
+
 def nframes_linked(root):
     return last_leaf(root) - root.frame + 1
 
@@ -425,6 +434,7 @@ def roots_only(objlist):
 def excluding(item, _list):
     return [e for e in _list if e is not item]
 
+@lib.with_time_dec
 def prune_multiple_prevs(objlist):
     """
     each object in a frame n can only have one
@@ -446,6 +456,7 @@ def prune_multiple_prevs(objlist):
     return objlist
 	     
 
+@lib.with_time_dec
 def connect_framewise_objs(objlist,testfn = recobjs_overlap, nnext=3):
     for j,frame in enumerate(objlist[:-nnext]):
 	nextframes = objlist[j+1:j+nnext+1]
