@@ -90,7 +90,9 @@ class FrameSequence(object):
     def data_percentile(self, p):
         #from scipy.stats import scoreatpercentile
         arr = self.as3darray().flatten()
-        return np.percentile(arr,p)
+        res =  np.percentile(arr,p)
+	del arr
+	return res
 
     def timevec(self,):
         "vector of time values"
@@ -225,8 +227,12 @@ class FrameSequence(object):
         ax = fig.add_subplot(111)
         if stop is None or stop == -1:
             stop = self.length()
-        vmin = ifnot(vmin, np.min(map(np.min, self.frames()))) # for scale
-        vmax = ifnot(vmax, np.max(map(np.max, self.frames()))) # for scale
+	if hasattr(self, 'data'):
+	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
+	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
+	else:
+	    vmin = np.min(map(np.min, self.frames()))
+	    vmax = np.min(map(np.max, self.frames()))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
 	print path+base
         L = min(stop-start, self.length())
@@ -282,6 +288,10 @@ class FSeq_arr(FrameSequence):
 	for j,f in enumerate(x):
 	    out[j] = self.pipeline()(x)
 	return out
+    def data_percentile(self, p):
+        #from scipy.stats import scoreatpercentile
+        return np.percentile(np.ravel(self.data),p)
+
     def frames(self, fn=None):
         #fn = ifnot(fn, self.fn)
         fn = ifnot(fn, self.pipeline())
