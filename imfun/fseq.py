@@ -124,6 +124,21 @@ class FrameSequence(object):
             res += frame
 	    count += 1
         return res/(count)
+    
+    def max_project(self, start = None, stop=None, fn=None):
+        "Create max-projection image from start to stop frame (all by default)"
+        L = self.length()
+        frameit = itt.imap(_dtype_, self.frames(fn))
+        res = np.copy(frameit.next())
+	start = max(ifnot(start, 0), 0)
+        stop = min(ifnot(stop,L), L)
+	out = frameit.next()
+        for k,frame in enumerate(frameit):
+	    if k <= start: continue
+	    elif k>stop: break
+	    out = np.max([out, frame], axis=0)
+        return out
+
 
 
     def aslist(self, fn = None, maxN=None, sliceobj=None):
