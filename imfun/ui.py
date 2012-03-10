@@ -110,7 +110,7 @@ def rezip(a):
     return zip(*a)
 
 
-def view_fseq_frames(fseq, vmin = None, vmax = None):
+def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
     f = pl.figure()
     axf = pl.axes()
     frame_index = [0]
@@ -132,7 +132,7 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
                      extent = (0, sx*dx, 0, sy*dy),
                      interpolation = 'nearest',
                      vmax = vmax, vmin = vmin,
-                     aspect = 'equal', cmap=mpl.cm.gray)
+                     aspect = 'equal', cmap=cmap)
     if scale_setp:
         pl.ylabel('um')
         pl.xlabel('um')
@@ -140,9 +140,9 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
     def skip(event,n=1):
         fi = frame_index[0]
         key = hasattr(event, 'button') and event.button or event.key
-        if key in (4,'4','down','left'):
+        if key in (4,'4','down','left','p'):
             fi -= n
-        elif key in (5,'5','up','right'):
+        elif key in (5,'5','up','right','n'):
             fi += n
         fi = fi%Nf
         plf.set_data(frames[fi])
@@ -151,7 +151,7 @@ def view_fseq_frames(fseq, vmin = None, vmax = None):
         f.canvas.draw()
     f.canvas.mpl_connect('scroll_event',skip)
     #f.canvas.mpl_connect('key_press_event', skip)
-    f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
+    f.canvas.mpl_connect('key_press_event',skip)
 
 
 class DraggableObj:
