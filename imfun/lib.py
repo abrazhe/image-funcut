@@ -302,6 +302,7 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
 
 
 def locextr(v, x=None, refine = True, output='full',
+	    sort_values = True,
 	    **kwargs):
    "Finds local extrema "
    if x is None: x = np.arange(len(v))
@@ -317,8 +318,9 @@ def locextr(v, x=None, refine = True, output='full',
 
    maxima = np.where(np.diff(dersign) < 0)[0]
    minima = np.where(np.diff(dersign) > 0)[0]
-   maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
-   minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
+   if sort_values:
+       maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
+       minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
 
    if output=='full':
       return xfit, yfit, der1, maxima, minima 
