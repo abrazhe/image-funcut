@@ -1,6 +1,7 @@
 ### Functional programming utils for imfun package (moved from lib.py)
 
 import sys
+import itertools as itt
 
 def fnchain(f,n):
     """
@@ -20,9 +21,9 @@ def fniter(f,x,verbose=False):
 	yield out
 
 
-def take(N, seq):
-    "Takes first N values from a sequence"	
-    return [seq.next() for j in xrange(N)]
+def take(N, seq,step=1):
+    "Takes first N values from a sequence"
+    return list(itt.islice(seq, 0, N, step))
 
 
 def flcompose2(f1,f2):

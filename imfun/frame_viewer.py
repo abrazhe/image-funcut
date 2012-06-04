@@ -135,7 +135,7 @@ class GWOpts(HasTraits):
             if self.tmedian_k < 3:
                 pwfn = fn1
             else:
-                pwfn = lib.flcompose2(fn1,
+                pwfn = lib.flcompose(fn1,
                                       medfilt_fn(self.tmedian_k))
             seq1 = seq.pw_transform(pwfn)
             seq1.fns = [partial(filt.gauss_blur, size=self.gauss_size)]
