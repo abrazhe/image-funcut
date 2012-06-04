@@ -343,7 +343,7 @@ def group_maps(maplist, ncols=None,
 	       figsize = None,
 	       suptitle = None,
 	       individual_colorbars = False,
-	       single_colorbar = True,
+	       single_colorbar = None,
 	       show_ticks = False,
 	       samerange = True,
 	       imkw=None, cbkw ={}):
@@ -359,8 +359,11 @@ def group_maps(maplist, ncols=None,
     if samerange:
 	vmin,vmax = data_range(maplist)
 	imkw.update(dict(vmin=vmin, vmax=vmax))
+	if single_colorbar is None:
+	    single_colorbar = True
     else:
-	single_colorbar=False
+	if single_colorbar is None:
+	    single_colorbar=False
     if not imkw.has_key('aspect'):
 	imkw['aspect'] = 'equal'
     for i,f in enumerate(maplist):
@@ -457,7 +460,7 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
         coefs = freqs*2.0/np.pi
         for i in xrange(surf.shape[1]):
             surf[:,i] *= coefs
-    endtime = len(signal)/f_s
+    endtime = len(signal)/float(f_s)
     extent=[0, endtime, freqs[0], freqs[-1]]
     im = ax.imshow(surf, extent = extent,
                    origin = 'low',

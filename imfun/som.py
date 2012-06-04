@@ -64,10 +64,6 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         r *= fade_coeff
         reassigned = np.sum(affiliations != affiliations_prev)
         niter +=1
-        ## if verbose:
-        ##     outstr = "\r %4.3e, %4.3e, %06d %06d"%(alpha, r, reassigned, niter)
-        ##     if verbose > 2: outstr = oustr + ' \n'
-        ##     sys.stderr.write(outstr)
 	out.append(affiliations.copy())
     if output == 'last':
 	out = affiliations

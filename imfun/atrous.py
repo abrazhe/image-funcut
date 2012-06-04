@@ -179,7 +179,7 @@ def represent_support(supp):
     out = [2**(j+1)*supp[j] for j in range(len(supp)-1)]
     return np.sum(out, axis=0)
 
-def get_support(coefs, th, neg=False, modulus = True, ):
+def get_support(coefs, th, neg=False, modulus = True,soft=False):
     out = []
     nd = len(coefs[0].shape)
     fn = neg and np.less or np.greater
@@ -194,7 +194,12 @@ def get_support(coefs, th, neg=False, modulus = True, ):
 
 	if np.iterable(t):
 	    out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
-	else: out.append(fn(wa, t*sj))
+	else:
+	    mask = fn(wa, t*sj)
+	    if soft:
+		out.append(1.0*mask*np.sign(w)*(np.abs(w)-t*sj))
+	    else:
+		out.append(mask)
     out.append(np.ones(coefs[-1].shape)*(not neg))
     return out
 
@@ -244,21 +249,28 @@ def wavelet_enh_std(f, level=4, out = 'rec', absp = False):
 def rec_with_support(coefs, supp):
     return rec_atrous([c*s for c,s in zip(coefs, supp)])
 
+
 def qmf(filt = _phi_):
     L = len(filt)
     return [(-1)**(l+1)*filt[L-l-1] for l in range(len(filt))]
         
-def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None):
+def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None,
+		    modulus=False,
+		    soft=False):
     if np.iterable(k):
         level = len(k)
     coefs = decompose(f, level)
     if noise_std is None:
-        if f.ndim < 3:
+        if False and f.ndim < 3:
             noise_std = estimate_sigma(f, coefs) / 0.974 # magic value
         else:
             noise_std = estimate_sigma_mad(coefs[0], True)
-    supp = get_support(coefs, np.array(k, _dtype_)*noise_std, modulus=False)
-    return rec_with_support(coefs, supp)
+    supp = get_support(coefs, np.array(k, _dtype_)*noise_std,
+		       modulus=modulus,soft=soft)
+    if soft:
+	return np.sum(supp, axis=0)
+    else:
+	return rec_with_support(coefs, supp)
 
 def DFoF(v, level=9):
     """DF/F0 for F0 taken as approximation at given level"""

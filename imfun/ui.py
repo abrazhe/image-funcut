@@ -114,21 +114,20 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
     f = pl.figure()
     axf = pl.axes()
     frame_index = [0]
-    frames = fseq.as3darray()
-    Nf = len(frames)
+    Nf = fseq.length()
 
     if vmax is None:
-        vmax = np.max(map(np.max, frames))
+        vmax = fseq.data_range()[1]
 
     if vmin is None:
-        vmin = np.min(map(np.min, frames))
+        vmin = fseq.data_range()[0]
 
     sh = fseq.shape()
     sy,sx = sh[:2]
 	
     dy,dx, scale_setp = fseq.get_scale()
 
-    plf = axf.imshow(frames[0],
+    plf = axf.imshow(fseq[0],
                      extent = (0, sx*dx, 0, sy*dy),
                      interpolation = 'nearest',
                      vmax = vmax, vmin = vmin,
@@ -145,7 +144,7 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
         elif key in (5,'5','up','right','n'):
             fi += n
         fi = fi%Nf
-        plf.set_data(frames[fi])
+        plf.set_data(fseq[fi])
         axf.set_title('%03d (%3.3f sec)'%(fi, fi*fseq.dt))
         frame_index[0] = fi
         f.canvas.draw()

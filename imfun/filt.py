@@ -15,6 +15,11 @@ def gauss_kern(xsize=1.5, ysize=None):
     g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
     return g / g.sum()
 
+def gauss_kern1d(size=1.5):
+    xsize = int(np.round(size))
+    x = np.mgrid[-xsize:xsize+1]
+    g = np.exp(-(x**2/size))
+    return g/g.sum()
 
 def gauss_blur(X,size=1.0):
     return signal.convolve2d(X,gauss_kern(size),'same')

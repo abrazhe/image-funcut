@@ -134,7 +134,7 @@ def simple_wave(sstart = 1.0, alpha=0.8, shape=(128,128)):
 	fn = gauss2d(origin[0], origin[1], sigma,sigma)
 	def _(x,y):
 	    print amp, sigma, 1/sigma**0.25
-	    return tanh(10*amp*fn(x,y))
+	    return np.tanh(10*amp*fn(x,y))
 	yield _
 	sigma += sqrt(alpha*k/sigma)
 	amp -= 0.05*sigma**0.25
