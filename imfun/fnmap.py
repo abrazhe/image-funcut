@@ -226,6 +226,7 @@ _corrfuncs = {'pearson':stats.pearsonr,
 def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
              corrfn = 'pearson',
              keyfn = lambda x:x[0],
+	     normalize_data = False,
              normalize_signal=False):
     """
     xcorrmap: frame sequence, signal -> 2D array
@@ -256,7 +257,10 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
     if normalize_signal:
         signal = normfn(signal, normL)
     for s,j,k in fseq.pix_iter():
-        out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
+	if normalize_data:
+	    out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
+	else:
+	    out[j,k] = keyfn(corrfn(s, signal))
     return out
 
 def corrlag(timevec):
