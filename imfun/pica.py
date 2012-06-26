@@ -61,7 +61,6 @@ def pca_svd(X):
     c0 = X.mean(axis=0)
     X1 = (X - c0)
     U,s,Vh = svd(X1, full_matrices=False)
-    ax, ay = Vh.T[:2]
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
     phi = np.rad2deg(np.arctan(Vh[0,1]/Vh[0,0])) # rotation of main axis (for Ellipse)
