@@ -366,6 +366,11 @@ class LineScan(DraggableObj):
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
             self.point_collection = self.show_timeview()
+    def on_type(self, event):
+	if not self.event_ok(event, True):
+	    return
+	if event.key == '/':
+	    self.point_collection = self.show_timeview()
 
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
