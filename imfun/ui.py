@@ -69,29 +69,34 @@ def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
     return "Err"
 
 
-def nearest_item_ind(items, xy, fn = lambda a: a):
-    """
-    Index of the nearest item from a collection.
-    Arguments: collection, position, selector
-    """
-    return lib.min1(lambda p: lib.eu_dist(fn(p), xy), items)
+## def nearest_item_ind(items, xy, fn = lambda a: a):
+##     """
+##     Index of the nearest item from a collection.
+##     Arguments: collection, position, selector
+##     """
+##     return lib.min1(lambda p: lib.eu_dist(fn(p), xy), items)
 
+## def line_from_points(p1,p2):
+##     p1 = map(float, p1)
+##     p2 = map(float, p2)
+##     k = (p1[1] - p2[1])/(p1[0] - p2[0])
+##     b = p1[1] - p1[0]*k
+##     return lambda x: k*x + b
 
+def translate(p1,p2):
+    """returns translation vector used to
+    ||-translate line segment p1,p2 in an orthogonal direction"""
+    L = lib.eu_dist(p1, p2)
+    v = [np.array(p, ndmin=2).T for p in p1,p2]
+    T = np.array([[0, -1], [1, 0]]) # basic || translation vector
+    tv = np.dot(T, v[0] - v[1])/float(L)
+    return tv
 
-
-def line_from_points(p1,p2):
-    p1 = map(float, p1)
-    p2 = map(float, p2)
-    k = (p1[1] - p2[1])/(p1[0] - p2[0])
-    b = p1[1] - p1[0]*k
-    return lambda x: k*x + b
-
-
-def extract_line(data, xind, f):
+def line_reslice1(data, xind, f):
     return np.array([data[int(i),int(f(i))] for i in xind])
 
 
-def extract_line2(data, p1, p2):
+def line_reslice2(data, p1, p2):
     L = int(lib.eu_dist(p1,p2))
     f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
     return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
@@ -149,11 +154,100 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
         frame_index[0] = fi
         f.canvas.draw()
     f.canvas.mpl_connect('scroll_event',skip)
-    #f.canvas.mpl_connect('key_press_event', skip)
     f.canvas.mpl_connect('key_press_event',skip)
 
 
+class PointCollection1:
+    def __init__(self, ax):
+	self.ax = ax
+	self.points = []
+	self.line = None
+	self._ind = None
+	self.epsilon = 5
+	self.canvas = ax.figure.canvas
+	print self.ax, self.ax.figure, self.canvas
+	cf = self.canvas.mpl_connect
+	self.cid = {
+            'press': cf('button_press_event', self._on_button_press),
+            #'release': cf('button_release_event', self.on_release),
+            #'motion': cf('motion_notify_event', self.on_motion),
+            #'scroll': cf('scroll_event', self.on_scroll),
+            'type': cf('key_press_event', self._on_key_press)
+            }
+	pl.show()
+	
+    def get_ind_closest(self,event):
+	xy = np.asarray(self.points)
+	if self.line is not None:
+	    xyt = self.line.get_transform().transform(xy)
+	    xt, yt = xyt[:,0], xyt[:,1]
+	    d = ((xt-event.x)**2 + (yt-event.y)**2)**0.5
+	    indseq = np.nonzero(np.equal(d, np.amin(d)))[0]
+	    ind = indseq[0]
+	    if d[ind]>=self.epsilon:
+		ind = None
+	else: ind = None
+        return ind
+    def add_point(self, event):
+	p = event.xdata, event.ydata
+	self.points.append(p)
+	self.points.sort(key = lambda u:u[0])
+	xd, yd = rezip(self.points)
+	if self.line is None:
+	    self.line = pl.Line2D(xd,yd,marker='o',
+				  color='r', alpha=0.75,
+				  markerfacecolor='r')
+				  #animated='True')
+	    self.ax.add_line(self.line)
+	    print 'added line'
+	else:
+	    self.line.set_data([xd,yd])
+    def remove_point(self, event):
+	ind = self.get_ind_closest(event)
+	if ind is not None:
+	    self.points = [pj for j,pj in enumerate(self.points) if j !=ind]
+	    self.line.set_data(rezip(self.points))
+	
+    def action(self):
+	#from scipy.interpolate import splrep, splev
+	xd, yd = rezip(self.points)
+	#v = np.diff(yd)
+	v = np.gradient(np.asarray(yd))
+	dx = np.gradient(np.asarray(xd))
+	#tck = splrep(xd,yd)
+	#xfit = np.linspace(xd[0], xd[-1], 256)
+	#y = splev(xfit, tck,0)
+	vel = np.ma.masked_invalid(np.abs(dx/v))
+	ax = pl.figure().add_subplot(111);
+	ax.plot(xd, vel,'^-')
+	#pl.plot(xfit[1:], np.abs(1./np.diff(y)), 'y-', alpha=0.75,lw=1.5)
+	ax.set_xlabel('space, um'); ax.set_ylabel('velosity, um/s')
+	ax.set_title('mean velosity: %2.2f um/s'%np.mean(vel))
+    def _on_button_press(self,event):
+	if not self.event_ok(event): return
+	if event.button == 1:
+	    self.add_point(event)
+	elif event.button == 3:
+	    self.remove_point(event)
+	self.canvas.draw()
+	    
+    def _on_key_press(self, event):
+	if not self.event_ok(event): return
+	if event.key == 'i':
+	    self.add_point(event)
+	elif event.key == 'd':
+	    self.remove_point(event)
+	elif event.key == 'a':
+	    self.action()
+	self.canvas.draw()
+    def event_ok(self, event):
+        return event.inaxes == self.ax and \
+               pl.get_current_fig_manager().toolbar.mode ==''
+
+
+
 class DraggableObj:
+    "Basic class for objects that can be dragged on the screen"
     verbose = True
     def __init__(self, obj, parent,):
         self.obj = obj
@@ -203,11 +297,8 @@ class DraggableObj:
         pass
 
     def on_scroll(self, event): pass
-
     def on_type(self, event): pass
-    
-    def on_press(self, event):
-        pass
+    def on_press(self, event):   pass
 
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
@@ -274,33 +365,51 @@ class LineScan(DraggableObj):
             y0 = y[1] - y[0]
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
-            self.show_timeview()
+            self.point_collection = self.show_timeview()
 
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
 
-    def get_timeview(self):
+    def get_timeview(self,hwidth=2,frange = None):
         points = map(self.transform_point, self.check_endpoints())
-        timeview = np.array([extract_line2(frame, *points) for frame in
-                             self.parent.fseq.frames()])
-        return timeview,points
+	if frange is None:
+	    frames = lambda : self.parent.fseq.frames()
+	else:
+	    frames = lambda : self.parent.fseq[frange]
+	tv = np.reshape(translate(*points),-1) # translation vector
+	timeview = lambda pts: np.array([line_reslice2(frame, *pts)
+					 for frame in frames()])
+	
+	if hwidth > 0:
+	    plist = [points]
+	    print points
+	    plist += [points + s*k*tv
+		      for k in range(1, hwidth+1) for s in -1,1]
+	    print plist
+	    out = np.mean(map(timeview, plist), axis=0)
+	else:
+	    out = timeview(points)
+        return out,points
 
-    def show_timeview(self):
-        timeview,points = self.get_timeview()
+    def show_timeview(self,frange=None):
+        timeview,points = self.get_timeview(frange=frange)
         if timeview is not None:
             fseq = self.parent.fseq
-            ax = pl.figure().add_subplot(111)
+	    f = pl.figure()
+            ax = f.add_subplot(111)
             # TODO: work out if sx differs from sy
             ax.imshow(timeview,
                       extent=(0, self.dx*timeview.shape[1], 0,
-                              fseq.dt*self.parent.length()),
+                              fseq.dt*timeview.shape[0]),
                       )
                       #aspect='equal')
             if self.scale_setp:
                 ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
-            ax.figure.show()
+	    pc = PointCollection1(ax)
+	    return pc
+	    
 
     def to_struct(self):
         l = self.obj
@@ -703,8 +812,14 @@ class Picker:
         "Start picking up ROIs"
         self.tagger = tags_iter()
         self.drcs = {}
-        self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
-        self.fig = self.ax1.figure
+	if ax is None:
+	    self.fig = pl.figure()
+	    self.ax1 = self.fig.add_subplot(111)
+	else:
+	    self.ax1 = ax
+	    self.fig = self.ax1.figure
+        #self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
+        #self.fig = self.ax1.figure
         self.legtype = legend_type
         self.pressed = None
 
@@ -733,8 +848,8 @@ class Picker:
 
         self.disconnect()
         self.connect()
-
-        return self.ax1, self.pl
+	#self.fig.show()
+        return self.ax1, self.pl, self
 
     def connect(self):
         "connect all the needed events"
@@ -897,7 +1012,7 @@ class Picker:
 		ax.set_xlabel("time, sec")
 	    ax.set_ylabel(roi_label)
 	    yield x, roi_label, roi, ax
-	fig.show()
+	#fig.show()
 
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,

@@ -584,7 +584,7 @@ class FrameViewer(HasTraits):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)
         self.axes.cla()
-        _,self.pl = self.picker.start(ax=self.axes, legend_type='axlegend',
+        _,self.pl,_ = self.picker.start(ax=self.axes, legend_type='axlegend',
                                       cmap = self.fso.colormap,
                                       interpolation = self.fso.interpolation)
         self.pl.axes.figure.canvas.draw()
