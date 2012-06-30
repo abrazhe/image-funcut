@@ -168,6 +168,7 @@ class DiameterMeasurement1:
 	self.epsilon = 5
 	self.canvas = ax.figure.canvas
 	self.center = None
+	self.velosities = None
 	print self.ax, self.ax.figure, self.canvas
 	cf = self.canvas.mpl_connect
 	self.cid = {
@@ -182,7 +183,6 @@ class DiameterMeasurement1:
 	- left-click or type 'i' to add point under mouse
 	- rigth-click or type 'd' to remove point under mouse
 	- type 'a' to calculate propagation velosity
-	- type 'c' to mark centre of the event
 	"""
 	print help_msg
 	
@@ -255,20 +255,23 @@ class DiameterMeasurement1:
 		 vmean_at_r(15.))
 	ax.grid(True)
 	self.canvas.draw()
-	print [(rx, vmean_at_r(rx)) for rx in [10,15,20]]
-	return out
+	print "-------- Velosities ----------"
+	print np.array([(rx, vmean_at_r(rx)) for rx in [10,15,20]])
+	print "------------------- ----------"	
+	self.velosities = [[lh_r, lh_v],[rh_r,rh_v]]
+	return 
     def _on_button_press(self,event):
 	if not self.event_ok(event): return
 	x,y = event.xdata, event.ydata
 	if event.button == 1:
 	    self.add_point(event)
-	elif event.button == 2:
-	    if self.center is None:
-		self.center = pl.Line2D([x],[y],marker='*',color='m',
-					markersize=12)
-		self.ax.add_line(self.center)
-	    else:
-		self.center.set_data([[x],[y]])
+	## elif event.button == 2:
+	##     if self.center is None:
+	## 	self.center = pl.Line2D([x],[y],marker='*',color='m',
+	## 				markersize=12)
+	## 	self.ax.add_line(self.center)
+	##     else:
+	## 	self.center.set_data([[x],[y]])
 	elif event.button == 3:
 	    self.remove_point(event)
 	self.canvas.draw()
@@ -407,12 +410,12 @@ class LineScan(DraggableObj):
             y0 = y[1] - y[0]
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
-            self.point_collection = self.show_timeview()
+            self.diameter_manager = self.show_timeview()
     def on_type(self, event):
 	if not self.event_ok(event, True):
 	    return
 	if event.key == '/':
-	    self.point_collection = self.show_timeview()
+	    self.diameter_manager = self.show_timeview()
 
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
