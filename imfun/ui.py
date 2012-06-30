@@ -240,9 +240,11 @@ class DiameterMeasurement1:
 	rh_v = vel(rh_r[rh_r>min_r],y[midpoint:][rh_r>5])
 	lh_v = vel(lh_r[lh_r>min_r],y[:midpoint][lh_r>5])
 	rh_r = rh_r[rh_r>min_r]
-	lh_r = lh_r[lh_r>min_r]	
-	rv15 = rh_v[np.argmin(np.abs(rh_v-15))]
-	lv15 = lh_v[np.argmin(np.abs(lh_v-15))]
+	lh_r = lh_r[lh_r>min_r]
+	v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
+	vmean_at_r = lambda r0:\
+		     np.mean([v_at_r(lh_r,lh_v,r0),
+			      v_at_r(rh_r,rh_v,r0)])
 	
 	ax = pl.figure().add_subplot(111);
 	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)
@@ -250,9 +252,10 @@ class DiameterMeasurement1:
 	ax.legend(['left-hand branch','right-hand branch'])
 	ax.set_xlabel('radius, um'); ax.set_ylabel('velosity, um/s')
 	ax.set_title('average velosity at 15 um: %02.2f um/s'%\
-		 np.mean([rv15,lv15]))
+		 vmean_at_r(15.))
 	ax.grid(True)
 	self.canvas.draw()
+	print [(rx, vmean_at_r(rx)) for rx in [10,15,20]]
 	return out
     def _on_button_press(self,event):
 	if not self.event_ok(event): return
