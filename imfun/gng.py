@@ -3,6 +3,8 @@
 import numpy as np
 import random as pyrnd
 
+from pylab import *
+
 from imfun.cluster import euclidean, cityblock, pearson, spearman, xcorrdist
 
 class Edge:

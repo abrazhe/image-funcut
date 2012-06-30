@@ -19,6 +19,7 @@ ifnot = lib.ifnot
 in_circle = lib.in_circle
 
 from scipy import signal
+from scipy.interpolate import splrep, splev, splprep
 
 
 
@@ -157,14 +158,16 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
     f.canvas.mpl_connect('key_press_event',skip)
 
 
-class PointCollection1:
+class DiameterMeasurement1:
     def __init__(self, ax):
 	self.ax = ax
 	self.points = []
-	self.line = None
+	self.line = None # user-picked points
+	self.line2 = None
 	self._ind = None
 	self.epsilon = 5
 	self.canvas = ax.figure.canvas
+	self.center = None
 	print self.ax, self.ax.figure, self.canvas
 	cf = self.canvas.mpl_connect
 	self.cid = {
@@ -175,6 +178,13 @@ class PointCollection1:
             'type': cf('key_press_event', self._on_key_press)
             }
 	pl.show()
+	help_msg =  """
+	- left-click or type 'i' to add point under mouse
+	- rigth-click or type 'd' to remove point under mouse
+	- type 'a' to calculate propagation velosity
+	- type 'c' to mark centre of the event
+	"""
+	print help_msg
 	
     def get_ind_closest(self,event):
 	xy = np.asarray(self.points)
@@ -195,6 +205,7 @@ class PointCollection1:
 	xd, yd = rezip(self.points)
 	if self.line is None:
 	    self.line = pl.Line2D(xd,yd,marker='o',
+				  ls = '--',
 				  color='r', alpha=0.75,
 				  markerfacecolor='r')
 				  #animated='True')
@@ -208,25 +219,53 @@ class PointCollection1:
 	    self.points = [pj for j,pj in enumerate(self.points) if j !=ind]
 	    self.line.set_data(rezip(self.points))
 	
-    def action(self):
-	#from scipy.interpolate import splrep, splev
-	xd, yd = rezip(self.points)
-	#v = np.diff(yd)
+    def action(self,min_r = 5.):
+	xd, yd = map(np.array, rezip(self.points))
 	v = np.gradient(np.asarray(yd))
 	dx = np.gradient(np.asarray(xd))
-	#tck = splrep(xd,yd)
-	#xfit = np.linspace(xd[0], xd[-1], 256)
-	#y = splev(xfit, tck,0)
-	vel = np.ma.masked_invalid(np.abs(dx/v))
+	tck,u = splprep([xd,yd])
+	unew = np.linspace(0,1.,100)
+	out = splev(unew,tck)
+	if self.line2:
+	    self.line2.set_data(out[0], out[1])
+	else:
+	    self.line2 = pl.Line2D(out[0], out[1], color='w',
+				   lw=2,alpha=0.75)
+	    self.ax.add_line(self.line2)
+	x,y = out[0], out[1]
+	midpoint = np.argmin(y)
+	lh_r = abs(x[:midpoint]-x[midpoint]) #left branch
+	rh_r = x[midpoint:]-x[midpoint] # right branch
+	vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
+	rh_v = vel(rh_r[rh_r>min_r],y[midpoint:][rh_r>5])
+	lh_v = vel(lh_r[lh_r>min_r],y[:midpoint][lh_r>5])
+	rh_r = rh_r[rh_r>min_r]
+	lh_r = lh_r[lh_r>min_r]	
+	rv15 = rh_v[np.argmin(np.abs(rh_v-15))]
+	lv15 = lh_v[np.argmin(np.abs(lh_v-15))]
+	
 	ax = pl.figure().add_subplot(111);
-	ax.plot(xd, vel,'^-')
-	#pl.plot(xfit[1:], np.abs(1./np.diff(y)), 'y-', alpha=0.75,lw=1.5)
-	ax.set_xlabel('space, um'); ax.set_ylabel('velosity, um/s')
-	ax.set_title('mean velosity: %2.2f um/s'%np.mean(vel))
+	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)
+	ax.plot(rh_r[rh_r>min_r],rh_v,'g-',lw=2)
+	ax.legend(['left-hand branch','right-hand branch'])
+	ax.set_xlabel('radius, um'); ax.set_ylabel('velosity, um/s')
+	ax.set_title('average velosity at 15 um: %02.2f um/s'%\
+		 np.mean([rv15,lv15]))
+	ax.grid(True)
+	self.canvas.draw()
+	return out
     def _on_button_press(self,event):
 	if not self.event_ok(event): return
+	x,y = event.xdata, event.ydata
 	if event.button == 1:
 	    self.add_point(event)
+	elif event.button == 2:
+	    if self.center is None:
+		self.center = pl.Line2D([x],[y],marker='*',color='m',
+					markersize=12)
+		self.ax.add_line(self.center)
+	    else:
+		self.center.set_data([[x],[y]])
 	elif event.button == 3:
 	    self.remove_point(event)
 	self.canvas.draw()
@@ -375,22 +414,26 @@ class LineScan(DraggableObj):
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
 
-    def get_timeview(self,hwidth=2,frange = None):
+    def get_timeview(self,hwidth=2,frange = None,frame_scope=100):
         points = map(self.transform_point, self.check_endpoints())
 	if frange is None:
-	    frames = lambda : self.parent.fseq.frames()
+	    if hasattr(self.parent, 'caller'): # if called from frame_viewer
+		fi = self.parent.caller.frame_index
+		fstart = max(0,fi-frame_scope)
+		fstop = min(self.parent.fseq.length(),fi+frame_scope)
+		frange = slice(fstart,fstop)
+		frames = lambda : self.parent.fseq[frange]
+	    else:
+		frames = lambda : self.parent.fseq.frames()
 	else:
 	    frames = lambda : self.parent.fseq[frange]
 	tv = np.reshape(translate(*points),-1) # translation vector
 	timeview = lambda pts: np.array([line_reslice2(frame, *pts)
 					 for frame in frames()])
-	
 	if hwidth > 0:
 	    plist = [points]
-	    print points
 	    plist += [points + s*k*tv
 		      for k in range(1, hwidth+1) for s in -1,1]
-	    print plist
 	    out = np.mean(map(timeview, plist), axis=0)
 	else:
 	    out = timeview(points)
@@ -412,7 +455,7 @@ class LineScan(DraggableObj):
                 ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
-	    pc = PointCollection1(ax)
+	    pc = DiameterMeasurement1(ax)
 	    return pc
 	    
 
