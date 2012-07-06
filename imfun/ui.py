@@ -731,6 +731,7 @@ class Picker:
         self._Nf = None
         self.roi_objs = {}
         self.min_length = 5
+	self.frame_index = 0 
 
         pass
 
@@ -772,11 +773,13 @@ class Picker:
                     self.redraw()
             except Exception as e:
                     print "Picker: can't make legend because ", e
+    def event_canvas_ok(self, event):
+	pred = event.inaxes !=self.ax1 or \
+		   self.any_roi_contains(event) or \
+		   pl.get_current_fig_manager().toolbar.mode !=''
+	return not pred
     def on_press(self, event):
-        if event.inaxes !=self.ax1 or \
-               self.any_roi_contains(event) or \
-               event.button != 3 or \
-               pl.get_current_fig_manager().toolbar.mode !='':
+	if not self.event_canvas_ok(event) or event.button != 3 :
             return
         self.pressed = event.xdata, event.ydata
         axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
@@ -820,14 +823,6 @@ class Picker:
         self.legend()
         self.fig.canvas.draw() #todo BLIT!
         return
-
-
-    ## def any_line_contains(self,event):
-    ##     "Checks if event is contained by any ROI"
-    ##     if len(self.roi_objs) < 1 : return False
-    ##     return reduce(lambda x,y: x or y,
-    ##                   [roi.obj.contains(event)[0]
-    ##                    for roi in self.roi_objs.values()])
 
 
     def any_roi_contains(self,event):
@@ -900,6 +895,7 @@ class Picker:
             f = self.fseq.mean_frame()
         else:
             f = self.fseq.frames().next()
+	self.mean_frame = f
         self.pl = self.ax1.imshow(f,
                                   extent = (0, sx*dx, 0, sy*dy),
                                   interpolation = interpolation,
@@ -914,6 +910,32 @@ class Picker:
         self.connect()
 	#self.fig.show()
         return self.ax1, self.pl, self
+    def frame_skip(self,event, n=1):
+	if not self.event_canvas_ok(event):
+	    return
+	Nf = self.fseq.length()
+	fi = self.frame_index
+	key = hasattr(event, 'button') and event.button or event.key
+	prev_keys = [4,'4','down','left','p']
+	next_keys = [5,'5','up','right','n']
+	home_keys =  ['h','q','z']
+	known_keys = prev_keys+ next_keys+home_keys
+	if key in known_keys:
+	    if key in home_keys:
+		show_f = self.mean_frame
+		_title = ""
+	    else:
+		if key in prev_keys:
+		    fi -= n
+		elif key in next_keys:
+		    fi += n
+		fi = fi%Nf
+		self.frame_index = fi
+		_title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
+		show_f = self.fseq[fi]
+	    self.pl.set_data(show_f)
+	    self.ax1.set_title(_title)
+	    self.fig.canvas.draw()
 
     def connect(self):
         "connect all the needed events"
@@ -924,6 +946,8 @@ class Picker:
             'press': cf('button_press_event', self.on_press),
             'release': cf('button_release_event', self.on_release),
             'motion': cf('motion_notify_event', self.on_motion),
+	    'scroll':cf('scroll_event',self.frame_skip),
+	    'type':cf('key_press_event',self.frame_skip),	    
             }
     def disconnect(self):
         if hasattr(self, 'cid'):
