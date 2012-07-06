@@ -162,6 +162,15 @@ def resample_velocity(rad, v,rstart=10.0):
     xnew = np.arange(rstart, rstop, 0.25)
     return xnew, np.interp(xnew,rad,v)
 
+
+DM_help_msg =  """
+Diameter Manager:   
+- left-click or type 'i' to add point under mouse
+- rigth-click or type 'd' to remove point under mouse
+- type 'a' to calculate propagation velocity
+"""
+
+
 class DiameterMeasurement1:
     def __init__(self, ax):
 	self.ax = ax
@@ -172,9 +181,9 @@ class DiameterMeasurement1:
 	self.epsilon = 5
 	self.canvas = ax.figure.canvas
 	self.center = None
-	self.velosities = None
+	self.velocities = None
 	self.smooth = 1
-	print self.ax, self.ax.figure, self.canvas
+	#print self.ax, self.ax.figure, self.canvas
 	cf = self.canvas.mpl_connect
 	self.cid = {
             'press': cf('button_press_event', self._on_button_press),
@@ -184,12 +193,7 @@ class DiameterMeasurement1:
             'type': cf('key_press_event', self._on_key_press)
             }
 	pl.show()
-	help_msg =  """
-	- left-click or type 'i' to add point under mouse
-	- rigth-click or type 'd' to remove point under mouse
-	- type 'a' to calculate propagation velosity
-	"""
-	print help_msg
+	print DM_help_msg
 	
     def get_ind_closest(self,event):
 	xy = np.asarray(self.points)
@@ -258,15 +262,15 @@ class DiameterMeasurement1:
 	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)
 	ax.plot(rh_r[rh_r>min_r],rh_v,'g-',lw=2)
 	ax.legend(['left-hand branch','right-hand branch'])
-	ax.set_xlabel('radius, um'); ax.set_ylabel('velosity, um/s')
-	ax.set_title('average velosity at 15 um: %02.2f um/s'%\
+	ax.set_xlabel('radius, um'); ax.set_ylabel('velocity, um/s')
+	ax.set_title('average velocity at 15 um: %02.2f um/s'%\
 		 vmean_at_r(15.))
 	ax.grid(True)
 	self.canvas.draw()
-	print "-------- Velosities ----------"
+	print "-------- Velocities ----------"
 	print np.array([(rx, vmean_at_r(rx)) for rx in range(8,22,2)])
 	print "------------------- ----------"
-	self.velosities = [[lh_r[::-1], lh_v[::-1]],
+	self.velocities = [[lh_r[::-1], lh_v[::-1]],
 			   [rh_r, rh_v]]
 	return 
     def _on_button_press(self,event):
@@ -883,7 +887,7 @@ class Picker:
         self.pressed = None
 
         dx,dy, scale_setp = self.fseq.get_scale()
-        sy,sx = self.fseq.shape()
+	sy,sx = self.fseq.shape()[:2]
         avmin,avmax = self.fseq.data_range()
         if vmin is None: vmin = avmin
         if vmax is None: vmax = avmax
