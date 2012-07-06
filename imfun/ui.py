@@ -48,7 +48,6 @@ import random
 vowels = "aeiouy"
 consonants = "qwrtpsdfghjklzxcvbnm"
 
-
 def rand_tag():
     return ''.join(map(random.choice,
                        (consonants, vowels, consonants)))
@@ -158,6 +157,11 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
     f.canvas.mpl_connect('key_press_event',skip)
 
 
+def resample_velocity(rad, v,rstart=10.0):
+    rstop = rad[-1]
+    xnew = np.arange(rstart, rstop, 0.25)
+    return xnew, np.interp(xnew,rad,v)
+
 class DiameterMeasurement1:
     def __init__(self, ax):
 	self.ax = ax
@@ -169,6 +173,7 @@ class DiameterMeasurement1:
 	self.canvas = ax.figure.canvas
 	self.center = None
 	self.velosities = None
+	self.smooth = 1
 	print self.ax, self.ax.figure, self.canvas
 	cf = self.canvas.mpl_connect
 	self.cid = {
@@ -200,6 +205,10 @@ class DiameterMeasurement1:
         return ind
     def add_point(self, event):
 	p = event.xdata, event.ydata
+	ind = self.get_ind_closest(event)
+	if ind is not None:
+	    print "too close to an existing point"
+	    return
 	self.points.append(p)
 	self.points.sort(key = lambda u:u[0])
 	xd, yd = rezip(self.points)
@@ -218,12 +227,11 @@ class DiameterMeasurement1:
 	if ind is not None:
 	    self.points = [pj for j,pj in enumerate(self.points) if j !=ind]
 	    self.line.set_data(rezip(self.points))
-	
     def action(self,min_r = 5.):
 	xd, yd = map(np.array, rezip(self.points))
 	v = np.gradient(np.asarray(yd))
 	dx = np.gradient(np.asarray(xd))
-	tck,u = splprep([xd,yd])
+	tck,u = splprep([xd,yd],s=self.smooth)
 	unew = np.linspace(0,1.,100)
 	out = splev(unew,tck)
 	if self.line2:
@@ -237,10 +245,10 @@ class DiameterMeasurement1:
 	lh_r = abs(x[:midpoint]-x[midpoint]) #left branch
 	rh_r = x[midpoint:]-x[midpoint] # right branch
 	vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
-	rh_v = vel(rh_r[rh_r>min_r],y[midpoint:][rh_r>5])
-	lh_v = vel(lh_r[lh_r>min_r],y[:midpoint][lh_r>5])
-	rh_r = rh_r[rh_r>min_r]
-	lh_r = lh_r[lh_r>min_r]
+	rh_v = vel(rh_r[rh_r>=min_r],y[midpoint:][rh_r>=5])
+	lh_v = vel(lh_r[lh_r>=min_r],y[:midpoint][lh_r>=5])
+	rh_r = rh_r[rh_r>=min_r]
+	lh_r = lh_r[lh_r>=min_r]
 	v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
 	vmean_at_r = lambda r0:\
 		     np.mean([v_at_r(lh_r,lh_v,r0),
@@ -256,9 +264,10 @@ class DiameterMeasurement1:
 	ax.grid(True)
 	self.canvas.draw()
 	print "-------- Velosities ----------"
-	print np.array([(rx, vmean_at_r(rx)) for rx in [10,15,20]])
-	print "------------------- ----------"	
-	self.velosities = [[lh_r, lh_v],[rh_r,rh_v]]
+	print np.array([(rx, vmean_at_r(rx)) for rx in range(8,22,2)])
+	print "------------------- ----------"
+	self.velosities = [[lh_r[::-1], lh_v[::-1]],
+			   [rh_r, rh_v]]
 	return 
     def _on_button_press(self,event):
 	if not self.event_ok(event): return
@@ -410,7 +419,8 @@ class LineScan(DraggableObj):
             y0 = y[1] - y[0]
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
-            self.diameter_manager = self.show_timeview()
+            self.dm = self.show_timeview()
+
     def on_type(self, event):
 	if not self.event_ok(event, True):
 	    return
@@ -445,8 +455,8 @@ class LineScan(DraggableObj):
 	    out = timeview(points)
         return out,points
 
-    def show_timeview(self,frange=None):
-        timeview,points = self.get_timeview(frange=frange)
+    def show_timeview(self,frange=None,hwidth=2):
+        timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
         if timeview is not None:
             fseq = self.parent.fseq
 	    f = pl.figure()
