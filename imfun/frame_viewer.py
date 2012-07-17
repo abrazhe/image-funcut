@@ -193,7 +193,7 @@ class FrameSequenceOpts(HasTraits):
         '10. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
         '11. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }
-    gw_opts = Instance(GWOpts)
+    #gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
     ch = Enum('green', 'red', 'blue', label='Color channel')
@@ -288,9 +288,9 @@ class FrameSequenceOpts(HasTraits):
 		      label = 'ROIs',
 		      show_border=True),
 		label='Loading'),
-	    Group(Item('gw_opts', show_label=False,style='custom'),
-		  show_border=False,
-		  label='GW'),
+	    ## Group(Item('gw_opts', show_label=False,style='custom'),
+	    ## 	  show_border=False,
+	    ## 	  label='GW'),
 	    Group('fw_trans1', 'pw_trans', 'fw_trans2',
 		  label='Post-process'),
 	    Group(Group(Item('low_percentile'),
@@ -438,9 +438,9 @@ class FrameSequenceOpts(HasTraits):
 	print 'fs2 set'
         return
 
-    def _gw_opts_default(self):
-        gw_opts = GWOpts(self)
-        return gw_opts
+    ## def _gw_opts_default(self):
+    ##     gw_opts = GWOpts(self)
+    ##     return gw_opts
 
 
     def _export_btn_fired(self):

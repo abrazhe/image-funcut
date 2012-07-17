@@ -212,7 +212,7 @@ def deblend_node(node, coefs, acc = None, min_scales=2):
     if acc is None: acc = [node]
     flat_leaves = flat_tree(node)
     mxcoef = lambda level, loc : coefs[level][loc]
-    #sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
+    sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
     tocut = []
     for b in node.branches:
 	wjm = mxcoef(b.level, b.max_pos)
@@ -223,8 +223,12 @@ def deblend_node(node, coefs, acc = None, min_scales=2):
 	    i = np.argmin([distance(b.max_pos, p) for p in positions])
 	    wjm1m = mxcoef(b.level-1, tuple(positions[i]))
 	wjp1m = np.max(coefs[b.level+1][b.labels==b.ind])
-	if wjm1m < wjm > wjp1m :
-	    tocut.append(b)
+	## NB! only cut if there are more than one structure at the same level
+	## which belongs to the same tree!
+	if (wjm1m < wjm > wjp1m):
+	    atlevel = sublevel(node.level)
+	    if len(atlevel)>1:
+		tocut.append(b)
     for c in tocut:
 	free = c.cut()
 	if  nscales(free) >= min_scales:
@@ -261,7 +265,7 @@ def find_objects(arr, k = 3, level = 5, noise_std=None,
                  supp = None,
 		 retraw = False, # only used for testing
 		 start_scale = 0,
-		 weights = [0.75, 1, 1, 1, 0.75],
+		 weights = [1., 1., 1., 1., 1.],
                  min_px_size = 200,
                  min_nscales = 2):
     if np.iterable(k):

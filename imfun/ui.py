@@ -235,7 +235,8 @@ class DiameterMeasurement1:
 	xd, yd = map(np.array, rezip(self.points))
 	v = np.gradient(np.asarray(yd))
 	dx = np.gradient(np.asarray(xd))
-	tck,u = splprep([xd,yd],s=self.smooth)
+	#tck,u = splprep([xd,yd],s=self.smooth)
+	tck,u = splprep([xd,yd],s=self.smooth)	
 	unew = np.linspace(0,1.,100)
 	out = splev(unew,tck)
 	if self.line2:
