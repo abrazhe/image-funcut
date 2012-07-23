@@ -2,4 +2,4 @@ imfun.pica
 ***********
 
 .. automodule:: imfun.pica
-  :members:
+  :members: pca, pca_svd, st_ica, fastica

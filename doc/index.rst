@@ -11,8 +11,20 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   atrous
+   bwmorph
+   cluster
+   filt
+   fnmap
+   fnutils
    fseq
+   lib
+   leica
    mvm
+   pica
+   som
+   synthdata
+   ui
 
 
 Indices and tables
