@@ -151,6 +151,7 @@ def with_time_dec(fn):
 	out = fn(*args,**kwargs)
         print "time lapsed %03.3e in %s"%(time.time() - t, str(fn))
 	return out
+    _.__doc__ = fn.__doc__
     return _
 
 
@@ -217,14 +218,15 @@ def ifnot(a, b):
 def auto_threshold(arr, init_th = None, max_iter = 1e7):
     """
     Automatic threhold with INTERMEANS(I) algorithm
-    INPUT:
-    ------
-    arr: array-like
-    init_th: starting threshold
-    max_iter: upper limit of iterations
-    Output:
-    -------
-    threshold: float
+
+    Parameters:
+      - `arr`: array-like
+      - `init_th`: starting threshold
+      - `max_iter`: upper limit of iterations
+
+    Returns:
+      - threshold: float
+
     Based on:
     T. Ridler and S. Calvard, "Picture thresholding using an iterative
     selection method," IEEE Trans. Systems Man Cybernet., vol. 8, pp. 630-632,
@@ -478,10 +480,10 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
 
 def default_freqs(Ns, f_s, num=100):
     """
-    Return default frequencies vector
-    -- Ns:  number of samples in data vector
-    -- f_s: sampling frequency
-    -- num: number of frequencies required
+    Return default frequencies vector:
+      - Ns:  number of samples in data vector
+      - f_s: sampling frequency
+      - num: number of frequencies required
     """
     T = Ns/f_s
     return pl.linspace(8/T, f_s/2, num=num)
@@ -496,7 +498,7 @@ def alias_freq(f, fs):
         return alias_freq(f%fs, fs)
 
 def setup_axes_for_spectrogram(figsize = (12,6)):
-    "Set up axes for a plot with signal, spectrogram and a colorbar"
+    """Set up axes for a plot with signal, spectrogram and a colorbar"""
     fig = pl.figure(figsize = figsize)
     ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
     ax.append(fig.add_axes((0.08, 0.07, 0.8, 0.3), sharex=ax[0]))
@@ -511,7 +513,7 @@ def plot_spectrogram_with_ts(signal, f_s, freqs,
                              figsize=(12,6),
                              lc = 'b', title_string = '',
                              **kwargs):
-    "Create a figure of a signal, spectrogram and a colorbar"
+    """Create a figure of a signal, spectrogram and a colorbar"""
     Ns = len(signal)*1.0
     freqs = ifnot(freqs, default_freqs(Ns, f_s,512))
     tvec = np.arange(0, (Ns+2)/f_s, 1./f_s)[:Ns]

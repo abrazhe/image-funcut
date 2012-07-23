@@ -18,19 +18,9 @@ _show_time_ = False
 
 distance = cluster.euclidean
 
-def with_time_dec(fn):
-    "take a function and timer its evaluation"
-    def _(*args, **kwargs):
-	import time
-	t = time.time()
-	out = fn(*args,**kwargs)
-        if _show_time_:
-            print "time lapsed %03.3e in %s"%(time.time() - t, str(fn))
-	return out
-    return _
-
-
 class MVMNode:
+    """A class to represent MVM Node, with its branches, etc
+    """
     def __init__(self, ind, labels, xslice, max_pos, level, stem=None):
         self.branches = []
         self.stem = stem
@@ -48,27 +38,45 @@ class MVMNode:
         return cut_branch(self.stem, self)
 
 def engraft(stem, branch):
-    "Add branch to a parent stem"
+    """Add `branch` to a parent' `stem`.
+
+    Returns stem
+    """
     if branch not in stem.branches:
         stem.branches.append(branch)
     branch.stem = stem
     return stem
 
 def cut_branch(stem, branch):
-    "Cut branch from a parent stem"
+    """Cut `branch` from a parent `stem`.
+
+    Returns branch
+    """
     if branch in stem.branches:
 	stem.branches = filter(lambda x: x is not branch, stem.branches)
         branch.stem = None
     return branch
 
 def max_pos(arr, labels, ind, xslice):
-    "Position of the maximum value"
+    """Returns position of the maximum value"""
     offset = np.array([x.start for x in xslice], _dtype_)
     x = ndimage.maximum_position(arr[xslice], labels[xslice], ind)
     return tuple(x + offset)
 
-@with_time_dec
-def get_structures(support, coefs):
+#@lib.with_time_dec
+def get_structures(coefs, support):
+    """ Label contiguous regions in significant coefficients and convert them
+    to MVM  nodes.
+
+    Parameters:
+      - `coefs` : atrous wavelet coefficients
+      - `support` : masks of significant wavelet coefficients
+
+    Returns:
+      a `list` of `MVM` nodes
+
+    TODO: Switch from coefs and support to numpy masked arrays
+    """
     acc = []
     for level,c,s in zip(xrange(len(support[:-1])), coefs[:-1], support[:-1]):
         labels,nlabs = ndimage.label(s)
@@ -83,8 +91,18 @@ def get_structures(support, coefs):
 ### NOTE: it only preserves structures that are connected up to the latest
 ### level this is probably not always the desired behaviour
 ### update: fixed, not tried yet
-@with_time_dec
+#@lib.with_time_dec
 def connectivity_graph(structures, min_nscales=2):
+    """Create the interscale connectivity graph from labelled regions of
+    signigicant wavelet coefficients.
+
+    Parameters:
+      - `structures` : as returned from `get_structures`
+      - `min_nscales` : (`int`) -- minimal number of scales in a structure
+
+    Returns:
+      - a `list` of root MVM nodes, the leave ones being linked to the root ones
+    """
     labels = [s[1] for s in structures]
     structs= [s[0]  for s in structures]
     acc = []
@@ -105,16 +123,18 @@ def connectivity_graph(structures, min_nscales=2):
 
 
 def flat_tree(root_node):
+    """Flatten the tree of MVM nodes"""
     acc = [root_node]
     for node in root_node.branches:
         acc.append(flat_tree(node))
     return lib.flatten(acc)
 
 def nleaves(root):
+    """Count leaves in one tree"""
     return len(flat_tree(root))
 
 def nscales(object):
-    "how many scales (levels) are linked with this object"
+    """how many scales (levels) are linked with this object"""
     levels = [n.level for n in flat_tree(object)]
     return np.max(levels) - np.min(levels) + 1
 
@@ -156,11 +176,11 @@ def restore_object(object, coefs, min_level=0,):
     return atrous.rec_with_support(coefs, supp)
 
 
-@with_time_dec            
+#@lib.with_time_dec            
 def supp_from_obj(object, min_level=0, max_level= 10,
 		  verbose=0, mode=0,
 		  weights = None):
-    """Support arrays from object"""
+    """Return support arrays from object"""
     sh = object.labels.shape
     new_shape = [object.level+1] + list(sh)
     out = lib.memsafe_arr(new_shape, _dtype_)
@@ -208,6 +228,17 @@ def deblend_node_old(node, coefs, acc = None):
     return acc
 
 def deblend_node(node, coefs, acc = None, min_scales=2):
+    """Make an attempt to deblend overlapping objects.
+
+    Parameters:
+      - node: (`MVMNode`) -- a root node representing an object
+      - coefs: (`list`) -- atrous wavelet coefs of the input data
+      - acc: (`list` or `None`) -- used by deblend_node in recursion
+      - min_scales: (`int`) -- minimum number of scales an object should have
+
+    Returns:
+      - `acc`: a list of deblended objests, represented by the root `MVMNode`.
+    """
     distance = cluster.euclidean
     if acc is None: acc = [node]
     flat_leaves = flat_tree(node)
@@ -238,6 +269,17 @@ def deblend_node(node, coefs, acc = None, min_scales=2):
 
 
 def deblend_all(objects, coefs, min_scales=2):
+    """Deblend all objects, each object being represented as a root `MVMNode`.
+
+    Parameters:
+      - `objects`: (`list` of `MVMNode` instances) -- root nodes
+      - `coefs`: (`list`) -- a list of atrous wavelet coefficients
+      - `min_scales`: (`int`) -- minimum number of scales an object should have
+
+    Returns:
+      - a list of deblended objests, represented by the root `MVMNode` instances.
+
+    """
     roots = lib.flatten([deblend_node(o,coefs) for o in objects])
     return [r for r in roots if nscales(r) >= min_scales]
 
@@ -247,14 +289,28 @@ def deblend_all(objects, coefs, min_scales=2):
 ### second is a list, contaning shape and slice of the enclosing original data
 ### array 
 
-@with_time_dec
-def embedding(arr, delarr=True):
+#@lib.with_time_dec
+def embedding(arr, delarrp=True):
+    """Return an *embeding* of the non-zero portion of an array.
+
+    Parameters:
+      - `arr`: array
+      - `delarrp`: predicate whether to delete the `arr`
+
+    Returns tuple ``(out, (sh, slices))`` of:
+        * out: array, which is a bounding box around non-zero elements of an input
+          array
+	* sh:  full shape of the input data
+	* slices: a list of slices which define the bounding box
+    
+    
+    """
     sh = arr.shape
     b = np.argwhere(arr)
     starts, stops = b.min(0), b.max(0)+1
     slices = [slice(*p) for p in zip(starts, stops)]
     out =  arr[slices].copy()
-    if delarr: del arr
+    if delarrp: del arr
     return out, (sh, slices)
 
 
@@ -268,6 +324,32 @@ def find_objects(arr, k = 3, level = 5, noise_std=None,
 		 weights = [1., 1., 1., 1., 1.],
                  min_px_size = 200,
                  min_nscales = 2):
+    """Use MVM to find objects in the input array.
+
+    Parameters:
+      - `arr`: (`numpy array`) -- 1D, 2D or 3D ``numpy`` array. Input data.
+      - `k` : (`number`) -- threshold to regard wavelet coefficient as
+        significant, in :math:`\\times \\sigma` (in noise standard deviations)
+      - `level`: (`int`) -- level of wavelet transform
+      - `noise_std`: (`number` or `None`) -- if known, provide noise
+        :math:`\\sigma`
+      - `coefs`: if already calculated, provide wavelet coefficients
+      - `supp`: if already calculated, provide support of significant wavelet
+        coefficients
+      - `start_scale`: (`int`) -- start reconstruction at this scale
+	(decomposition level)
+      - `weights`: (`list` of numbers) -- weight coefficients at different
+        levels before reconstruction
+      - `min_px_size`: an `MVMNode` should contain at least this number of
+        pixels
+      - `min_nscales`: an object should have at least this scales/levels
+      - retraw : only used for debugging
+
+    Returns:
+      a `list` of recovered objects as *embedddings* around non-zero voxels.
+      see `embedding` function for details
+    
+    """
     if np.iterable(k):
         level = len(k)
     if coefs is None:
@@ -281,7 +363,7 @@ def find_objects(arr, k = 3, level = 5, noise_std=None,
     if supp is None:
         supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
                                   modulus=False)  
-    structures = get_structures(supp, coefs)
+    structures = get_structures(coefs, supp)
     g = connectivity_graph(structures)
 
     gdeblended = deblend_all(g, coefs, min_nscales) # destructive
@@ -300,7 +382,7 @@ def find_objects(arr, k = 3, level = 5, noise_std=None,
 
 
 def embedded_to_full(x):
-    """Restores 'full' object from it's embedding, 
+    """Restore 'full' object from it's *embedding*, 
     e.g. full image from  object subframe
     """
     data, (shape, xslice) = x
@@ -360,17 +442,22 @@ def framewise_find_objects(frames, min_frames=5,
 			   verbose=True,
 			   testfn = recobjs_overlap,
 			   *args, **kwargs):
-    """Framewise search for objects with multiscale vision model
-    objects3D = framewise_find_objects(frames, *args, **kwargs)
+    """Framewise search for objects with multiscale vision model (MVM)
 
-    Arguments:
-    ----------
-    frames: list of 2D arrays or array-like.
-    Output:
-    ---------
-    List of recovered 3D objects. Each object is a tuple, where first element
-    is an embedding of the object, and second element is a list, first item of
-    which is full shape of the array, and slices for the embedding.
+    Parameters:
+      - `frames`: `list` of `2D` arrays or array-like -- frames to call
+        mvm.find_objects on iteratively
+      - `min_frames`: (`int`) -- an object should span at least this many frames
+      - `verbose`: (`Bool`) -- announce number of frames processed?
+      - `testfn` : (`funct`) -- function to judge if two `2D` objects in two frames
+        really belong to one multi-frame object
+      - `*args`, `**kwargs`: arguments to be passed to `mvm.find_objects`
+      
+    Returns:
+      List of recovered 3D objects. Each object is an *embedding*,
+      i.e. a tuple of the form ``(data, (sh, slices))``, where ``data``
+      is bounding of the 3D object, and ``sh`` is the full shape  of the array,
+      and ``slices`` are slices which define the indices for the bounding box.
     """
     L = len(frames)
     if framewise is None:
@@ -403,6 +490,8 @@ def xslices_intersect(*xslices):
 
 
 class LinkableObj:
+    """A class used in framewise-MVM, used to link 2D objects between different frames.
+    """
     def __init__(self, obj, framenumber):
 	self.frame = framenumber
 	self.obj = obj

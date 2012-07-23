@@ -9,8 +9,6 @@ import glob
 import itertools as itt
 import numpy as np
 import tempfile as tmpf
-#from scipy import signal
-
 
 _dtype_ = np.float64
 
@@ -20,12 +18,12 @@ from imfun import lib
 ifnot = lib.ifnot
 
 def sorted_file_names(pattern):
-    "Returns a sorted list of file names matching a pattern"
+    "Return a sorted list of file names matching a pattern"
     x = glob.glob(pattern)
     return sorted(x)
 
 def iter_files(pattern, loadfn):
-    """return iterator over data frames, file names matching a pattern,
+    """Return iterator over data frames, file names matching a pattern,
     loaded by a user-provided function loadfn
     """
     return itt.imap(loadfn, sorted_file_names(pattern))
@@ -121,8 +119,9 @@ class FrameSequence(object):
 	"""Return a percentile `p` value on data.
 
 	Parameters:
-	  - `p`: float in range of [0,100] (or sequence of floats)
-	  Percentile to compute which must be between 0 and 100 inclusive.
+	  - `p` : float in range of [0,100] (or sequence of floats)
+	     Percentile to compute which must be between 0 and 100 inclusive.
+	  
 	"""
         return  np.percentile(self.as3darray(),p)
 
@@ -225,7 +224,7 @@ class FrameSequence(object):
 
 	Parameters:
 	  - `maxN`: (`int` or `None`) -- up to this frame. Up to last frame if
-	`None`
+	    `None`
 	  - `sliceobj`: (`slice` or `None`) -- a slice to take from each frame
 	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
 
@@ -248,7 +247,7 @@ class FrameSequence(object):
 
 	Parameters:
 	  - `mask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
-	`False` if `mask` is `None`, take all pixels
+            `False` if `mask` is `None`, take all pixels
 	  - `maxN`: (`int` or `None`) -- use frames up to `maxN`
 	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
 	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
@@ -311,7 +310,7 @@ class FrameSequence(object):
 	Parameters:
 	  - `pwfn`: (`func`) -- a ``f(vector) -> vector`` function
 	  - `verbose`: (`Bool`) -- whether to be verbose while going through
-	the pixels
+            the pixels
 	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
 	"""
 	nrows, ncols = self.shape()[:2]
@@ -339,7 +338,7 @@ class FrameSequence(object):
 
 	Parameters:
 	  - `path` : (`str`) -- directory where to save images to. Will be created
-	if doesn't exist
+	    if doesn't exist
 	  - `base` : (`str`) -- a prefix for the created file names
 	  - `figsize`: (`tuple` or `array-like`) -- size of the figures in inches
 	  - `start` : (`int`) -- start at this frame
@@ -347,11 +346,11 @@ class FrameSequence(object):
 	  - `show_title`: (`Bool`) -- flag whether to show a title over the
 	frame
 	  - `format`: (`str`) -- output format, can be png, svg, eps, pdf,
-	bmp,tif
+	    bmp,tif
 	  - `vmin` : (`number` or `None`) -- to be passed to imshow. If `None`,
-	global minimum over the frame sequence is used.
+	    global minimum over the frame sequence is used.
 	  - `vmax` : (`number` or `None`) -- to be passed to imshow. If `None`,
-	global maximum over the frame sequence is used.
+	    global maximum over the frame sequence is used.
 	  - `**kwargs`: other arguments that will be passed to `imshow`
 
 	Returns:
@@ -393,7 +392,7 @@ class FrameSequence(object):
 
 	Parameters:
 	  - `mpeg_name`: (`str`) -- a name (without extension) for the movie to
-	be created
+	    be created
 	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
