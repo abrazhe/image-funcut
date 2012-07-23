@@ -306,7 +306,7 @@ class DiameterMeasurement1:
 
 
 class DraggableObj:
-    "Basic class for objects that can be dragged on the screen"
+    """Basic class for objects that can be dragged on the screen"""
     verbose = True
     def __init__(self, obj, parent,):
         self.obj = obj
@@ -491,7 +491,7 @@ class LineScan(DraggableObj):
 
 
 class CircleROI(DraggableObj):
-    "Draggable Circle ROI"
+    """Draggable Circle ROI"""
     step = 1
     def on_scroll(self, event):
         if not self.event_ok(event, True): return
@@ -572,11 +572,14 @@ class CircleROI(DraggableObj):
 
     def get_timeview(self, normp=False):
 	"""return timeseries from roi
-	if normp is False, returns raw timeseries v
-	if normp is a function f, returns f(v)
-	if normp is a number N, returns \Delta v/v_0, where
-	   v_0 is calculated over N first points 
-	else, returns \Delta v/v 
+
+	Parameters:
+	  - if normp is False, returns raw timeseries v
+	  - if normp is a function f, returns f(v)
+	  - if normp is a number N, returns :math:`\\Delta v/v_0`, where
+            :math:`v_0` is calculated over N first points 
+	  - else, returns :math:`\\Delta v/\\bar v` 
+
 	"""
         shape = self.parent.fseq.shape()
         v = self.parent.fseq.mask_reduce(self.in_circle(shape))

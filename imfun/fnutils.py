@@ -5,7 +5,7 @@ import itertools as itt
 
 def fnchain(f,n):
     """
-    returns lambda *args, **kwargs: f(..n times..f(*args, **kwargs))
+    returns lambda `*args`, `**kwargs`: f(..n times..f(*args, **kwargs))
     """
     return flcompose(*[f]*n)
 	

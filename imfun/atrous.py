@@ -21,9 +21,6 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]] # 3D
 
-sigmaej.__doc__ = """A table for noise variance at different levels of
-decomposition for data of different dimensionality"""
-
 def mc_levels(size=(256,256),level=3, N = 1e3):
     import sys
     images = (randn(*size) for i in arange(N))

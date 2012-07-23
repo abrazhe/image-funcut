@@ -6,6 +6,7 @@ import numpy as np
 from numpy import pi, cos, sin, tan
 
 def spike(x, location, a, tau):
+    "a single spike"
     coef = 0.5 * a * (1 + np.tanh(20 * (x-location) / tau))
     return coef * np.exp(- abs(x -location)/ tau)
 

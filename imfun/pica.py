@@ -23,17 +23,16 @@ except:
 
 def pca(X, ncomp=None):
     """PCA decomposition via SVD
-    Input
-    ~~~~~~
-    X -- an array where each column contains observations from one probe
+
+    Input:
+      - X -- an array where each column contains observations from one probe
          and each row is different probe (dimension)
 
-    Output
-    ~~~~~~~
-    Z -- whitened matrix
-    K -- PC matrix
-    s -- eigenvalues
-    X_mean -- sample mean
+    Output:
+      - Z -- whitened matrix
+      - K -- PC matrix
+      - s -- eigenvalues
+      - X_mean -- sample mean
     """
     ndata, ndim = X.shape
     X_mean = X.mean(axis=-1)[:,np.newaxis]    
@@ -49,14 +48,15 @@ def pca(X, ncomp=None):
 
 def pca_svd(X):
     """Variant for ellipse fitting
+
     Input:
-    X : data points, dimensions are columns, independent observarions are rows
+      - X : data points, dimensions are columns, independent observarions are rows
 
     Output:
-    Vh : PC vectors
-    phi: rotation of main axis (in degrees)
-    ranges: data ranges of projections on PC axes
-    center: center of the data
+      - Vh : PC vectors
+      - phi: rotation of main axis (in degrees)
+      - ranges: data ranges of projections on PC axes
+      - center: center of the data
     """
     c0 = X.mean(axis=0)
     X1 = (X - c0)
@@ -68,19 +68,18 @@ def pca_svd(X):
 
 def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
+
     Input:
-    ~~~~~~
-    X -- list of 2D arrays or 3D array with first axis = time
-    ncomp -- number of components to resolve
-    mu [0.3] -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
-    npca [None] -- number of principal components to calculate (default, equals
+      - X -- list of 2D arrays or 3D array with first axis = time
+      - ncomp -- number of components to resolve
+      - mu [0.3] -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
+      - npca [None] -- number of principal components to calculate (default, equals
                    to the number of independent components
-    reshape_filters [True] -- if true, ICA filters are returned as a sequence
+      - reshape_filters [True] -- if true, ICA filters are returned as a sequence
                               of images (3D array, Ncomponents x Npx x Npy)
     
     Output:
-    ~~~~~~~
-    ica_filters, ica_signals
+      - ica_filters, ica_signals
     """
     data = reshape_from_movie(X) # nframes x npixels
     sh = X[0].shape
@@ -135,7 +134,7 @@ logcoshnonlin = {'g': lambda X: np.tanh(X),
                  'gprime': lambda X: 1.0 - np.tanh(X)**2}
 
 def _sym_decorrelate(X):
-    "W <- W \cdot (W^T \cdot W)^{-1/2}"
+    ":math:`W <- W \\cdot (W^T \\cdot W)^{-1/2}`"
     a = dot(X, transp(X))
     ev, EV = linalg.eigh(a)
     
@@ -183,20 +182,19 @@ def fastica(X, ncomp=None, whiten = True,
             nonlinfn = pow3nonlin,
             tol = 1e-04, max_iter = 1e3, guess = None):
     """Fast ICA algorithm realisation.
+
     Input:
-    ~~~~~~
-    X -- data matrix with observations in rows
-    ncomp -- number of components to resolve  [all possible]
-    whiten -- whether to whiten the input data [True]
-    nonlinfn -- nonlinearity function [pow3nonlin]
-    tol -- finalisation tolerance, [1e-04]
-    max_iter -- maximal number of iterations [1000]
-    guess -- initial guess [None]
+     - X -- data matrix with observations in rows
+     - ncomp -- number of components to resolve  [all possible]
+     - whiten -- whether to whiten the input data [True]
+     - nonlinfn -- nonlinearity function [pow3nonlin]
+     - tol -- finalisation tolerance, [1e-04]
+     - max_iter -- maximal number of iterations [1000]
+     - guess -- initial guess [None]
 
     Output:
-    ~~~~~~~
-    S -- estimated sources (in rows)
-    W -- unmixing matrix
+     - S -- estimated sources (in rows)
+     - W -- unmixing matrix
     """
     n,p = map(float, X.shape)
     if whiten:
@@ -377,7 +375,7 @@ def _pca1 (X, verbose=False):
     Simple principal component decomposition (PCA)
     X as Npix by Nt matrix
     X should be normalized and centered beforehand
-    --
+
     returns:
     - EV (Nt by Nesq:esq>0), matrix of PC 'signals'
      (eigenvalues of temporal covariance matrix). Signals are in columns
