@@ -21,6 +21,9 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]] # 3D
 
+sigmaej.__doc__ = """A table for noise variance at different levels of
+decomposition for data of different dimensionality"""
+
 def mc_levels(size=(256,256),level=3, N = 1e3):
     import sys
     images = (randn(*size) for i in arange(N))
@@ -54,7 +57,7 @@ def decompose(arr, *args, **kwargs):
     return decfn(arr, *args, **kwargs)
 
 def decompose1d(sig, level, phi=_phi_):
-    "1d stationary wavelet transform"
+    """1d stationary wavelet transform"""
     sig = sig.astype(_dtype_)
     apprx = convolve1d(sig, phi, mode='mirror')
     w = (sig - apprx) # wavelet coefs
@@ -70,19 +73,14 @@ def decompose2d(arr2d, level, kern=None, boundary='symm'):
     This is a convolution version, where kernel is zero-upsampled
     explicitly. Not fast.
 
-    Arguments:
-    ---------
-    arr2d : 2D array
-    level : level of decomposition
-
-    Keyword arguments:
-    -------------------
-    kern  : low-pass filter kernel (B3-spline by default)
-    boundary : boundary conditions (passed to scipy.signal.convolve2d, 'symm'
+    Parameters:
+      - arr2d : 2D array
+      - level : level of decomposition
+      - kern  : low-pass filter kernel (B3-spline by default)
+      - boundary : boundary conditions (passed to scipy.signal.convolve2d, 'symm'
                by default)
-    Outputs:
-    ---------
-    list of wavelet details + last approximation
+    Returns:
+      list of wavelet details + last approximation
     
     """
     _b3spline1d = np.array(_phi_, _dtype_)
@@ -115,7 +113,7 @@ def f2d(phi):
 def decompose2p5d(arr, level=1,
                   phi = _phi_,
                   boundary = 'mirror'):
-    "Semi-separable \'a trous wavelet decomposition for 3D data"
+    """Semi-separable a trous wavelet decomposition for 3D data"""
     phi2d = f2d(phi)
     if level <= 0: return arr
     arr = arr.astype(_dtype_)
