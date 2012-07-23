@@ -1,6 +1,9 @@
+### -------------------------------- ###
+### Classes for sequences of frames ###
+### -------------------------------- ###
 
-# Classes for sequencies of frames
 import sys
+import os
 import re
 import glob
 import itertools as itt
@@ -16,17 +19,22 @@ from matplotlib.pyplot import imread
 from imfun import lib
 ifnot = lib.ifnot
 
-def sorted_file_names(pat):
+def sorted_file_names(pattern):
     "Returns a sorted list of file names matching a pattern"
-    x = glob.glob(pat)
+    x = glob.glob(pattern)
     return sorted(x)
 
 def iter_files(pattern, loadfn):
-    "From a pattern, return iterator over data sequence"
+    """return iterator over data frames, file names matching a pattern,
+    loaded by a user-provided function loadfn
+    """
     return itt.imap(loadfn, sorted_file_names(pattern))
 
 
 def img_getter(frame, ch, pngflag):
+    """A wrapper to extract color channel from image files.
+    :returns: 2D matrix with intensity values
+    """
     if len(frame.shape) > 2:
         out = frame[:,:,ch]
     else:
@@ -35,15 +43,31 @@ def img_getter(frame, ch, pngflag):
         out = out[::-1,:]
     return out
 
-def fseq_from_glob(pattern, ch=None, loadfn=np.load):
-    "Sequence of frames from filenames matching a glob"
+def _fseq_from_glob_deprecated(pattern, ch=None, loadfn=np.load):
+    """Sequence of frames from filenames matching a glob
+    
+    :param pattern:  glob-pattern for file names
+    :param ch: color channel
+    :param loadfn : [np.load], function to load data from a file by its name
+
+    :returns: iterator over 2D matrices
+    """
     pngflag = (pattern[-3:] == 'png')
     return itt.imap(lambda frame: img_getter(frame, ch, pngflag),
                     iter_files(pattern, loadfn))
 
 
-def fseq_from_glob_2(pattern, ch=None, loadfn=np.load):
-    "Sequence of frames from filenames matching a glob"
+def fseq_from_glob(pattern, ch=None, loadfn=np.load):
+    """Return sequence of frames from filenames matching a glob.
+
+    Parameters:
+      - pattern : (`str`) -- glob-style pattern for file names. 
+      - ch: (`int` or `None`) -- color channel to extract if a number, all colors if `None`.
+      - loadfn: (`func`) -- a function to load data from a file by its name [`np.load`].
+
+    Returns:
+      - iterator over frames. `2D` if `ch` is `int`, `3D` if ch is `None`
+    """
     pngflag = (pattern[-3:] == 'png')
     if ch is not None:
 	return itt.imap(lambda frame: img_getter(frame, ch, pngflag),
@@ -51,10 +75,13 @@ def fseq_from_glob_2(pattern, ch=None, loadfn=np.load):
     else:
 	return iter_files(pattern, loadfn)
 
-
 class FrameSequence(object):
     "Base class for sequence of frames"
     def get_scale(self):
+	"""
+	Returns dx,dy and the flag whether the scale information has been set.
+	If scale info hasn't been set, dx=dy=1
+	"""
         if hasattr(self, '_scale_set'):
             scale_flag = self._scale_set
             dx,dy, scale_flag = self.dx, self.dy, self._scale_set
@@ -63,6 +90,7 @@ class FrameSequence(object):
         return dx, dy, scale_flag
 
     def set_scale(self, dx=None, dy=None):
+	"""sets self.dx, self.dy scale information"""
         self._scale_set = True
         if (dx is None) and (dy is None):
             self.dx,self.dy = 1,1
@@ -75,45 +103,79 @@ class FrameSequence(object):
             self.dx, self.dy = dx,dy
 
     def std(self):
+	"""get standard deviation of the data"""
         a = self.as3darray()
         return float(a.std())
 
     def data_range(self):
-        "Global range (minimal and maximal) values for the sequence"
+        """Return global range (`min`, `max`) values for the sequence"""
         ranges = np.array([(np.min(f), np.max(f)) for f in self.frames()])
         minv,maxv = np.min(ranges[:,0]), np.max(ranges[:,1])
         return (minv, maxv)
 
     def pipeline(self):
+	"""Return the composite function to process frames based on self.fns"""
 	return lib.flcompose(identity, *self.fns)
 
     def data_percentile(self, p):
-        #from scipy.stats import scoreatpercentile
-        arr = self.as3darray().flatten()
-        res =  np.percentile(arr,p)
-	del arr
-	return res
+	"""Return a percentile `p` value on data.
+
+	Parameters:
+	  - `p`: float in range of [0,100] (or sequence of floats)
+	  Percentile to compute which must be between 0 and 100 inclusive.
+	"""
+        return  np.percentile(self.as3darray(),p)
 
     def timevec(self,):
-        "vector of time values"
+        """Return a vector of time stamps, calculated based on `self.dt`"""
         L = self.length()
         return np.arange(0, (L+2)*self.dt, self.dt)[:L]
 
     def mask_reduce(self, mask):
-        "create 1D vector from mask (or slice)"
+        """Return `1D` vector from a mask (or slice), taking average value within
+        this mask in each frame"""
         return np.asarray([np.mean(f[mask]) for f in self.frames()])
 
-    def frame_slices(self, sliceobj, fn=None):
-        "iterator over subframes (slices)"
+    def frame_slices(self, sliceobj):
+        """Return iterator over subframes (slices defined by `sliceobj` parameter).
+	When `sliceobj` is `None`, full frames are returned 
+	"""
         if sliceobj:
-            return (f[sliceobj] for f in self.frames(fn))
+            return (f[sliceobj] for f in self.frames())
         else:
-            return self.frames(fn)
+            return self.frames()
 
-    def mean_frame(self, start = None, stop=None, fn=None):
-        "Create mean image over N frames (all by default)"
+    def time_project(self,start=None,stop=None,fn=np.mean):
+	"""Apply an ``f(vector) -> scalar`` function for each pixel.
+
+	This is a more general (and often faster) function than
+	`self.mean_frame` or `self.max_project`. However, it requires more
+	memory as it makes a call to self.as3darray, while the other two don't
+	
+	Parameters:
+	  - `start`: (`int` or `None`) -- frame to start at
+	  - `stop`: (`int` or `None`) -- frame to stop at
+	  - `fn` (`func`) -- function to apply (`np.mean` by default)
+
+        Returns:
+	  - `2D` `array` -- a projected frame
+	"""
+	L = self.length()
+	start = ifnot(start,0)
+        stop = min(ifnot(stop,L), L)
+	out = np.zeros(self.shape())
+	for v,r,c in self.pix_iter():
+	    out[r,c] = fn(v[start:stop])
+	return out
+
+    def mean_frame(self, start=None, stop=None):
+        """Return average image over N frames starting.
+
+	Starts at `start`, stops at `stop`. A value of `None`
+	corresponds to 0 for `start` and last frame for `stop`
+	"""
         L = self.length()
-        frameit = itt.imap(_dtype_, self.frames(fn))
+        frameit = itt.imap(_dtype_, self.frames())
         res = np.copy(frameit.next())
 	if start is None: start =0
         stop = min(ifnot(stop,L), L)
@@ -125,11 +187,12 @@ class FrameSequence(object):
 	    count += 1
         return res/(count)
     
-    def max_project(self, start = None, stop=None, fn=None):
-        "Create max-projection image from start to stop frame (all by default)"
+    def max_project(self, start = None, stop=None):
+	"""Return max-projection image from start to stop frame
+	(all by	default)
+	"""
         L = self.length()
-        frameit = itt.imap(_dtype_, self.frames(fn))
-        res = np.copy(frameit.next())
+        frameit = itt.imap(_dtype_, self.frames())
 	start = max(ifnot(start, 0), 0)
         stop = min(ifnot(stop,L), L)
 	out = frameit.next()
@@ -139,21 +202,39 @@ class FrameSequence(object):
 	    out = np.max([out, frame], axis=0)
         return out
 
+    def aslist(self, maxN=None, sliceobj=None):
+        """Return the frames as a list up to `maxN` frames
+	taking ``f[sliceobj]`` slices.
+	"""
+        return list(self.asiter(maxN,sliceobj))
 
-
-    def aslist(self, fn = None, maxN=None, sliceobj=None):
-        "returns a list of frames"
-        return list(self.asiter(maxN,fn,sliceobj))
-
-    def asiter(self, fn = None, maxN=None, sliceobj=None):
-        "returns a modified iterator over frames"
-        fiter = self.frame_slices(sliceobj, fn)
+    def asiter(self, maxN=None, sliceobj=None):
+        """Return an iterator over the up to `maxN` frames taking
+	``f[sliceobj]`` slices
+	"""
+        fiter = self.frame_slices(sliceobj)
         return itt.islice(fiter, maxN)
 
-    def as3darray(self,  maxN = None, fn = None, sliceobj=None,
+    def as3darray(self,  maxN=None,sliceobj=None,
                   dtype = _dtype_):
-        fiter = self.frame_slices(sliceobj, fn=fn)
-        shape = self.shape(sliceobj, fn=fn)
+	"""Return the frames as a `3D` array.
+
+	An alternative way is to use the __get_item__ interface:
+	``data = np.asarray(fs[10:100])``
+	
+
+	Parameters:
+	  - `maxN`: (`int` or `None`) -- up to this frame. Up to last frame if
+	`None`
+	  - `sliceobj`: (`slice` or `None`) -- a slice to take from each frame
+	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
+
+	Returns:
+	  `3D` array `d`, where frames are stored in higher dimensions, such
+	  that ``d[0]`` is the first frame, etc.
+	"""
+        fiter = self.frame_slices(sliceobj)
+        shape = self.shape(sliceobj)
 	newshape = [self.length()] + list(shape)
         out = lib.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(fiter, maxN)):
@@ -163,7 +244,19 @@ class FrameSequence(object):
         return out
     
     def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
-        "Iterator over time signals from each pixel"
+        """Return iterator over time signals from each pixel.
+
+	Parameters:
+	  - `mask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
+	`False` if `mask` is `None`, take all pixels
+	  - `maxN`: (`int` or `None`) -- use frames up to `maxN`
+	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
+	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
+
+	Yields:
+	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
+	
+	"""
         arr = self.as3darray(maxN, **kwargs)
         if mask== None:
             mask = np.ones(self.shape(), np.bool)
@@ -180,7 +273,7 @@ class FrameSequence(object):
         
 
     def length(self):
-        "Number of frames in the sequence"
+        """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
             k = 0
             for _ in self.frames():
@@ -190,12 +283,12 @@ class FrameSequence(object):
         else:
             return self._length
 
-    def shape(self, sliceobj=None, fn = None):
-        "Returns shape of frames in the sequence"
-        return self.frame_slices(sliceobj, fn = fn).next().shape
+    def shape(self, sliceobj=None):
+        "Return the shape of frames in the sequence"
+        return self.frame_slices(sliceobj).next().shape
 
-    def norm_mavg(self, tau=90., **kwargs):
-	"Returns normalized frame sequence"
+    def _norm_mavg(self, tau=90., **kwargs):
+	"Return normalized frame sequence"
 	from scipy import ndimage
 	if kwargs.has_key('dtype'):
 	    dtype = kwargs['dtype']
@@ -212,9 +305,16 @@ class FrameSequence(object):
 	
 
     def pw_transform(self, pwfn, verbose=False, **kwargs):
-        """Create another frame sequence, pixelwise applying a provided function"""
+        """Spawn another frame sequence, pixelwise applying a user-provided
+        function.
+
+	Parameters:
+	  - `pwfn`: (`func`) -- a ``f(vector) -> vector`` function
+	  - `verbose`: (`Bool`) -- whether to be verbose while going through
+	the pixels
+	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
+	"""
 	nrows, ncols = self.shape()[:2]
-        #out = np.zeros((self.length(), nrows, ncols))
 	if kwargs.has_key('dtype'):
 	    dtype = kwargs['dtype']
 	else:
@@ -235,6 +335,29 @@ class FrameSequence(object):
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
                    start = 0, stop = None, show_title = True,
                    format='.png', vmin = None, vmax=None, **kwargs):
+	"""Export frames as images by drawing them with ``pylab.imshow``.
+
+	Parameters:
+	  - `path` : (`str`) -- directory where to save images to. Will be created
+	if doesn't exist
+	  - `base` : (`str`) -- a prefix for the created file names
+	  - `figsize`: (`tuple` or `array-like`) -- size of the figures in inches
+	  - `start` : (`int`) -- start at this frame
+	  - `stop` : (`int` or `None`) -- stop at this frame
+	  - `show_title`: (`Bool`) -- flag whether to show a title over the
+	frame
+	  - `format`: (`str`) -- output format, can be png, svg, eps, pdf,
+	bmp,tif
+	  - `vmin` : (`number` or `None`) -- to be passed to imshow. If `None`,
+	global minimum over the frame sequence is used.
+	  - `vmax` : (`number` or `None`) -- to be passed to imshow. If `None`,
+	global maximum over the frame sequence is used.
+	  - `**kwargs`: other arguments that will be passed to `imshow`
+
+	Returns:
+	  - a list of names for the created files
+	
+	"""
         import  sys
         import matplotlib.pyplot as plt
         lib.ensure_dir(path)
@@ -266,8 +389,14 @@ class FrameSequence(object):
         plt.close()
 	return fnames
     def export_mpeg(self, mpeg_name, fps = None, **kwargs):
-        import os
-        "Creates an mpg  movie from frame sequence with mencoder"
+	"""Create an mpg  movie from the frame sequence using mencoder.
+
+	Parameters:
+	  - `mpeg_name`: (`str`) -- a name (without extension) for the movie to
+	be created
+	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
+	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
+	"""
         print "Saving frames as png"
         if fps is None:
             fps = 10/self.dt
@@ -284,6 +413,8 @@ class FrameSequence(object):
         map(os.remove, fnames)
 
 class FSeq_arr(FrameSequence):
+    """A FrameSequence class as a wrapper around a `3D` array
+    """
     def __init__(self, arr, dt = 1.0, fns = [],
                  dx = None, dy = None):
         self.dt = dt
@@ -307,9 +438,16 @@ class FSeq_arr(FrameSequence):
         #from scipy.stats import scoreatpercentile
         return np.percentile(np.ravel(self.data),p)
 
-    def frames(self, fn=None):
-        #fn = ifnot(fn, self.fn)
-        fn = ifnot(fn, self.pipeline())
+    def frames(self):
+	"""
+	Return iterator over frames.
+
+	The composition of functions in `self.fns` list is applied to each
+	frame. By default, this list is empty.  Examples of function"hooks"
+	to put into `self.fns` are ``imfun.lib.DFoSD``,
+	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	"""
+        fn = self.pipeline()
         return itt.imap(fn, (frame for frame in self.data))
 
 
@@ -317,6 +455,8 @@ def identity(x):
     return x
 
 class FSeq_glob(FrameSequence):
+    """A FrameSequence class as a wrapper around a set of files matching a
+    glob-like pattern"""
     def __init__(self, pattern, ch=0, dt = 1.0, fns = [],
                  dx = None, dy = None):
         self.pattern = pattern
@@ -328,11 +468,17 @@ class FSeq_glob(FrameSequence):
     def length(self):
 	return len(self.file_names)
             
-    def frames(self, fn = None, ch = None):
-        fn = ifnot(fn, self.pipeline())
-        ## Examples of processing functions can be found in scipy.ndimage module
-        ## TODO: a list of hook functions
-        return itt.imap(fn, fseq_from_glob_2(self.pattern,
+    def frames(self, ch = None):
+	"""
+	Return iterator over frames.
+
+	The composition of functions in `self.fns`
+	list is applied to each frame. By default, this list is empty. Examples
+	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
+	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	"""
+        fn = self.pipeline()
+        return itt.imap(fn, fseq_from_glob(self.pattern,
 					   ifnot(ch, self.ch), self.loadfn))
     def __getitem__(self, val):
 	pngflag = self.file_names[0][-3:] == 'png'
@@ -345,19 +491,26 @@ class FSeq_glob(FrameSequence):
 	else:
 	    seq =  map(self.loadfn, self.file_names[val])
 	    if self.ch is not None:
-		seq = [img_getter(f, self.ch, pngflag) for f in seq]
+		seq = (img_getter(f, self.ch, pngflag) for f in seq)
 	    return map(fn, seq)
 	
 class FSeq_img(FSeq_glob):
+    """FrameSequence around a set of image files"""
     loadfn = lambda self,y: imread(y)
 
 class FSeq_txt(FSeq_glob):
+    """FrameSequence around a set of text-image files"""
     loadfn= lambda self,y: np.loadtxt(y)
 
 class FSeq_npy(FSeq_glob):
+    """FrameSequence around a set of npy files"""
     loadfn= lambda self,y: np.load(y)
 
 class FSeq_imgleic(FSeq_img):
+    """FrameSequence around the image files created by LeicaSoftware.
+    It is just a wrapper around FSeq_img, only it also looks for an xml
+    file in Leica's format with the Job description
+    """
     def __init__(self, pattern, ch=0, fns=[], xmlname = None,
                  dt = 1.0, dx = None, dy = None):
         FSeq_glob.__init__(self, pattern,ch=ch)
@@ -381,18 +534,27 @@ class FSeq_imgleic(FSeq_img):
 from imfun import MLFImage
 
 class FSeq_mlf(FrameSequence):
-    "Class for MLF multi-frame images"
+    "FrameSequence class for MLF multi-frame images"
     def __init__(self, fname, fns = []):
         self.mlfimg = MLFImage.MLF_Image(fname)
         self.dt = self.mlfimg.dt/1000.0
         self.fns = []
         self.set_scale()
-    def frames(self,  fn = None):
-        fn = ifnot(fn, lib.flcompose(identity, *self.fns))        
+    def frames(self,):
+	"""
+	Return iterator over frames.
+
+	The composition of functions in `self.fns`
+	list is applied to each frame. By default, this list is empty. Examples
+	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
+	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	"""
+	
+        fn = lib.flcompose(identity, *self.fns)
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
-    def __getitem__(self, val, fn = None):
+    def __getitem__(self, val):
 	L = self.length()
-	fn = ifnot(fn, self.pipeline())
+	fn = self.pipeline()
 	if type(val) is int:
 	    return fn(self.mlfimg[val])
 	else:
@@ -432,8 +594,16 @@ class FSeq_multiff(FrameSequence):
         self.fns = []
         self.im = Image.open(fname)
         self.set_scale()
-    def frames(self, fn = None,count=0):
-        fn = ifnot(fn, self.pipeline())        
+    def frames(self, count=0):
+	"""
+	Return iterator over frames.
+
+	The composition of functions in `self.fns`
+	list is applied to each frame. By default, this list is empty. Examples
+	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
+	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	"""
+        fn = self.pipeline()
         while True:
             try:
                 self.im.seek(count)
@@ -443,7 +613,16 @@ class FSeq_multiff(FrameSequence):
                 break
             
 def open_seq(path, *args, **kwargs):
-    "Dispatches to a real class constructor depending on the file name"
+    """Dispatch to an appropriate class constructor depending on the file name
+
+    Parameters:
+      - path: (`str`) -- path to load data from. Can be a glob-style pattern or
+        a single file name.
+      - `*args`, `**kwargs`: will be dispatched to the actual class' `__init__` call
+
+    Returns:
+      - `instance`  of an appropriate Frame Sequence class
+    """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff')
     if type(path) is np.ndarray:
 	return FSeq_arr(path, *args, **kwargs)
