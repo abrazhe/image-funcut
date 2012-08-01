@@ -14,27 +14,37 @@ ifnot = lib.ifnot
 
 
 def locations(shape):
+    """locations from a given shape (Cartesian product) as an iterator"""
     return itt.product(*map(xrange, shape))
 
 
 def adaptive_threshold(arr, n = 3, k = 0):
+    """Return adaptive-thresholded mask for an array.
+
+    Parameters:
+      - `arr`: input array
+      - `n`: (`int`) -- window half-size
+      - `k`: (`number`) -- threshold will be at mean(window)-k
+
+    Returns:
+      - mask: (`int` array) -- 1 where array > threshold, 0 otherwise
+    """
     nrows,ncols = arr.shape
     out = np.zeros(arr.shape)
-    for row in xrange(nrows):
-        for col in xrange(ncols):
-            sl = (slice((row-n)%nrows,(row+n)%nrows),
-                  slice((col-n)%ncols,(col+n)%ncols))
-            m = np.mean(arr[sl])
-            if arr[row,col] > m - k:
-                out[row,col] = 1.0
+    for row,col in locations(arr.shape):
+	sl = (slice((row-n)%nrows,(row+n)%nrows),
+	      slice((col-n)%ncols,(col+n)%ncols))
+	m = np.mean(arr[sl])
+	if arr[row,col] > m - k:
+	    out[row,col] = 1.0
     return out
 
 
 def contiguous_regions(binarr):
     """    
-    Given a binary Nd array, returns a sorted (by size) list of contiguous
+    Given a binary Nd array, return a sorted (by size) list of contiguous
     regions (True everywhere)
-    Version without recursion. Relies on scipy.ndimage
+    Version without recursion. Relies on scipy.ndimage.find_objects
     """    
     sh = binarr.shape
     regions = [[]]
@@ -55,6 +65,15 @@ def contiguous_regions(binarr):
 
 
 def neighbours_x(loc,shape):
+    """Return list of ajacent locations for a n-dimensional location
+
+    Parameters:
+      - loc: (`tuple`) -- location
+      - shape: (`tuple`) -- shape of enclosing array
+
+    Returns:
+      - list of `tuple`s
+    """
     n = len(loc)
     d = np.diag(np.ones(n))
     x = np.concatenate((d,-d)) + loc
@@ -62,7 +81,7 @@ def neighbours_x(loc,shape):
     
 
 def neighbours_2(loc, shape):
-    "list of adjacent locations"
+    """Return list of adjacent locations"""
     r,c = loc
     return filter(lambda x: valid_loc(x, shape),
                   ((r,c+1),(r,c-1),(r+1,c),(r-1,c),
@@ -71,39 +90,53 @@ def neighbours_2(loc, shape):
 neighbours = neighbours_x
 
 def valid_loc(loc,shape):
-    "location not outside bounds"
+    "Test if location not outside bounds"
     return reduce(op.__and__, [(0 <= x < s) for x,s in zip(loc,shape)])
 
 
-def filter_proximity(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
+def filter_density(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
+    """Density-based filter binary mask.
+
+    Pixel is `True` if there are more than `size` pixels within a radius of
+    `rad` from the pixel
+
+    Parameters:
+      - `mask`: binary mask
+      - `rad` : neighborhood radius
+      - `size`: number of pixels required to be within the neighborhood
+      - `fn`  : getter function, lambda m,i,j: m[i,j] by default
+
+    Returns:
+      - filtered mask
+    """
     rows, cols = mask.shape
     X,Y = np.meshgrid(xrange(cols), xrange(rows))
     in_circle = lib.in_circle
     out = np.zeros((rows,cols), np.bool)
-    for row in xrange(rows):
-        for col in xrange(cols):
-            if fn(mask,row,col):
-                a = in_circle((col,row),rad)
-                if np.sum(mask*a(X,Y))>size:
-                    out[row,col] = True
+    for row,col in locations(mask.shape):
+	if fn(mask,row,col):
+	    a = in_circle((col,row),rad)
+	    if np.sum(mask*a(X,Y))>size:
+		out[row,col] = True
     return out
 
-def majority(mask, th = 5, mod = False):
-    rows, cols = mask.shape
+def majority(bimage, th = 5, mod = False):
+    """Perform majority operation on the input binary image"""
+    rows, cols = bimage.shape
     out = np.zeros((rows,cols), np.bool)
     for row in xrange(1,rows):
         for col in xrange(1,cols):
 	    sl = (slice(row-1,row+2), slice(col-1,col+2))
-            x = np.sum(mask[sl])
+            x = np.sum(bimage[sl])
             out[(row,col)] = (x >= th)
             if mod:
-               out[(row,col)] *= mask[row,col]
+               out[(row,col)] *= bimage[row,col]
     return out
             
 
 def filter_mask(mask, fn, args=()):
-    """Split a mask into contiguous regions, filter their size,
-    and return result as a mask
+    """Split a mask into contiguous regions,
+    filter them by provided function, and return result as a mask
     """
     regs = contiguous_regions(mask)
     filtered_regs = fn(regs, *args)
@@ -115,15 +148,17 @@ def filter_mask(mask, fn, args=()):
         return z
 
 def filter_size_regions(regions, min_size=5):
-    "Filters clusters by their size"
+    """Filter contiguous regions (clusters) by their size"""
     return [r for r in regions if r.size()>min_size]
 
 def filter_shape_regions(regions, th = 2):
-    "Filters continuous regions by their shape"
+    """Filter contiguous regions (clusters) by circularity of shape"""
     return [r for r in regions
             if (r.linsize() > th*np.sqrt(r.size()))]
 
 def glue_adjacent_regions(regions, max_distance=10):
+    """Go through a sequence of regions, for each pair of closely-spaced
+    regions, unite the to make a single region. Return the new list"""
     L = len(regions)
     acc = []
     def _glue_if(r1,r2):
@@ -148,12 +183,12 @@ def glue_adjacent_regions(regions, max_distance=10):
     return acc
 
 def regions_overlap(r1,r2):
+    """Test if two regions overlap"""
     x = False
     for loc in r1.locs:
         if loc in r2.locs:
             return True
     return False
-    #return x #or y
         
 def unite_2regions(region1,region2):
     "Glue together two regions"
@@ -162,13 +197,17 @@ def unite_2regions(region1,region2):
 
 
 def distance_regions(r1, r2, fn=min, start=1e9):
+    """Operate on pairwise distances between two regions
+    if fn is =min=, smallest distance is returned,
+    if fn is =max=, largest distance is returned
+    """
     dists = [lib.eu_dist(*pair) for pair in
              itt.product(r1.borders(), r2.borders())]
-    #print dists
     return reduce(fn, dists, start)
 
 
 def distance_regions_centra(r1,r2):
+    """Return distance between centroids of the two regions"""
     return lib.eu_dist(r1.center(), r2.center())
 
 class RegionND:
