@@ -70,13 +70,13 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
 
     Input:
-      - X -- list of 2D arrays or 3D array with first axis = time
-      - ncomp -- number of components to resolve
-      - mu [0.3] -- spatial vs temporal, mu = 0 -> spatial; mu = 1 -> temporal
-      - npca [None] -- number of principal components to calculate (default, equals
-                   to the number of independent components
-      - reshape_filters [True] -- if true, ICA filters are returned as a sequence
-                              of images (3D array, Ncomponents x Npx x Npy)
+      - `X` -- list of 2D arrays or 3D array with first axis = time
+      - `ncomp` -- number of components to resolve
+      - `mu`  -- spatial vs temporal, :math:`mu = 0 -> spatial`; mu = 1 -> temporal
+      - `npca` -- number of principal components to calculate (default, equals
+        to the number of independent components
+      - `reshape_filters` -- if true, `ICA` filters are returned as a sequence
+        of images (3D array, Ncomponents x Npx x Npy)
     
     Output:
       - ica_filters, ica_signals

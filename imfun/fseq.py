@@ -344,7 +344,7 @@ class FrameSequence(object):
 	  - `start` : (`int`) -- start at this frame
 	  - `stop` : (`int` or `None`) -- stop at this frame
 	  - `show_title`: (`Bool`) -- flag whether to show a title over the
-	frame
+	    frame
 	  - `format`: (`str`) -- output format, can be png, svg, eps, pdf,
 	    bmp,tif
 	  - `vmin` : (`number` or `None`) -- to be passed to imshow. If `None`,
@@ -368,8 +368,8 @@ class FrameSequence(object):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
 	else:
-	    vmin = np.min(map(np.min, self.frames()))
-	    vmax = np.min(map(np.max, self.frames()))
+	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
+	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
 	print path+base
         L = min(stop-start, self.length())
@@ -599,8 +599,7 @@ class FSeq_multiff(FrameSequence):
 
 	The composition of functions in `self.fns`
 	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
-	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
         while True:

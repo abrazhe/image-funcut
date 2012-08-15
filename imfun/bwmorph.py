@@ -19,7 +19,7 @@ def locations(shape):
 
 
 def adaptive_threshold(arr, n = 3, k = 0):
-    """Return adaptive-thresholded mask for an array.
+    """Adaptive-thresholded binarization for an array.
 
     Parameters:
       - `arr`: input array
@@ -27,7 +27,7 @@ def adaptive_threshold(arr, n = 3, k = 0):
       - `k`: (`number`) -- threshold will be at mean(window)-k
 
     Returns:
-      - mask: (`int` array) -- 1 where array > threshold, 0 otherwise
+      - mask: (array) -- 1 where array > threshold, 0 otherwise
     """
     nrows,ncols = arr.shape
     out = np.zeros(arr.shape)
@@ -36,7 +36,7 @@ def adaptive_threshold(arr, n = 3, k = 0):
 	      slice((col-n)%ncols,(col+n)%ncols))
 	m = np.mean(arr[sl])
 	if arr[row,col] > m - k:
-	    out[row,col] = 1.0
+	    out[row,col] = 1
     return out
 
 
@@ -95,7 +95,7 @@ def valid_loc(loc,shape):
 
 
 def filter_density(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
-    """Density-based filter binary mask.
+    """Density-based filter a binary mask.
 
     Pixel is `True` if there are more than `size` pixels within a radius of
     `rad` from the pixel
@@ -104,7 +104,7 @@ def filter_density(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
       - `mask`: binary mask
       - `rad` : neighborhood radius
       - `size`: number of pixels required to be within the neighborhood
-      - `fn`  : getter function, lambda m,i,j: m[i,j] by default
+      - `fn`  : getter function, ``lambda m,i,j: m[i,j]`` by default
 
     Returns:
       - filtered mask
@@ -136,7 +136,7 @@ def majority(bimage, th = 5, mod = False):
 
 def filter_mask(mask, fn, args=()):
     """Split a mask into contiguous regions,
-    filter them by provided function, and return result as a mask
+    filter them by a provided function, and return result as a mask
     """
     regs = contiguous_regions(mask)
     filtered_regs = fn(regs, *args)
