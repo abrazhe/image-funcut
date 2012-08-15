@@ -90,7 +90,7 @@ def get_structures(coefs, support):
 
 ### NOTE: it only preserves structures that are connected up to the latest
 ### level this is probably not always the desired behaviour
-### update: fixed, not tried yet
+### update: fixed
 #@lib.with_time_dec
 def connectivity_graph(structures, min_nscales=2):
     """Create the interscale connectivity graph from labelled regions of
@@ -175,6 +175,15 @@ def restore_object(object, coefs, min_level=0,):
     supp = supp_from_obj(object,min_level)
     return atrous.rec_with_support(coefs, supp)
 
+def supp_from_connectivity(graph,nlevels):
+    nodes = lib.flatten(graph)
+    sh = nodes[0].labels.shape
+    new_shape = [nlevels] + list(sh)
+    out = lib.memsafe_arr(new_shape, _dtype_)*0.0
+    for n in nodes:
+	out[n.level][n.labels>0] = 1.0
+    return out
+    
 
 #@lib.with_time_dec            
 def supp_from_obj(object, min_level=0, max_level= 10,
@@ -314,16 +323,40 @@ def embedding(arr, delarrp=True):
     return out, (sh, slices)
 
 
+def just_denoise(arr, k=3, level=5, noise_std=None,
+		 coefs=None, supp=None,
+		 min_nscales=2):
+    if np.iterable(k):
+        level = len(k)
+    if coefs is None:
+        coefs = atrous.decompose(arr, level)
+    if noise_std is None:
+	if arr.ndim > 2:
+	    noise_std = atrous.estimate_sigma_mad(coefs[0], True)
+	else:
+	    noise_std = atrous.estimate_sigma(arr, coefs)
+    ## calculate support taking only positive coefficients (light sources)
+    if supp is None:
+        supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
+                                  modulus=False)  
+    structures = get_structures(coefs, supp)
+    g = connectivity_graph(structures, min_nscales)
+    labels = reduce(lambda a,b:a+b, (n.labels for n in lib.flatten(g)))
+    new_supp = supp_from_connectivity(g,level)
+    return atrous.rec_with_support(coefs, new_supp)
+    
+    
+
 ### This is one of the main functions ###
 #----------------------------------------
-def find_objects(arr, k = 3, level = 5, noise_std=None,
-                 coefs = None,
-                 supp = None,
-		 retraw = False, # only used for testing
-		 start_scale = 0,
-		 weights = [1., 1., 1., 1., 1.],
-                 min_px_size = 200,
-                 min_nscales = 2):
+def find_objects(arr, k=3, level=5, noise_std=None,
+                 coefs=None,
+                 supp=None,
+		 retraw=False, # only used for testing
+		 start_scale=0,
+		 weights=[1., 1., 1., 1., 1.],
+                 min_px_size=200,
+                 min_nscales=2):
     """Use MVM to find objects in the input array.
 
     Parameters:
