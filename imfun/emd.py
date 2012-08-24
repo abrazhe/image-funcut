@@ -5,8 +5,9 @@ from imfun import lib
 
 def envelopes(vec, x=None):
     """
-    Given vector vec and optional x, return lower and upper envelopes defined
-    by local extrema in vector vec
+    Given vector `vec` and optional `x`, return lower and upper envelopes defined
+    by local extrema in vector vec.  Variable `x` defines the abscissa for
+    vector `vec`
     """
     from scipy.interpolate import splrep,splev
     xfit,yfit,_,maxlocs,minlocs = lib.locextr(vec,x,sort_values=False)
@@ -20,6 +21,9 @@ def envelopes(vec, x=None):
     return lower, upper
 
 def mean_env(vec, x=None):
+    '''
+    Given vector `vec` and optional `x`, return a mean envelope
+    '''
     envs = envelopes(vec,x)
     if len(envs):
 	return np.mean(envelopes(vec,x), axis=0)
@@ -27,6 +31,9 @@ def mean_env(vec, x=None):
 	return None
 
 def imf_candidate(vec,x=None):
+    '''
+    Given vector `vec` and optional `x`, return a candidate for an IMF
+    '''
     h = mean_env(vec,x)
     if h is None:
 	return None
@@ -34,8 +41,18 @@ def imf_candidate(vec,x=None):
 	return vec-mean_env(vec,x)
 
 def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
-    """Finds first empirical mode of the vector vec
-    returns mode if it can, returns None if no local extrema can be found
+    """Finds first empirical mode of the vector `vec`
+    returns mode if it can, returns ``None`` if no local extrema can be found
+
+    Parameters:
+      - `vec`: an input 1D vector
+      - `x`: an optional vector, `vec=f(x)`
+      - `SDk`: tolerance
+      - `max_iter`: maximum number of iterations
+
+    Returns:
+      - `h`: a mode estimate
+    
     """
     h_prev = imf_candidate(vec,x)
     if h_prev is None:
@@ -58,18 +75,28 @@ def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
     return h1
 	
 def find_all_modes(vec,x=None, max_modes = 100):
-    ""
+    """
+    Iteratively run ``find_mode`` to obtain all empirical modes in vector `vec`
+
+    Parameters:
+      - `vec`: an input 1D vector
+      - `x`: an optional vector, `vec=f(x)`
+      - `max_modes`: maximum number of modes to look for
+
+    Returns:
+      a list of nodes and a remainder: `modes`, `rem`
+    """
     import itertools as itt
-    out = []
+    modes = []
     rem = np.copy(vec)
     for k in xrange(max_modes):
 	h = find_mode(rem, x)
 	if h is None:
-	    return out, rem
+	    return modes, rem
 	else:
-	    out.append(h)
+	    modes.append(h)
 	    rem = rem - h
-    return out, rem
+    return modes, rem
     
     
     

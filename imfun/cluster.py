@@ -354,8 +354,21 @@ def square_size(sq):
 
 def converge_square(m, square, step=1,
                    efunc=np.sum, min_size=1):
+    """
+    Converge one starting square to a small square
+
+    Parameters:
+      - `m`: input ND matrix
+      - `square`: a starting structuring element, a list of slices
+      - `step` : deflating coefficient
+      - `efunc`: a measure function to apply to elements within a square
+      - `min_size`: smallest size of the square when the algorithm is stopped
+
+    Returns:
+      - final (smallest) square which maximizes the efunc over the elements
+    """
     if square_size(square) > min_size:
-        chsq = _child_squares(square)
+        chsq = _child_squares(square, step)
         x = [efunc(m[sq]) for sq in chsq]
         return converge_square(m, chsq[np.argmax(x)],
 			       step, efunc, min_size)
@@ -367,7 +380,21 @@ def csq_find_rois(m, threshold = None,
                   reduct_step=1, efunc=np.mean,
                   min_size = 1):
     """
-    find regions of interest in an image with converging squares
+    Find regions of interest in an image with converging squares algorithm
+
+    Parameters:
+      - `m`: an N-dimensional matrix
+      - `threshold`: a threshold whether a local starting square should be
+                     taken into account
+      - `stride`: size of a starting square
+      - `reduct_step`: square is reduced by this step at each iteration
+      - `efunc`: a measure function to apply to elements within a square
+                 [``np.sum``]
+      - `min_size`: smallest size of the square when the algorithm is stopped
+
+    Returns:
+      - a list of found ROIs as minimal squares
+    
     """
     if threshold is None:
         threshold = np.std(m)
@@ -379,6 +406,14 @@ def csq_find_rois(m, threshold = None,
     return rois
 
 def plot_csq_rois(m,rois):
+    """
+    A helper function to plot the ROIs determined by the
+    csq_find_rois implementation of the converging squares algorithm
+
+    Parameters:
+      - `m` : a 2D matrix
+      - `rois`: a list of ROIs
+    """
     import pylab as pl
     pl.figure()
     pl.imshow(m, aspect='equal', cmap='gray')
@@ -388,15 +423,22 @@ def plot_csq_rois(m,rois):
         pl.plot(*p,ls='none',color='r',marker='s')
 
 def csqroi2point(roi):
+    """Helper function, converts a ROI to a point to plot"""
     return [s.start for s in roi[::-1]] # axes are reverse to indices
     
 
 def make_grid(shape,stride):
+    """Make a generator over sets of slices which go through the provided shape
+       by a stride
+    """
     origins =  itt.product(*[range(0,dim,stride) for dim in shape])
     squares = ([slice(a,a+stride) for a in o] for o in origins)
     return squares
 
-###-----------------------------------
+###---------------------------------------------------------
+###             Simple helper functions                  ###
+###---------------------------------------------------------
+
 
 def filter_clusters_size(clusters, min_size=100):
     return filter(lambda x: x.mass() > min_size, clusters)
@@ -429,11 +471,9 @@ def plot3_clusters(points, clusters):
 
 
 def locations(shape):
-    """
-    all locations for a shape; substitutes nested cycles
+    """ all locations for a shape; substitutes nested cycles
     """
     return itt.product(*map(xrange, shape))
-
     
 def mask2points(mask):
     points = []
