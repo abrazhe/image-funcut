@@ -8,7 +8,16 @@ import itertools as itt
 
 
 def gauss_kern(xsize=1.5, ysize=None):
-    """ Returns a normalized 2D gauss kernel for convolutions """
+    """
+    Return a normalized 2D gauss kernel for convolutions
+
+    Parameters:
+      - `xsize`: :math:`\sigma^2_x`, variance for x dimension
+      - `ysize`: :math:`\sigma^2_y`, variance for y dimension
+
+    Returns:
+      - `g` : the 2D kernel as an array
+    """
     xsize = int(xsize)
     ysize = ysize and int(ysize) or xsize
     x, y = np.mgrid[-xsize:xsize+1, -ysize:ysize+1]
@@ -16,16 +25,36 @@ def gauss_kern(xsize=1.5, ysize=None):
     return g / g.sum()
 
 def gauss_kern1d(size=1.5):
+    """Given variance `size`, return 1D kernel
+    """
     xsize = int(np.round(size))
     x = np.mgrid[-xsize:xsize+1]
     g = np.exp(-(x**2/size))
     return g/g.sum()
 
 def gauss_blur(X,size=1.0):
+    '''Return 2D Gauss blurred array `X` with a kernel of size `size`
+    '''
     return signal.convolve2d(X,gauss_kern(size),'same')
 
 
 def gauss_smooth(sig, sigma=1., dt = 1.0, order=0):
+    """Perform Gauss smoothing (blurring) on signal `sig`
+
+    Parameters:
+      - `sig`:  an N-dimensional signal (vector, matrix, ...)
+      - `sigma`: standard deviation of the Gauss filter
+      - `dt`: sampling coefficient
+      - `order`: order of the Gaussian function
+
+    Returns:
+      - blurred copy of `sig`
+
+    See also:
+      Uses functions scipy.ndimage.gaussian_filter and
+      scipy.ndimage.gaussian_filter1d
+    
+    """
     sigma = sigma/dt
     ndim = np.ndim(sig)
     if ndim == 1:
@@ -36,6 +65,17 @@ def gauss_smooth(sig, sigma=1., dt = 1.0, order=0):
 
 
 def mavg_DFoF(v, tau=90., dt=1.):
+    """ Normalize signal `v` as :math:`(v-v_{baseline})/v_{baseline}` with smoothing
+
+    Parameters:
+      - `v`: input signal
+      - `tau`: characteristic time of the smoothing function
+      - `dt`: sampling interval
+
+    Returns:
+      - v/smooth(v) - 1 
+    
+    """
     baseline = gauss_smooth(v, tau, dt)
     zi = np.where(np.abs(baseline) < 1e-6)
     baseline[zi] = 1.0
@@ -44,6 +84,17 @@ def mavg_DFoF(v, tau=90., dt=1.):
     return out
 
 def mavg_DFoSD(v, tau=90., dt=1.):
+    """ Normalize signal `v` as standard score :math:`(v-v_{baseline})/\sigma_{v_{baseline}}` with smoothing
+
+    Parameters:
+      - `v`: input signal
+      - `tau`: characteristic time of the smoothing function
+      - `dt`: sampling interval
+
+    Returns: Standard score
+      - (v-smooth(v))/S.D.(smooth(v))
+    
+    """
     baseline = gauss_smooth(v, tau, dt)
     vd = v - baseline
     sd = np.std(vd)
@@ -52,16 +103,21 @@ def mavg_DFoSD(v, tau=90., dt=1.):
     return vd/sd
 
 
-def mirrorpd(k, L):
+def _mirrorpd(k, L):
     if 0 <= k < L : return k
     else: return -(k+1)%L
 
 
 def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+    """
+    Denoise signal `sig` by 1D convolution with a cubic b-spline
+
+    see `imfun.atrous.smooth` and `imfun.atrous.wavelet_denoise` for more variants
+    """
     L = len(sig) 
     padlen = len(phi)
     assert L > padlen
-    indices = map(lambda i: mirrorpd(i, L),
+    indices = map(lambda i: _mirrorpd(i, L),
                   range(-padlen, 0) + range(0,L) + range(L, L+padlen))
     padded_sig = sig[indices]
     apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
@@ -71,6 +127,13 @@ def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
 
 # TODO: make it faster
 def adaptive_medianf(arr, k = 2):
+    """
+    Perform adaptive median filtering on 2D array `arr`, by setting
+    pixels to 3x3 local median if their value exceeds `k` times standard deviation
+    over 3x3 neighborhood.
+
+    TODO: convert to Ndimensions, and make it run faster
+    """
     sh = arr.shape
     out = arr.copy()
     for row in xrange(1,sh[0]-1):
@@ -84,12 +147,11 @@ def adaptive_medianf(arr, k = 2):
     return out
     
 
-
+_bclose = ndimage.binary_closing
+_bopen = ndimage.binary_opening
 def opening_of_closing(a):
-    "performs binary opening of binary closing of an array"
-    bclose = ndimage.binary_closing
-    bopen = ndimage.binary_opening
-    return bopen(bclose(a))
+    "Return binary opening of binary closing of an array"
+    return _bopen(_bclose(a))
 
 
 
