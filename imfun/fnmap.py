@@ -12,6 +12,7 @@ neighbours = bwmorph.neighbours
 locations = bwmorph.locations
 
 def isseq(obj):
+    '''Simple test if an object is a sequence (has "__iter__" attribute)'''
     return hasattr(obj, '__iter__')
 
 
@@ -27,19 +28,19 @@ def cwt_iter(fseq,
     """
     Iterate over cwt of the time series for each pixel
 
-    Arguments:
-      - `fseq` -- frame sequence
-      - `frange`  -- frequency range or vector of frequencies
-      - `nfreqs` -- number of frequencies/scales for decomposition [128]
+    Parameters:
+      - `fseq` -- frame sequence instance
+      - `frange`  -- frequency range as a pair or vector of frequencies
+      - `nfreqs` -- number of frequencies/scales for decomposition 
       - `wavelet` -- wavelet object [pycwt.Morlet()]
-      - `normL` -- length of normalizing part (baseline) of the time series [None]
-      - `max_pixels` -- upper limit on number of pixels to iterate over [None]
+      - `normL` -- length of normalizing part (baseline) of the time series 
+      - `max_pixels` -- upper limit on number of pixels to iterate over 
       - `cwt_fn` -- function to process wavelet coefficients [pycwt.eds]
-      - `verbose` -- become verbose [False]
+      - `verbose` -- be verbose 
       - `**kwargs` --  are passed to fseq.pix_iter
 
-    Output:
-     - generator over cwt-derived measure, i, j
+    Returns:
+     - generator over (cwt-derived measure, i, j) tuples
       (where i,j are frame indices)
     """
     tick = time.clock()
@@ -80,13 +81,16 @@ def cwtmap(fseq,
     """
     Wavelet-based 'functional' map of the frame sequence
     
-    Arguments:
-     * fseq` -- frame sequence
-     * tranges` -- list of time ranges
-     * frange` -- frequency range or vector of frequencies
-     * func` -- function to apply to the wavelet spectrogram within the window
+    Parameters:
+     * `fseq` -- frame sequence
+     * `tranges` -- list of time ranges
+     * `frange` -- frequency range or vector of frequencies
+     * `func` -- function to apply to the wavelet spectrogram within the window
               of interest. Default, np.mean
      * `**kwarg`s -- to be passed to cwt_iter
+
+    Returns:
+      - a 2D array as a result of application of the `func` to wavelet spectrograms
     """
     subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)

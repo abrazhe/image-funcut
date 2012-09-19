@@ -174,7 +174,7 @@ class GWOpts(HasTraits):
 class FrameSequenceOpts(HasTraits):
     mfilt7 = lambda v: signal.medfilt(v,7)
     tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
-    normL = Int(250, label="N baseline frames")
+    #normL = Int(250, label="N baseline frames")
     fw_presets = {
         '1. Do nothing' : [],
         '2. Gauss blur' : [filt.gauss_blur],
@@ -193,6 +193,8 @@ class FrameSequenceOpts(HasTraits):
         '10. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
         '11. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }
+    linescan_scope = Range(0,500,0, label='Linescan half-range')
+    linescan_width = Int(2, label="Linecan linewidth")
     #gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = Directory("")
@@ -275,6 +277,7 @@ class FrameSequenceOpts(HasTraits):
     
 
     def default_traits_view(self):
+	"""Default view for FrameSequenceOpts"""
 	## has to be a method so we can declare views for dialogs !?
 	view = View(
 	    Group(
@@ -284,10 +287,12 @@ class FrameSequenceOpts(HasTraits):
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
-		Group(Item('load_rois_dict_btn',show_label=False),
+		Group(Item('linescan_width'),
+		      Item('linescan_scope'),
 		      label = 'ROIs',
+		    Item('load_rois_dict_btn',show_label=False),
 		      show_border=True),
-		label='Loading'),
+		label='Open'),
 	    ## Group(Item('gw_opts', show_label=False,style='custom'),
 	    ## 	  show_border=False,
 	    ## 	  label='GW'),
@@ -501,8 +506,8 @@ class FrameViewer(HasTraits):
     time_stat = String()
     recalc_btn = Button("Recalc frames")
 
-    frame_fwd_btn = Button('frame +')
-    frame_back_btn = Button('- frame')
+    frame_fwd_btn = Button('>')
+    frame_back_btn = Button('<')
 
 
     view = View(HSplit(Group(Item('recalc_btn', show_label=False),

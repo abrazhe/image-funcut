@@ -171,7 +171,7 @@ Diameter Manager:
 """
 
 
-class DiameterMeasurement1:
+class GWExpansionMeasurement1:
     def __init__(self, ax):
 	self.ax = ax
 	self.points = []
@@ -435,15 +435,20 @@ class LineScan(DraggableObj):
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
 
-    def get_timeview(self,hwidth=2,frange = None,frame_scope=100):
+    def get_timeview(self,hwidth=2,frange = None):
         points = map(self.transform_point, self.check_endpoints())
 	if frange is None:
-	    if hasattr(self.parent, 'caller'): # if called from frame_viewer
-		fi = self.parent.caller.frame_index
-		fstart = max(0,fi-frame_scope)
-		fstop = min(self.parent.fseq.length(),fi+frame_scope)
-		frange = slice(fstart,fstop)
-		frames = lambda : self.parent.fseq[frange]
+	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
+		hwidth = self.parent.fso.linescan_width # overrides argument
+		half_scope = self.parent.fso.linescan_scope
+		if half_scope == 0:
+		    frames = lambda : self.parent.fseq.frames()
+		else:
+		    fi = self.parent.caller.frame_index
+		    fstart = max(0,fi-half_scope)
+		    fstop = min(self.parent.fseq.length(),fi+half_scope)
+		    frange = slice(fstart,fstop)
+		    frames = lambda : self.parent.fseq[frange]
 	    else:
 		frames = lambda : self.parent.fseq.frames()
 	else:
@@ -476,7 +481,7 @@ class LineScan(DraggableObj):
                 ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
-	    pc = DiameterMeasurement1(ax)
+	    pc = GWExpansionMeasurement1(ax)
 	    return pc
 	    
 
