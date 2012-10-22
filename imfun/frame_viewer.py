@@ -239,11 +239,12 @@ class FrameSequenceOpts(HasTraits):
 
     _export_rois_dict = File()
     _load_rois_dict = File()
+
     export_rois_dict_btn = Button('Export current ROIs')
     load_rois_dict_btn = Button('Load ROIs from file')
     _export_timeseries_file = File()
     export_timeseries_btn = Button('Export timeseries from ROIs')
-
+    show_all_timeseries_btn = Button('Show all timeseries')
     
     reset_range_btn = Button("Set")
     load_btn = Button("Load images")
@@ -289,8 +290,9 @@ class FrameSequenceOpts(HasTraits):
 		      show_border=True),
 		Group(Item('linescan_width'),
 		      Item('linescan_scope'),
+		      Item('show_all_timeseries_btn',show_label=False),
+		      Item('load_rois_dict_btn',show_label=False),
 		      label = 'ROIs',
-		    Item('load_rois_dict_btn',show_label=False),
 		      show_border=True),
 		label='Open'),
 	    ## Group(Item('gw_opts', show_label=False,style='custom'),
@@ -420,6 +422,11 @@ class FrameSequenceOpts(HasTraits):
             print "fs2.fns updated"
             self.fs2_needs_reload = False
         return self.fs2
+
+    def _show_all_timeseries_btn_fired(self):
+	print 'in show_all_timeseries_btn_fired'
+	self.parent.picker.show_timeseries()
+	pass
 
     def _reset_range_btn_fired(self):
         self.vmin, self.vmax = self.fs2.data_range()

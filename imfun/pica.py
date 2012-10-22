@@ -66,6 +66,14 @@ def pca_svd(X):
     phi = np.rad2deg(np.arctan(Vh[0,1]/Vh[0,0])) # rotation of main axis (for Ellipse)
     return Vh, phi, ranges, c0
 
+def pca_svd_project(X, Vh):
+    c0 = X.mean(axis=0)
+    X1 = (X - c0)
+    return array([dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
+    
+
+
+
 def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
 
