@@ -94,6 +94,7 @@ class FindVal(xml.sax.ContentHandler):
     def endDocument(self):
         self.res['start_time'] = self.timestamps[0]
         self.res['stop_time'] = self.timestamps[-1]
+	self.res['tstamps'] = self.timestamps
         #print self.res
             
 

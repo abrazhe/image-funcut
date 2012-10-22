@@ -16,12 +16,8 @@ def fwhm(c):
 def score_gauss(p, x, v):
     return sum((v-gaussian(x,p))**2)
 
-
-
-
 def gauss_fit(p0,x,y):
     return fmin(score_gauss, p0, (x, y))
-
 
 def residuals_f(f):
     return lambda p, v, x: v - f(x,p)
@@ -34,6 +30,7 @@ def rising_exp(t, (a,b,tau)):
 
 def expf(t, (a,b,tau)):
     return a + b*exp(-t/tau)
+
 
 def double_rising_exp(t, (a,b1,b2,tau1,tau2)):
     return a - b1*exp(-t/tau1) - b2*exp(-t/tau2)

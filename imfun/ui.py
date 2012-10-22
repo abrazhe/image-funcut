@@ -76,12 +76,12 @@ def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
 ##     """
 ##     return lib.min1(lambda p: lib.eu_dist(fn(p), xy), items)
 
-## def line_from_points(p1,p2):
-##     p1 = map(float, p1)
-##     p2 = map(float, p2)
-##     k = (p1[1] - p2[1])/(p1[0] - p2[0])
-##     b = p1[1] - p1[0]*k
-##     return lambda x: k*x + b
+def line_from_points(p1,p2):
+    p1 = map(float, p1)
+    p2 = map(float, p2)
+    k = (p1[1] - p2[1])/(p1[0] - p2[0])
+    b = p1[1] - p1[0]*k
+    return k, b
 
 def translate(p1,p2):
     """returns translation vector used to
@@ -177,6 +177,7 @@ class GWExpansionMeasurement1:
 	self.points = []
 	self.line = None # user-picked points
 	self.line2 = None
+	self.line_par = None
 	self._ind = None
 	self.epsilon = 5
 	self.canvas = ax.figure.canvas
@@ -223,7 +224,7 @@ class GWExpansionMeasurement1:
 				  markerfacecolor='r')
 				  #animated='True')
 	    self.ax.add_line(self.line)
-	    print 'added line'
+	    #print 'added line'
 	else:
 	    self.line.set_data([xd,yd])
     def remove_point(self, event):
@@ -233,12 +234,19 @@ class GWExpansionMeasurement1:
 	    self.line.set_data(rezip(self.points))
     def action(self,min_r = 5.):
 	xd, yd = map(np.array, rezip(self.points))
+	par = np.polyfit(xd,yd,2)
+	xfit_par = np.linspace(xd[0], xd[-1], 256)
+	yfit_par = np.polyval(par, xfit_par)
 	v = np.gradient(np.asarray(yd))
 	dx = np.gradient(np.asarray(xd))
-	#tck,u = splprep([xd,yd],s=self.smooth)
 	tck,u = splprep([xd,yd],s=self.smooth)	
 	unew = np.linspace(0,1.,100)
 	out = splev(unew,tck)
+	if self.line_par:
+	    self.line_par.set_data(xfit_par, yfit_par)
+	else:
+	    self.line_par = pl.Line2D(xfit_par, yfit_par, color='cyan')
+	    self.ax.add_line(self.line_par)
 	if self.line2:
 	    self.line2.set_data(out[0], out[1])
 	else:
@@ -435,16 +443,17 @@ class LineScan(DraggableObj):
     def transform_point(self, p):
         return p[0]/self.dx, p[1]/self.dy
 
-    def get_timeview(self,hwidth=2,frange = None):
+    def get_timeview(self,hwidth=2,frange=None):
         points = map(self.transform_point, self.check_endpoints())
 	if frange is None:
 	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
-		hwidth = self.parent.fso.linescan_width # overrides argument
-		half_scope = self.parent.fso.linescan_scope
+		caller = self.parent.caller
+		hwidth = caller.fso.linescan_width # overrides argument
+		half_scope = caller.fso.linescan_scope
 		if half_scope == 0:
 		    frames = lambda : self.parent.fseq.frames()
 		else:
-		    fi = self.parent.caller.frame_index
+		    fi = caller.frame_index
 		    fstart = max(0,fi-half_scope)
 		    fstop = min(self.parent.fseq.length(),fi+half_scope)
 		    frange = slice(fstart,fstop)
@@ -464,6 +473,29 @@ class LineScan(DraggableObj):
 	else:
 	    out = timeview(points)
         return out,points
+
+    def get_full_projection(self, fn = np.mean,axis=1,
+			    mode='constant',
+			    output = 'result'):
+	"""
+	if "output" is 'function' return a function to rotate and project any  data
+	if "output is 'result', return a projection of rotated data, associated
+	with the frame sequence of the Picker.
+	"""
+	from scipy.ndimage.interpolation import rotate
+	points = map(self.transform_point, self.check_endpoints())
+	k, b = line_from_points(*points)
+	phi = np.rad2deg(np.arctan(k))
+	def _(data):
+	    rot = rotate(data, phi, (1,2), mode=mode)
+	    rot = np.ma.masked_less_equal(rot, 0)
+	    return np.array(fn(rot, axis=axis))
+	if output=='result':
+	    return _(self.parent.fseq.as3darray())
+	elif output == 'function':
+	    return _
+	
+
 
     def show_timeview(self,frange=None,hwidth=2):
         timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
@@ -1001,10 +1033,17 @@ class Picker:
 
 
     def show_timeseries(self, rois = None, **keywords):
+	#print 'in Picker.show_timeseries()'
         t = self.timevec()
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
-            ax.plot(t, x, color = roi.get_facecolor())
-            pl.xlim((0,t[-1]))
+	    if self.isCircleROI(tag):
+		ax.plot(t, x, color = roi.get_facecolor())
+	    else:
+		sh = x.shape
+		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*self.fseq.dx),
+			  aspect='auto',cmap=lib.swanrgb)
+            pl.xlim(0,t[-1])
+	ax.figure.show()
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
@@ -1098,22 +1137,31 @@ class Picker:
                            0.5/self.dt, num=nfreqs)
 
     def roi_show_iterator(self, rois = None,
-                              normp=False):
-	rois = ifnot(rois,
-                     sorted(filter(self.isCircleROI, self.roi_objs.keys())))
+                              **kwargs):
+	#rois = ifnot(rois,
+        #             sorted(filter(self.isCircleROI, self.roi_objs.keys())))
+	#print 'in Picker.roi_show_iterator'
+	rois = ifnot(rois, sorted(self.roi_objs.keys()))
 	
 	L = len(rois)
 	if L < 1: return
 	fig = pl.figure(figsize=(8,4.5), dpi=80)
 	for i, roi_label in enumerate(rois):
-	    roi = self.roi_objs[roi_label].obj
-	    ax = fig.add_subplot(L,1,i+1)
-	    x = self.roi_objs[roi_label].get_timeview(normp=normp)
+	    roi = self.roi_objs[roi_label]
+	    if i == 0:
+		ax = fig.add_subplot(L,1,i+1)
+		ax0 = ax
+	    else:
+		ax = fig.add_subplot(L,1,i+1, sharex = ax0)
+	    if self.isCircleROI(roi_label):
+		x = roi.get_timeview(**kwargs)
+	    else:
+		x,points = roi.get_timeview(**kwargs)
 	    if i == L-1:
 		ax.set_xlabel("time, sec")
 	    ax.set_ylabel(roi_label)
-	    yield x, roi_label, roi, ax
-	#fig.show()
+	    yield x, roi_label, roi.obj, ax
+
 
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,
