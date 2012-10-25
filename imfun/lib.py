@@ -3,7 +3,14 @@
 from itertools import combinations
 
 
-from swan import pycwt
+try:
+    from swan import pycwt
+    import swan.gui
+    swanrgb = swan.gui.swanrgb
+except:
+    print """Can't import swan module, please install it to be able to plot
+    wavelet spectrograms"""
+
 #from swan.gui import swancmap
 
 #from pylab import mpl
@@ -421,8 +428,6 @@ def group_plots(ylist, ncols, x = None,
 
 	
 ###------------- Wavelet-related -------------	    
-import swan.gui
-swanrgb = swan.gui.swanrgb
 
 def confidence_contour(esurf, extent, ax, L=3.0):
     # Show 95% confidence level (against white noise, v=3 \sigma^2)
