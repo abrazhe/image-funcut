@@ -155,5 +155,22 @@ def opening_of_closing(a):
 
 
 
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
+
+def baseline_als(y, lam, p, niter=10):
+    """Implements an Asymmetric Least Squares Smoothing
+    baseline correction algorithm
+    (P. Eilers, H. Boelens 2005)
+    """
+    L = len(y)
+    D = sparse.csc_matrix(np.diff(np.eye(L),2))
+    w = np.ones(L)
+    for i in xrange(niter):
+	W = sparse.spdiags(w, 0, L, L)
+	Z = W + lam*np.dot(D,D.T)
+	z = spsolve(Z,w*y)
+	w = p*(y>z) + (1-p)*(y<z)
+    return z
 
 

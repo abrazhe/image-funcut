@@ -309,6 +309,25 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
     return stack
 
 
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
+def baseline_als(y, lam=None, p=0.1, niter=10):
+    """Implements an Asymmetric Least Squares Smoothing
+    baseline correction algorithm
+    (P. Eilers, H. Boelens 2005)
+    """
+    L = len(y)
+    if lam == None:
+	lam = L**2
+    D = sparse.csc_matrix(np.diff(np.eye(L),2))
+    w = np.ones(L)
+    for i in xrange(niter):
+	W = sparse.spdiags(w, 0, L, L)
+	Z = W + lam*np.dot(D,D.T)
+	z = spsolve(Z,w*y)
+	w = p*(y>z) + (1-p)*(y<z)
+    return z
+
 
 def locextr(v, x=None, refine = True, output='full',
 	    sort_values = True,
@@ -456,8 +475,9 @@ def wavelet_specgram(signal, f_s, freqs,  ax,
                      vmin=None, vmax=None,
                      correct = None,
 		     cwt_fn = pycwt.eds,
-                     confidence_level = False):
-    wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding)
+                     confidence_level = False,
+		     verbose=False):
+    wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding,verbose=verbose)
     print padding
     surf = cwt_fn(wcoefs, wavelet.f0)
     if vmax is None: vmax = percentile(surf, 99.0)

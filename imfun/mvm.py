@@ -356,7 +356,8 @@ def find_objects(arr, k=3, level=5, noise_std=None,
 		 start_scale=0,
 		 weights=[1., 1., 1., 1., 1.],
                  min_px_size=200,
-                 min_nscales=2):
+                 min_nscales=2,
+		 modulus = False):
     """Use MVM to find objects in the input array.
 
     Parameters:
@@ -376,6 +377,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
       - `min_px_size`: an `MVMNode` should contain at least this number of
         pixels
       - `min_nscales`: an object should have at least this scales/levels
+      - `modulus`: if False, only search for light sources
       - retraw : only used for debugging
 
     Returns:
@@ -395,7 +397,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     ## calculate support taking only positive coefficients (light sources)
     if supp is None:
         supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
-                                  modulus=False)  
+                                  modulus=modulus)  
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures)
 
