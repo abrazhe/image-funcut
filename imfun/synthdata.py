@@ -5,9 +5,9 @@ import itertools as itt
 import numpy as np
 from numpy import pi, cos, sin, tan
 
-def spike(x, location, a, tau):
+def spike(x, location, a, tau, rise=20):
     "a single spike"
-    coef = 0.5 * a * (1 + np.tanh(20 * (x-location) / tau))
+    coef = 0.5 * a * (1 + np.tanh(rise * (x-location) / tau))
     return coef * np.exp(- abs(x -location)/ tau)
 
 
@@ -45,6 +45,13 @@ def random_spikes(tvec, isi=1.2, amp=10, tau=0.15,
         noise_sigma = np.std(out)*np.sqrt(1.0/snr)
         out += np.random.normal(0,noise_sigma,len(tvec))
     return out
+
+def regular_spikes(tvec, stim_freq, (stim_start, stim_stop), amp=10, tau=0.15, rise=20):
+    locations = np.arange(stim_start, stim_stop, 1./stim_freq)
+    out = np.add.reduce([spike(tvec, loc, amp, tau,rise) for loc in locations])
+    return out
+
+
 
 def synth_movie(tvec, size, nobjs=42, snr=0.5,
                 spike_pars = {},

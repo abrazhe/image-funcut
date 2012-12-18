@@ -18,8 +18,10 @@ _dtype_ = np.float32
 ## this is used for noise estimation and support calculation
 ## level =  1      2      3      4      5      6      7
 "this is used for noise estimation and support calculation"
-sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D 
-           [0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
+#[0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
+
+sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
+	   [7.235e-01, 2.854e-01, 1.779e-01, 1.222e-01, 8.581e-02, 6.057e-02,  4.280e-02, 3.025e-02, 2.138e-02, 1.511e-02, 1.067e-02, 7.512e-03], #1D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]]  # 3D
 
@@ -43,6 +45,28 @@ def mc_levels(size=(256,256),level=3, N = 1e3):
 	print n+1, 'current: ', x
 	out[n] = map(np.std, decompose(im, level)[:-1])
     return np.mean(out, axis=0)
+
+def _mc_levels1d(size=1e5, level=12, N = 1e3):
+    """Return Monte-Carlo estimation of noise :math:`\\sigma`
+
+    Parameters:
+      - size: (`tuple`) -- size of random signals
+      - level: (`int`) -- level of decomposition
+      - N: (`num`) -- number of random images to process
+
+    Returns:
+      - 1 :math:`\\times` level vector of noise :math:`\\sigma` estimations
+    """
+    import sys
+    signals = (np.random.randn(size) for i in np.arange(N))
+    out  = np.zeros((N,level))
+    for n,im in enumerate(signals):
+	x = np.mean(out[:n], axis=0)
+	s0 = ','.join(['%1.2e'%a for a in x])
+	s = '\r signal {:06d} out of {:06d}, current: {}'.format(n+1,long(N), s0)
+	sys.stderr.write(s)
+	out[n] = map(np.std, decompose1d_direct(im, level)[:-1])
+    return np.mean(out, axis=0)
     	   
 
 ## Default spline wavelet scaling function
@@ -56,7 +80,7 @@ def locations(shape):
 def decompose(arr, *args, **kwargs):
     "Dispatcher on 1D, 2D or 3D data decomposition"
     ndim = arr.ndim
-    if ndim == 1:
+    if ndim == 1 or (ndim==2 and min(arr.shape) ==1):
         decfn = decompose1d
     elif ndim == 2:
         decfn = decompose2d
@@ -66,6 +90,26 @@ def decompose(arr, *args, **kwargs):
         print "Can't work with %d dimensions yet, returning"%ndim
         return
     return decfn(arr, *args, **kwargs)
+
+
+### version with direct convolution (scales better with decomposition level)
+import itertools as itt
+def decompose1d_direct(v, level, phi=np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+    cprev = v
+    cnext = np.zeros(v.shape)
+    L,lphi = len(v), len(phi)
+    phirange = np.arange(lphi) - int(lphi/2)
+    Ll = np.arange(L, dtype='int')
+    coefs = np.ones((level+1, L),dtype='float64')
+    for j in xrange(level):
+        phiind = (2**j)*phirange
+	approx = reduce(np.add,
+			(p*cprev[(Ll+pi)%L] for p,pi in itt.izip(phi, phiind)))
+        coefs[j] = cprev - approx
+        cprev = approx
+    coefs[j+1] = approx
+    return coefs
+
 
 def decompose1d(sig, level, phi=_phi_, boundary='symm'):
     """
