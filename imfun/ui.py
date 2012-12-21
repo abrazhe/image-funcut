@@ -12,7 +12,14 @@ import itertools as itt
 import numpy as np
 from pylab import mpl
 
-from swan import pycwt
+try:
+    from swan import pycwt, utils
+    from swan.gui import swanrgb
+    _cmap = swanrgb
+except:
+    "Can't load swan (not installed?)"
+    _cmap = pl.cm.spectral
+    
 
 from imfun import lib, fnmap
 ifnot = lib.ifnot
@@ -1041,7 +1048,7 @@ class Picker:
 	    else:
 		sh = x.shape
 		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*self.fseq.dx),
-			  aspect='auto',cmap=lib.swanrgb)
+			  aspect='auto',cmap=_cmap)
             pl.xlim(0,t[-1])
 	ax.figure.show()
 	    
@@ -1065,7 +1072,7 @@ class Picker:
         ax = fig.add_subplot(111)
         vmin, vmax = xshow.min(), xshow.max()
         im = ax.imshow(ndimage.median_filter(xcmap,3), aspect = 'equal', vmin=vmin,
-                       vmax=vmax,cmap=lib.swanrgb)
+                       vmax=vmax,cmap=_cmap)
         pl.colorbar(im, ax=ax)
         ax.set_title('Correlation to %s'%roitag)
         return xcmap
@@ -1081,8 +1088,8 @@ class Picker:
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
-            lib.wavelet_specgram(x, f_s, freqs,  ax,
-                                wavelet, vmin=vmin, vmax=vmax)
+            utils.wavelet_specgram(x, f_s, freqs,  ax,
+				   wavelet, vmin=vmin, vmax=vmax)
             axlist.append(ax)
         return axlist
 
@@ -1110,9 +1117,9 @@ class Picker:
         fig,axlist = lib.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
-        lib.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
-                             wavelet=wavelet,
-                             cax = axlist[2])
+        utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
+			       wavelet=wavelet,
+			       cax = axlist[2])
         axlist[0].set_title(title_string)
         axlist[0].set_ylabel('Frequency, Hz')
         return fig
@@ -1190,7 +1197,7 @@ class Picker:
         #legend()
         ax2 = pl.subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
-        ax2.imshow(res, extent = ext, cmap = lib.swanrgb)
+        ax2.imshow(res, extent = ext, cmap = _cmap)
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 

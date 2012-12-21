@@ -3,16 +3,6 @@
 from itertools import combinations
 
 
-try:
-    from swan import pycwt
-    import swan.gui
-    swanrgb = swan.gui.swanrgb
-except:
-    print """Can't import swan module, please install it to be able to plot
-    wavelet spectrograms"""
-
-#from swan.gui import swancmap
-
 #from pylab import mpl
 import pylab as pl
 import matplotlib as mpl
@@ -448,70 +438,7 @@ def group_plots(ylist, ncols, x = None,
 	
 ###------------- Wavelet-related -------------	    
 
-def confidence_contour(esurf, extent, ax, L=3.0):
-    # Show 95% confidence level (against white noise, v=3 \sigma^2)
-    ax.contour(esurf, [L], extent=extent,
-               cmap=mpl.cm.gray)
 
-def cone_infl(freqs, extent, wavelet, ax):
-    try:
-        ax.fill_betweenx(freqs,
-                         extent[0],
-                         extent[0]+wavelet.cone(freqs),
-                         alpha=0.5, color='black')
-        ax.fill_betweenx(freqs,
-                         extent[1]+wavelet.cone(-freqs),
-                         extent[1],
-                         alpha=0.5, color='black')
-    except:
-        print("Can't use fill_betweenx function: update\
-        maptlotlib?")
-
-
-def wavelet_specgram(signal, f_s, freqs,  ax,
-                     wavelet = pycwt.Morlet(),
-                     padding = 'zpd',
-                     cax = None,
-                     vmin=None, vmax=None,
-                     correct = None,
-		     cwt_fn = pycwt.eds,
-                     confidence_level = False,
-		     verbose=False):
-    wcoefs = pycwt.cwt_f(signal, freqs, f_s, wavelet, padding,verbose=verbose)
-    print padding
-    surf = cwt_fn(wcoefs, wavelet.f0)
-    if vmax is None: vmax = percentile(surf, 99.0)
-    if vmin is None: vmin = percentile(surf, 1.0)
-    
-    if correct == 'freq1':
-        coefs = freqs*2.0/np.pi
-        for i in xrange(surf.shape[1]):
-            surf[:,i] *= coefs
-    endtime = len(signal)/float(f_s)
-    extent=[0, endtime, freqs[0], freqs[-1]]
-    im = ax.imshow(surf, extent = extent,
-                   origin = 'low',
-                   vmin = vmin, vmax = vmax,
-                   cmap = swanrgb,
-                   alpha = 0.95)
-    if not cax:
-        pl.colorbar(im, ax=ax)
-    else:
-        pl.colorbar(im, cax = cax)
-    cone_infl(freqs, extent, wavelet, ax)
-    if confidence_level:
-        confidence_contour(eds, extent, ax, confidence_level)
-
-
-def default_freqs(Ns, f_s, num=100):
-    """
-    Return default frequencies vector:
-      - Ns:  number of samples in data vector
-      - f_s: sampling frequency
-      - num: number of frequencies required
-    """
-    T = Ns/f_s
-    return pl.linspace(8/T, f_s/2, num=num)
 
 
 def alias_freq(f, fs):
@@ -522,37 +449,6 @@ def alias_freq(f, fs):
     else:
         return alias_freq(f%fs, fs)
 
-def setup_axes_for_spectrogram(figsize = (12,6)):
-    """Set up axes for a plot with signal, spectrogram and a colorbar"""
-    fig = pl.figure(figsize = figsize)
-    ax = [fig.add_axes((0.08, 0.4, 0.8, 0.5))]
-    ax.append(fig.add_axes((0.08, 0.07, 0.8, 0.3), sharex=ax[0]))
-    ax.append(fig.add_axes((0.9, 0.4, 0.02, 0.5), 
-                           xticklabels=[], 
-                           yticklabels=[]))
-    return fig,ax
-
-
-
-def plot_spectrogram_with_ts(signal, f_s, freqs,
-                             figsize=(12,6),
-                             lc = 'b', title_string = '',
-                             **kwargs):
-    """Create a figure of a signal, spectrogram and a colorbar"""
-    Ns = len(signal)*1.0
-    freqs = ifnot(freqs, default_freqs(Ns, f_s,512))
-    tvec = np.arange(0, (Ns+2)/f_s, 1./f_s)[:Ns]
-
-    fig,axlist = setup_axes_for_spectrogram(figsize)
-
-    axlist[1].plot(tvec, signal,'-',color=lc)
-
-    kwargs['cax'] = axlist[2]
-    wavelet_specgram(signal, f_s, freqs,  axlist[0], **kwargs)
-    axlist[0].set_title(title_string)
-    axlist[0].axis((tvec[0],tvec[-1], freqs[0],freqs[-1]))
-    #axlist[1].xlim((tvec[0],tvec[-1]))
-    return fig
 
 
 
