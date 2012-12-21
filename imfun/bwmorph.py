@@ -1,7 +1,6 @@
 import numpy as np
 import time, sys
-#from imfun.aux_utils import ifnot
-from swan import pycwt
+#from swan import pycwt
 
 import itertools as itt
 import operator as op
