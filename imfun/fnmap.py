@@ -62,6 +62,7 @@ def cwt_iter(fseq,
     npix = min(npix, max_pixels)
     cwtf = pycwt.cwt_f
     for s,i,j in pixel_iter:
+	# todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
         eds = pycwt.eds(cwtf(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
         pixel_counter+= 1
@@ -259,13 +260,30 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
 	    out[j,k] = keyfn(corrfn(s, signal))
     return out
 
+
+
+def simple_corrlag(v1):
+    """Returns a function,
+    which takes a vector, returns position
+    of the main peak in cross-correlation function
+    """
+    from imfun import atrous, lib
+    L = len(v1)
+    v1n = lib.DFoSD(v1)
+    def _(v2):
+	v2n = lib.DFoSD(v2)
+	xcorr = np.correlate(v1n, v2n, mode='same')
+	return np.argmax(xcorr)-L/2
+    return _
+
+
 def corrlag(timevec):
     """Factory: takes time vector. Returns a function,
     which takes two vectors, returns position and amplitude
     of the main peak in cross-correlation function
     """
     from imfun import atrous, lib
-    tv1 = tv1 = np.concatenate((-timevec[::-1], timevec[1:]))
+    tv1 = np.concatenate((-timevec[::-1], timevec[1:]))
     def _(v1,v2):
 	v1n = lib.DFoSD(v1)/len(v1)
 	xcorr = np.correlate(v1n, lib.DFoSD(v2), mode='full')
@@ -305,6 +323,25 @@ def local_corr_map(arr, normfn=lib.DFoSD,
         out[loc] = np.mean(local_corr)
     return out
 
+def simple_local_coherence(arr, normfn=lambda v: v-v.mean(),
+			   verbose=False):
+    sh = arr.shape[1:]
+    L = float(arr.shape[0])
+    out = np.zeros(sh)
+    pixel_counter,npix = 0,np.prod(sh)
+    def _v(l):
+        v =  arr[:,l[0],l[1]]
+	if normfn:
+	    return normfn(v)
+	else:
+	    return v
+    for loc in locations(sh):
+        if verbose and not (pixel_counter % 100):
+            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
+	local_cov = [np.sum((_v(loc)*_v(n))>0)/L for n in neighbours(loc,sh)]
+	out[loc] = np.mean(local_cov)
+    return out
+	
     
 
 

@@ -38,8 +38,21 @@ class MLF_Image:
 	self.shape = (self.ydim, self.xdim)
         self.dim = self.xdim*self.ydim
         
-    def read_value(self, pos, dtype=np.uint32):
-        return long(read_at(self.fid, pos, 1, dtype))
+    def read_value(self, pos, dtype=np.uint32,seek_opt=0):
+        return read_at(self.fid, pos, 1, dtype=dtype,seek_opt=seek_opt)[0]
+
+    def location2index(self, loc):
+	nrows,ncols = self.ydim,self.xdim
+	r,c=loc
+	return 2*(r*ncols + c)
+	
+    def read_timeslice(self, loc):
+	index= self.location2index(loc)
+	positions = 4*np.arange(self.nframes)*self.dim + index
+	positions += mlfdescr['data_start']
+	values = [self.read_value(p,dtype=np.uint16)  for p in positions]
+	return np.array(values)
+
 
     def read_next_frame(self, pos=0, seek_opt=1):
         arr = read_at(self.fid, pos, self.dim, seek_opt=seek_opt)
@@ -57,11 +70,6 @@ class MLF_Image:
 	    return self.read_frame(val)
 	else:
 	    return map(self.read_frame, indices[val])
-
-    def get_tvec(self, pos, frange=slice(None)):
-	v = [self.read_frame(i)[pos]
-	     for i in range(self.nframes)[frange]]
-	return np.array(v)
 
     def flux_frame_iter(self):
         frame_count = 0

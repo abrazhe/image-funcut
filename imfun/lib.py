@@ -32,8 +32,8 @@ def flatten(x,acc=None):
 _maxshape_ = 1e9
 def memsafe_arr(shape, dtype=np.float64):
     import tempfile as tmpf
-    from operator import mul
-    N = reduce(mul, shape)
+    shape = tuple(shape)
+    N = np.prod(shape)
     if N < _maxshape_:
 	return np.zeros(shape, dtype=dtype)
     else:
