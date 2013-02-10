@@ -201,20 +201,20 @@ class FrameSequence(object):
 	    out = np.max([out, frame], axis=0)
         return out
 
-    def aslist(self, maxN=None, sliceobj=None):
-        """Return the frames as a list up to `maxN` frames
+    def aslist(self, max_frames=None, sliceobj=None):
+        """Return the frames as a list up to `max_frames` frames
 	taking ``f[sliceobj]`` slices.
 	"""
-        return list(self.asiter(maxN,sliceobj))
+        return list(self.asiter(max_frames,sliceobj))
 
-    def asiter(self, maxN=None, sliceobj=None):
-        """Return an iterator over the up to `maxN` frames taking
+    def asiter(self, max_frames=None, sliceobj=None):
+        """Return an iterator over the up to `max_frames` frames taking
 	``f[sliceobj]`` slices
 	"""
         fiter = self.frame_slices(sliceobj)
-        return itt.islice(fiter, maxN)
+        return itt.islice(fiter, max_frames)
 
-    def as3darray(self,  maxN=None,sliceobj=None,
+    def as3darray(self,  max_frames=None,sliceobj=None,
                   dtype = _dtype_):
 	"""Return the frames as a `3D` array.
 
@@ -223,7 +223,7 @@ class FrameSequence(object):
 	
 
 	Parameters:
-	  - `maxN`: (`int` or `None`) -- up to this frame. Up to last frame if
+	  - `max_frames`: (`int` or `None`) -- up to this frame. Up to last frame if
 	    `None`
 	  - `sliceobj`: (`slice` or `None`) -- a slice to take from each frame
 	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
@@ -236,19 +236,19 @@ class FrameSequence(object):
         shape = self.shape(sliceobj)
 	newshape = [self.length()] + list(shape)
         out = lib.memsafe_arr(newshape, dtype)
-        for k,frame in enumerate(itt.islice(fiter, maxN)):
+        for k,frame in enumerate(itt.islice(fiter, max_frames)):
             out[k,:,:] = frame
         if hasattr (out, 'flush'):
             out.flush()
         return out
     
-    def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
+    def pix_iter(self, mask=None, max_frames=None, rand=False, **kwargs):
         """Return iterator over time signals from each pixel.
 
 	Parameters:
 	  - `mask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
-	  - `maxN`: (`int` or `None`) -- use frames up to `maxN`
+	  - `max_frames`: (`int` or `None`) -- use frames up to `max_frames`
 	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
 	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
 
@@ -256,7 +256,7 @@ class FrameSequence(object):
 	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
 	
 	"""
-        arr = self.as3darray(maxN, **kwargs)
+        arr = self.as3darray(max_frames, **kwargs)
         if mask== None:
             mask = np.ones(self.shape(), np.bool)
         nrows, ncols = arr.shape[1:]
@@ -561,10 +561,10 @@ class FSeq_mlf(FrameSequence):
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
     def length(self):
         return self.mlfimg.nframes
-    def pix_iter(self, mask=None, maxN=None, rand=False, **kwargs):
+    def pix_iter(self, mask=None, max_frames=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel"
 	if self.fns == []:
-	    if mask== None:
+	    if mask == None:
 		mask = np.ones(self.shape(), np.bool)
 	    nrows, ncols = self.shape()
 	    if kwargs.has_key('dtype'):
@@ -574,15 +574,16 @@ class FSeq_mlf(FrameSequence):
 	    if rand: rcpairs = np.random.permutation(rcpairs)
 	    for row,col in rcpairs:
 		if mask[row,col]:
-		    v = [f[row,col] for f in self[:maxN]]
+		    #v = [f[row,col] for f in self[:max_frames]]
+		    v = self.mlfimg.read_timeslice((row,col))
 		    yield np.asarray(v, dtype=dtype), row, col
 	else:
 	    x = super(FSeq_mlf,self)
-	    for a in x.pix_iter(mask=mask,maxN=maxN,
+	    for a in x.pix_iter(mask=mask,max_frames=max_frames,
 				rand=rand,**kwargs):
 		yield a
 		
-	    #FrameSequence.pix_iter(self, mask=mask,maxN=maxN,rand=rand,**kwargs)
+	    #FrameSequence.pix_iter(self, mask=mask,max_frames=max_frames,rand=rand,**kwargs)
 
 import PIL.Image as Image
 import matplotlib.image as mpl_img
