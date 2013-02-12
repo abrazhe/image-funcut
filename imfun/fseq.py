@@ -437,6 +437,28 @@ class FSeq_arr(FrameSequence):
         #from scipy.stats import scoreatpercentile
         return np.percentile(np.ravel(self.data),p)
 
+    def pix_iter(self, mask=None,max_frames=None,rand=False,**kwargs):
+	"Iterator over time signals from each pixel (FSeq_arr)"
+	if self.fns == []:
+	    if mask == None:
+		mask = np.ones(self.shape(), np.bool)
+	    nrows, ncols = self.shape()
+	    if kwargs.has_key('dtype'):
+		dtype = kwargs['dtype']
+	    else: dtype=_dtype_
+	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
+	    if rand: rcpairs = np.random.permutation(rcpairs)
+	    for row,col in rcpairs:
+		if mask[row,col]:
+		    v = self.data[:,row,col].copy()
+		    yield np.asarray(v, dtype=dtype), row, col
+	else:
+	    x = super(FSeq_mlf,self)
+	    for a in x.pix_iter(mask=mask,max_frames=max_frames,
+				rand=rand,**kwargs):
+		yield a
+
+
     def frames(self):
 	"""
 	Return iterator over frames.
