@@ -25,8 +25,8 @@ def pca(X, ncomp=None):
     """PCA decomposition via SVD
 
     Input:
-      - X -- an array where each column contains observations from one probe
-         and each row is different probe (dimension)
+      - X -- an array where each column contains observations from one measurement
+          and each row is a different probe  (dimension)
 
     Output:
       - Z -- whitened matrix
@@ -43,7 +43,7 @@ def pca(X, ncomp=None):
     Z = Vh[:ncomp] # whitened data
     ## equivalently,
     ## Z = dot((U/s).T[:ncomp], Xc)
-    K = (U/s).T[:ncomp]
+    K = U.T[:ncomp]
     return Z, K, s[:ncomp], X_mean
 
 def pca_svd(X):
@@ -51,26 +51,37 @@ def pca_svd(X):
 
     Input:
       - X : data points, dimensions are columns, independent observarions are rows
-
+            i.e. each row is a point with x,y,... coordinates. Data can also be
+            regarded as a list of coordinate tuples, e.g. [(x1,y1), (x2,y2), ...]
+    
     Output:
       - Vh : PC vectors
       - phi: rotation of main axis (in degrees)
       - ranges: data ranges of projections on PC axes
       - center: center of the data
+      - Y : data projectins on PCs
     """
     c0 = X.mean(axis=0)
-    X1 = (X - c0)
+    X1 = (X - c0)  # remove empirical mean
     U,s,Vh = svd(X1, full_matrices=False)
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
     phi = np.rad2deg(np.arctan(Vh[0,1]/Vh[0,0])) # rotation of main axis (for Ellipse)
-    return Vh, phi, ranges, c0
+    return Vh, phi, ranges, c0, np.array(Y)
 
 def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)
     X1 = (X - c0)
     return array([dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
     
+def whitenmat(X, ncomp=None):
+    n,p = map(float, X.shape)
+    Xc = X - X.mean(axis=-1)[:, np.newaxis]
+    U, s, Vh = svd(Xc, full_matrices=False)
+    K = (U/s).T[:ncomp] # fixme: do I really have to scale by s?
+    #Z  = np.dot(K,Xc)
+    Z = Vh[:ncomp]  # (the upper variant is equivalent
+    return Z, U.T[:ncomp], s[:ncomp]
 
 
 
@@ -105,7 +116,7 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     ica_filters = dot(dot(a, W), pc_f)
 
     if _skew_loaded:
-        skewsorted = argsort(skew(ica_sig, axis=1))[::-1]
+        skewsorted = argsort(np.abs(skew(ica_sig, axis=1)))[::-1]
     else:
         skewsorted = range(ncomp)
     if reshape_filters:
@@ -115,14 +126,6 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     return ica_filters, ica_sig[skewsorted]
 
 
-## Whitening
-
-def whitenmat(X, ncomp=None):
-    n,p = map(float, X.shape)
-    Y = X - X.mean(axis=-1)[:, np.newaxis]
-    U, s, Vh = svd(Y, full_matrices=False)
-    K = (U/s).T[:ncomp]
-    return np.dot(K, Y), K, s[:ncomp]
 
 
 
@@ -194,7 +197,7 @@ def fastica(X, ncomp=None, whiten = True,
     Input:
      - X -- data matrix with observations in rows
      - ncomp -- number of components to resolve  [all possible]
-     - whiten -- whether to whiten the input data [True]
+     - whiten -- whether to whiten the input data
      - nonlinfn -- nonlinearity function [pow3nonlin]
      - tol -- finalisation tolerance, [1e-04]
      - max_iter -- maximal number of iterations [1000]
