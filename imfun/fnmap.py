@@ -345,7 +345,7 @@ def simple_local_coherence(arr, normfn=lambda v: v-v.mean(),
     
 
 
-demap(fseq, frange, func=np.mean,
+def fftmap(fseq, frange, func=np.mean,
            normL=None,
            verbose=True,
            **kwargs):
