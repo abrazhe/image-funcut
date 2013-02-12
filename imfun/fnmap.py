@@ -352,7 +352,6 @@ def fftmap(fseq, frange, func=np.mean,
         """
         Fourier-based functional mapping:
          - frange : a range of frequencies in Hz, e.g. (1.0, 1.5)
-         - kern  : a kernel to convolve each frame with
          - func  : range reducing function. np.mean by default, may be np.sum as well
         """
         tick = time.clock()
