@@ -111,19 +111,24 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     mux = sptemp_concat(pc_f, pc_s, mu)
 
     _, W = fastica(mux, ncomp=ncomp, whiten=False)
-    ica_sig = dot(W, pc_s)
+    ica_signals = dot(W, pc_s)
     a = diag(1.0/np.sqrt(ev[:ncomp]))
     ica_filters = dot(dot(a, W), pc_f)
 
     if _skew_loaded:
-        skewsorted = argsort(np.abs(skew(ica_sig, axis=1)))[::-1]
+	skews = skew(ica_signals,axis=1)
+	skew_signs = np.sign(skews)
+        skewsorted = argsort(np.abs(skews))[::-1]
+	for fnumber,s in enumerate(skew_signs):
+	    ica_signals[fnumber] *= s
+	    ica_filters[fnumber] *= s
     else:
         skewsorted = range(ncomp)
     if reshape_filters:
         ica_filters = reshape_to_movie(ica_filters[skewsorted], *sh)
     else:
         ica_filters = ica_filters[skewsorted]
-    return ica_filters, ica_sig[skewsorted]
+    return ica_filters, ica_signals[skewsorted]
 
 
 
