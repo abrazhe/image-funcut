@@ -632,6 +632,14 @@ class FSeq_multiff(FrameSequence):
                 yield fn(mpl_img.pil_to_array(self.im))
             except EOFError:
                 break
+class FSeq_tiff_2(FSeq_arr):
+    "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
+    def __init__(self, fname, **kwargs):
+	import tiffile
+	x = tiffile.imread(fname)
+	parent = super(FSeq_tiff_2, self)
+	parent.__init__(x, **kwargs)
+	
             
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
@@ -663,6 +671,6 @@ def open_seq(path, *args, **kwargs):
             else:
                 return FSeq_img(path, *args, **kwargs)
         elif ending in ('tif', 'tiff'): # single multi-frame tiff
-            return FSeq_multiff(path, *args, **kwargs)
+            return FSeq_tiff_2(path, *args, **kwargs)
             
     
