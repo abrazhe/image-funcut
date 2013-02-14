@@ -36,12 +36,18 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
 
     if (type(distance) is str) and distance_fns.has_key(distance):
         distance = distance_fns[distance]
-        
+
+    ### TODOs:
+    ### [ ] go through patterns in random order, return sorted affiliations
+    ### [ ] use principal components as a start-off patterns
+    ### [ ] allow for sorting of at least 1D-grids
+    
     
     niter = 0
     Npts = len(patterns)            # number of patterns
     L = len(patterns[0])            # dimensionality
-    grid = np.zeros((shape[0], shape[1], L))
+    sh = patterns[0].shape          # dimensionality
+    grid = np.zeros(np.concatenate((shape, sh)))
     locs = list(itt.product(*map(xrange,shape)))
     init_ks = np.random.randint(len(patterns), size=len(locs))
     for k,l in enumerate(locs):
@@ -66,7 +72,11 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
         niter +=1
 	out.append(affiliations.copy())
     if output == 'last':
-	out = affiliations
+	return affiliations
+    elif output == 'grid':
+	return grid
+    elif output == 'both':
+	return affiliations, grid
     return out
 
 def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
