@@ -46,7 +46,7 @@ def pca(X, ncomp=None):
     K = U.T[:ncomp]
     return Z, K, s[:ncomp], X_mean
 
-def pca_svd(X):
+def pca_points(X):
     """Variant for ellipse fitting
 
     Input:
@@ -66,7 +66,7 @@ def pca_svd(X):
     U,s,Vh = svd(X1, full_matrices=False)
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
-    phi = np.rad2deg(np.arctan(Vh[0,1]/Vh[0,0])) # rotation of main axis (for Ellipse)
+    phi = np.rad2deg(np.arctan2(Vh[0,1],Vh[0,0])) # rotation of main axis (for Ellipse)
     return Vh, phi, ranges, c0, np.array(Y)
 
 def pca_svd_project(X, Vh):
@@ -74,7 +74,8 @@ def pca_svd_project(X, Vh):
     X1 = (X - c0)
     return array([dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
     
-def whitenmat(X, ncomp=None):
+def _whitenmat(X, ncomp=None):
+    "Assumes data are nframes x npixels"
     n,p = map(float, X.shape)
     Xc = X - X.mean(axis=-1)[:, np.newaxis]
     U, s, Vh = svd(Xc, full_matrices=False)
@@ -83,15 +84,38 @@ def whitenmat(X, ncomp=None):
     Z = Vh[:ncomp]  # (the upper variant is equivalent
     return Z, U.T[:ncomp], s[:ncomp]
 
+def whitenmat2(X):
+    """
+    Input: array
+    Assumes data X is an npixels x nframes matrix
 
 
-def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
+    Output:
+      - pc_filters
+      - pc_signals
+      - singular values
+
+    both pc_filters and pc_signals are arranged in rows,
+    i.e. pc_filters[0] is the first filter, pc_signals[1] is the second signal,
+    etc. This will be handy later for concatenation of spatial and temporal components
+    """
+    ## curious, which axis it's best to subtract mean from?
+    ## currently I subtract the mean signal from all signals because the mean
+    ## frame is already supposed to be subtracted from the movie
+    Xc = X - X.mean(axis=0)
+    #Xc = X - X.mean(axis=-1)[:, np.newaxis]
+    pc_filters, s, pc_signals = svd(Xc, full_matrices=False)
+    return pc_filters.T, pc_signals, s
+
+
+
+def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
 
     Input:
-      - `X` -- list of 2D arrays or 3D array with first axis = time
+      - `X` -- list of 2D arrays or 3D array with first axis = time 
       - `ncomp` -- number of components to resolve
-      - `mu`  -- spatial vs temporal, :math:`mu = 0 -> spatial`; mu = 1 -> temporal
+      - `mu`  -- weight of temporal input, :math:`mu = 0 -> spatial`; mu = 1 -> temporal
       - `npca` -- number of principal components to calculate (default, equals
         to the number of independent components
       - `reshape_filters` -- if true, `ICA` filters are returned as a sequence
@@ -104,19 +128,26 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     sh = X[0].shape
 
     npca = (npca is None) and ncomp or npca
-    
-    pc_f, pc_s, ev = whitenmat(data, npca)
-    #pc_f, pc_s, ev, _ = whitenmat(data, ncomp)
 
-    mux = sptemp_concat(pc_f, pc_s, mu)
+    ## note, svd of transposed data is slightly faster
+    #pc_f, pc_s, ev = _whitenmat(data)
+    pc_f, pc_s, ev = whitenmat2(data.T)
+
+    pc_f = pc_f[:npca]
+    pc_s = pc_s[:npca]
+    ev = ev[:npca]
+
+    mux = sptemp_concat(pc_f[:npca], pc_s[:npca], mu)
 
     _, W = fastica(mux, ncomp=ncomp, whiten=False)
     ica_signals = dot(W, pc_s)
-    a = diag(1.0/np.sqrt(ev[:ncomp]))
-    ica_filters = dot(dot(a, W), pc_f)
+    ## I doubt we really need this scaling at all
+    #a = diag(1.0/np.sqrt(ev[:ncomp])) # do we need sqrt?
+    #ica_filters = dot(dot(a, W), pc_f) 
+    ica_filters = dot(W, pc_f)
 
     if _skew_loaded:
-	skews = skew(ica_signals,axis=1)
+	skews = np.array([skew(f.ravel()) for f in ica_filters])
 	skew_signs = np.sign(skews)
         skewsorted = argsort(np.abs(skews))[::-1]
 	for fnumber,s in enumerate(skew_signs):
@@ -125,12 +156,12 @@ def st_ica(X, ncomp = 20,  mu = 0.3, npca = None, reshape_filters=True):
     else:
         skewsorted = range(ncomp)
     if reshape_filters:
-        ica_filters = reshape_to_movie(ica_filters[skewsorted], *sh)
+        ica_filters = reshape_to_movie(ica_filters[skewsorted], sh)
     else:
         ica_filters = ica_filters[skewsorted]
     return ica_filters, ica_signals[skewsorted]
 
-
+ 
 
 
 
@@ -285,7 +316,7 @@ def reshape_from_movie(mov):
     l,w,h = mov.shape
     return mov.reshape(l,w*h)
 
-def reshape_to_movie(X,nrows,ncols):
+def reshape_to_movie(X,(nrows,ncols)):
     Nt, Np = X.shape
     return X.reshape(Nt,nrows,ncols)
 

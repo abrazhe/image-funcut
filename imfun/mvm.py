@@ -390,10 +390,11 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if coefs is None:
         coefs = atrous.decompose(arr, level)
     if noise_std is None:
-	if arr.ndim > 2:
-	    noise_std = atrous.estimate_sigma_mad(coefs[0], True)
-	else:
-	    noise_std = atrous.estimate_sigma(arr, coefs)
+	noise_std =  atrous.estimate_sigma_mad(coefs[0], True)
+	## if arr.ndim > 2:
+	##     noise_std = atrous.estimate_sigma_mad(coefs[0], True)
+	## else:
+	##     noise_std = atrous.estimate_sigma(arr, coefs)
     ## calculate support taking only positive coefficients (light sources)
     if supp is None:
         supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,

@@ -360,6 +360,7 @@ def group_maps(maplist, ncols=None,
                titles=None,
 	       figsize = None,
 	       suptitle = None,
+	       background = None,
 	       individual_colorbars = False,
 	       single_colorbar = None,
 	       show_ticks = False,
@@ -386,6 +387,8 @@ def group_maps(maplist, ncols=None,
 	imkw['aspect'] = 'equal'
     for i,f in enumerate(maplist):
 	ax = pl.subplot(nrows,ncols,i+1)
+	if background is not None:
+	    ax.imshow(background, cmap='gray', aspect='equal')
 	im = ax.imshow(f, **imkw);
 	if not show_ticks:
 	    pl.setp(ax, 'xticks', [], 'yticks', [],

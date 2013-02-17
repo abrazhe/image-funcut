@@ -25,28 +25,83 @@ distance_fns = {
     'xcorrdist':xcorrdist
     }
 
-def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
+def _sorted_affs(affs):
+    return np.array(sorted(range(int(np.max(affs)+1)), key=lambda i:np.sum(affs==i)))
+
+def _iterative_som(patterns, max_rec=50, *args, **kwargs):
+    affs_p, gr_p = som1(patterns, *args, output='both',  **kwargs)
+    hist = []
+    for count in xrange(max_rec):
+	affs_n, gr_n = som1(patterns, *args, output='both',
+			    init_templates = [g[0] for g in gr_p],
+			    **kwargs)
+	err = np.sum(abs(gr_n-gr_p))
+	
+	if np.allclose(_sorted_affs(affs_p), _sorted_affs(affs_n)):
+	    return affs_n, gr_n
+	hist.append(err)
+	print count, np.sum(abs(_sorted_affs(affs_n) - _sorted_affs(affs_p))) 
+	affs_p, gr_p = affs_n, gr_n
+    return affs_n, gr_n
+
+
+def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss,
          fade_coeff = 0.9,
          min_reassign=10,
          max_iter = 1e5,
          distance=euclidean,
+	 init_templates = None,
+	 init_pca = False,
 	 output = 'last',
          verbose = 0):
-    """SOM as described in Bacao, Lobo and Painho, 2005"""
+    """SOM as described in Bacao, Lobo and Painho, 2005
+    Parameters:
+      - `patterns` -- list or array-like, input patterns to train SOM against
+      - `shape` -- shape of SOM grid
+      - `alpha` -- \alpha parameter of SOM, "driving" force to adjust
+         neighboring nodes
+      - `r` -- radius for a neighbor function
+      - `neighbor_fn` -- a function to define neighborhood
+      - `fade_coeff` -- fading coefficient, parameters alpha and r are
+         multiplied at each step
+      - `min_reassign` -- stop after number of pattern reassignement has
+         reached this value
+      - `max_iter` -- don't do more than this number of iterations
+      - `distance` -- distance function (Euclidean distance by default)
+      - `init_templates` -- initialize SOM grid with this
+      - `init_pca` -- if init_templates is None, initialize templates as
+         first N principal components
+      - `output` - string to define output, can be 'last', 'both' or 'full'
+      - `verbose` - whether to be verboze 
+ 	 
+    """
 
     if (type(distance) is str) and distance_fns.has_key(distance):
         distance = distance_fns[distance]
-        
-    
+
+    ### TODOs:
+    ### [ ] go through patterns in random order, return sorted affiliations
+    ### [X] use principal components as a start-off patterns
+    ### [-] allow for sorting of at least 1D-grids
     niter = 0
     Npts = len(patterns)            # number of patterns
     L = len(patterns[0])            # dimensionality
-    grid = np.zeros((shape[0], shape[1], L))
+    sh = patterns[0].shape          # dimensionality
+    grid = np.zeros(np.concatenate((shape, sh)))
     locs = list(itt.product(*map(xrange,shape)))
-    init_ks = np.random.randint(len(patterns), size=len(locs))
+    if init_templates is None:
+	if init_pca:
+	    patt = np.array([x.ravel() for x in patterns])
+	    u,s,vh = np.linalg.svd(patt.T)
+	    init_templates = [c.reshape(sh) for c in u.T[:len(locs)]]
+	else:
+	    init_ks = np.random.randint(len(patterns), size=len(locs))
+	    init_templates = [patterns[k] for k in init_ks]
     for k,l in enumerate(locs):
-        grid[l] = patterns[k]
-    affiliations = np.ones(Npts)*-1
+        grid[l] = init_templates[k]
+    #affiliations = np.ones(Npts)*-1
+    # initialize affiliations from patterns
+    affiliations = np.array([classify(p, grid, distance)[0] for p in patterns])
     reassigned = len(affiliations)
     out = []
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
@@ -59,17 +114,28 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbour_fn=neigh_gauss,
             affiliations[k] = winner_ind
             winner_loc = locs[winner_ind]
             for loc in locs:
-                grid[loc] += alpha*neighbour_fn(winner_loc, loc, r)*(p-grid[loc])
+                grid[loc] += alpha*neighbor_fn(winner_loc, loc, r)*(p-grid[loc])
         alpha *= fade_coeff
         r *= fade_coeff
         reassigned = np.sum(affiliations != affiliations_prev)
         niter +=1
 	out.append(affiliations.copy())
     if output == 'last':
-	out = affiliations
+	return affiliations
+    elif output == 'grid':
+	return grid
+    elif output == 'both':
+	return affiliations, grid
     return out
 
-def som_batch(patterns, shape=(10,1), neighbour_fn = neigh_gauss,
+def classify(pattern, grid, distance = euclidean):
+    sh = grid.shape[:2] # shape of grid
+    locs = list(itt.product(*map(xrange,sh)))
+    dists = [distance(grid[loc],pattern) for loc in locs]
+    k = np.argmin(dists)
+    return k, locs[k]
+
+def som_batch(patterns, shape=(10,1), neighbor_fn = neigh_gauss,
               distance=euclidean):
     print "Not implemented yet"
     pass
