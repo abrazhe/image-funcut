@@ -134,6 +134,11 @@ class FrameSequence(object):
         """Return `1D` vector from a mask (or slice), taking average value within
         this mask in each frame"""
         return np.asarray([np.mean(f[mask]) for f in self.frames()])
+    def softmask_reduce(self,mask):
+	"""Return `1D` vector from a mask (or slice), taking average value within
+        this mask in each frame, weighted by mask values between 0 and 1"""
+        return np.asarray([np.mean((f*mask)[mask>0]) for f in self.frames()])
+
 
     def frame_slices(self, sliceobj):
         """Return iterator over subframes (slices defined by `sliceobj` parameter).
