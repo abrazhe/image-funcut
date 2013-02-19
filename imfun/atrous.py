@@ -77,41 +77,135 @@ def locations(shape):
     """
     return itt.product(*map(xrange, shape))
 
-def decompose(arr, *args, **kwargs):
-    "Dispatcher on 1D, 2D or 3D data decomposition"
-    ndim = arr.ndim
-    if ndim == 1 or (ndim==2 and min(arr.shape) ==1):
-        decfn = decompose1d
-    elif ndim == 2:
-        decfn = decompose2d
-    elif ndim == 3:
-        decfn = decompose3d
-    else:
-        print "Can't work with %d dimensions yet, returning"%ndim
-        return
-    return decfn(arr, *args, **kwargs)
-
-
 ### version with direct convolution (scales better with decomposition level)
-import itertools as itt
-def decompose1d_direct(v, level, phi=np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
-    cprev = v
-    cnext = np.zeros(v.shape)
-    L,lphi = len(v), len(phi)
+## import itertools as itt
+## def decompose1d_direct(v, level, phi=np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+##     cprev = v
+##     cnext = np.zeros(v.shape)
+##     L,lphi = len(v), len(phi)
+##     phirange = np.arange(lphi) - int(lphi/2)
+##     Ll = np.arange(L, dtype='int')
+##     coefs = np.ones((level+1, L),dtype='float64')
+##     for j in xrange(level):
+##         phiind = (2**j)*phirange
+## 	approx = reduce(np.add,
+## 			(p*cprev[(Ll+pi)%L] for p,pi in itt.izip(phi, phiind)))
+##         coefs[j] = cprev - approx
+##         cprev = approx
+##     coefs[j+1] = approx
+##     return coefs
+
+from scipy import weave
+def weave_conv1d_wholes(vout,v,phi,ind):
+    if vout.shape != v.shape:
+	raise ValueError("Input and output arrays must have the same shape")
+    code = """
+    long L,i,k,ki;
+    L = Nv[0];
+    for(i=0; i<L; i++){
+       VOUT1(i) = 0;
+       for(k=0; k<Nphi[0]; k++){
+          ki = i+IND1(k);
+	  if (ki < 0){ki = -ki%L;}
+	  else if (ki >= L){ki = L-2-ki%L;}
+	  VOUT1(i) += PHI1(k)*V1(ki);
+       }
+    }
+    """
+    weave.inline(code, ['vout','v','phi', 'ind'])
+
+def weave_conv2d_wholes(uout,u,phi,ind):
+    code = """
+    long Nr,Nc,i,j,k,ki,l,li;
+    Nr = Nu[0];
+    Nc = Nu[1];
+    for(i=0; i<Nr; i++){
+       for(j=0; j<Nc; j++){
+          UOUT2(i,j) = 0;
+	  for(k=0; k<Nphi[0]; k++){
+	     ki = i+IND1(k);
+	     if (ki < 0){ki = -ki%Nr;}
+	     else if (ki >= Nr){ki = Nr-2-ki%Nr;}
+	     for(l=0; l<Nphi[1]; l++){
+		li = j + IND1(l);
+		if (li < 0){li = -li%Nc;}
+		else if (li >= Nc){li = Nc-2-li%Nc;}
+		UOUT2(i,j) += PHI2(k,l)*U2(ki,li);
+	     }
+	  }
+       }
+    }
+    """
+    weave.inline(code, ['uout','u','phi', 'ind'])
+
+
+def decompose1d_weave(sig, level,
+		      phi=_phi_,
+		      dtype= 'float64'):
+    """
+    1D stationary wavelet transform with B3-spline scaling function
+
+    Parameters:
+      - sig : 1D array
+      - level : level of decomposition
+      - phi  : low-pass filter kernel (B3-spline by default)
+      - dtype : dtype of the output)
+    Returns:
+      array of wavelet details + last approximation
+    """
+    cprev = sig.copy()
+    L,lphi = len(sig), len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
-    Ll = np.arange(L, dtype='int')
-    coefs = np.ones((level+1, L),dtype='float64')
+    coefs = np.ones((level+1, L),dtype=dtype)
     for j in xrange(level):
         phiind = (2**j)*phirange
-	approx = reduce(np.add,
-			(p*cprev[(Ll+pi)%L] for p,pi in itt.izip(phi, phiind)))
+	approx = np.zeros(sig.shape, dtype=dtype)
+	weave_conv1d_wholes(approx, cprev, phi, phiind)
         coefs[j] = cprev - approx
         cprev = approx
     coefs[j+1] = approx
     return coefs
 
 
-def decompose1d(sig, level, phi=_phi_, boundary='symm'):
+
+def make_phi2d(phi):
+    x = phi.reshape(1,-1)
+    return np.dot(x.T,x)
+
+def decompose2d_weave(arr2d, level,
+		      phi=_phi_,
+		      dtype= 'float64'):
+    """
+    2D stationary wavelet transform with B3-spline scaling function
+
+    Parameters:
+    -----------
+      - arr2d : 2D array
+      - level : level of decomposition
+      - phi  : low-pass filter kernel (B3-spline by default)
+      - dtype : dtype of the output)
+    Returns:
+    --------
+      array of wavelet details + last approximation
+    """
+    if level <= 0: return arr2d
+    cprev = arr2d.copy()
+    sh,lphi = arr2d.shape, len(phi)
+    phirange = np.arange(lphi) - int(lphi/2)
+    phi2d = make_phi2d(phi)
+    coefs = np.ones((level+1, sh[0], sh[1]),dtype=dtype)
+    for j in xrange(level):
+        phiind = (2**j)*phirange
+	approx = np.zeros(sh, dtype=dtype)
+	weave_conv2d_wholes(approx, cprev, phi2d, phiind)
+        coefs[j] = cprev - approx
+        cprev = approx
+    coefs[j+1] = approx
+    return coefs
+
+
+
+def decompose1d_numpy(sig, level, phi=_phi_, boundary='symm'):
     """
     1D stationary wavelet transform with B3-spline scaling function
 
@@ -135,7 +229,9 @@ def decompose1d(sig, level, phi=_phi_, boundary='symm'):
     elif level == 1 or L < len(zupsample(phi)): return [w, apprx]
     else: return [w] + decompose1d(apprx, level-1, zupsample(phi))
 
-def decompose2d(arr2d, level, phi=None, boundary='symm'):
+decompose1d = decompose1d_weave
+
+def decompose2d_numpy(arr2d, level, phi=None, boundary='symm'):
     """
     2D stationary wavelet transform with B3-spline scaling function
 
@@ -176,40 +272,11 @@ def decompose2d(arr2d, level, phi=None, boundary='symm'):
     else:
         return [w] + decompose2d(approx,level-1,upphi,boundary) 
 
-def f2d(phi):
-    """Convert 1D spline filter to 2D spline filter"""
-    v = phi.reshape(1,-1)
-    return np.dot(v.T,v)
 
-
-def _decompose2p5d(arr, level=1,
-                  phi = _phi_,
-                  boundary = 'mirror'):
-    """Semi-separable a trous wavelet decomposition for 3D data"""
-    phi2d = f2d(phi)
-    if level <= 0: return arr
-    arr = arr.astype(_dtype_)
-    approx = np.zeros(arr.shape,_dtype_)
-    for k in xrange(arr.shape[0]):
-        approx[k] = signal.convolve2d(arr[k], phi2d, mode='same',
-                                      boundary='symm')
-    details = arr - approx
-    upkern = zupsample(phi)
-    shapecheck = map(lambda a,b:a>b, arr.shape, upkern.shape)
-    if level == 1:
-        return [details, approx]
-    elif not np.all(shapecheck):
-        print "Maximum allowed decomposition level reached, returning"
-        return [details, approx]
-    else:
-        return [details] + _decompose2p5d(approx, level-1, upkern)
-
-
-
-def decompose3d(arr, level=1,
-		phi = _phi_,
-		boundary1d = 'mirror',
-		boundary2d = 'symm'):
+def decompose3d_numpy(arr, level=1,
+		      phi = _phi_,
+		      boundary1d = 'mirror',
+		      boundary2d = 'symm'):
     """Semi-separable a trous wavelet decomposition for 3D data
     with B3-spline scaling function
     
@@ -227,7 +294,7 @@ def decompose3d(arr, level=1,
       a 3D array of the same size as the input array. 
     
     """
-    phi2d = f2d(phi)
+    phi2d = make_phi2d(phi)
     if level <= 0: return arr
     arr = arr.astype(_dtype_)
     tapprox = np.zeros(arr.shape,_dtype_)
@@ -248,6 +315,68 @@ def decompose3d(arr, level=1,
         return [details, approx]
     else:
         return [details] + decompose3d(approx, level-1, upkern)
+
+def decompose3d_weave(arr, level=1,
+		      phi = _phi_,
+		      curr_j = 0):
+    """Semi-separable a trous wavelet decomposition for 3D data
+    with B3-spline scaling function
+    
+    If `arr` is an array, then each arr[n] are treated as 2D images
+    and arr[:,j,k] are treated as 1D signals.
+
+    Parameters:
+      - arr : 3D array
+      - level : level of decomposition
+      - phi  : low-pass filter kernel (B3-spline by default)
+      - boundary1d : boundary conditions passed as `mode` to scipy.ndimage.convolve1d
+      - boundary2d : boundary conditions passed to scipy.signal.convolve2d
+    Returns:
+      list of wavelet details + last approximation. Each element in the list is
+      a 3D array of the same size as the input array. 
+    
+    """
+    lphi = len(phi)
+    phirange = np.arange(lphi) - int(lphi/2)
+    phiind = (2**curr_j)*phirange
+    phi2d = make_phi2d(phi)
+    if level <= 0: return arr
+    arr = arr.astype(_dtype_)
+    tapprox = np.zeros(arr.shape,_dtype_)
+    for loc in locations(arr.shape[1:]):
+        v = arr[:,loc[0], loc[1]]
+	vo = np.zeros(v.shape, _dtype_)
+        weave_conv1d_wholes(tapprox[:,loc[0], loc[1]], v, phi, phiind)
+    approx = np.zeros(arr.shape,_dtype_)
+    for k in xrange(arr.shape[0]):
+        weave_conv2d_wholes(approx[k],tapprox[k], phi2d, phiind)
+    details = arr - approx
+    if level == 1:
+        return [details, approx]
+    else:
+        return [details] + decompose3d_weave(approx, level-1, phi, curr_j+1)
+
+
+
+### Main dispatcher function
+decompose1d = decompose1d_weave
+decompose2d = decompose2d_weave
+decompose3d = decompose3d_weave    
+def decompose(arr, *args, **kwargs):
+    "Dispatcher on 1D, 2D or 3D data decomposition"
+    ndim = arr.ndim
+    if ndim == 1 or (ndim==2 and min(arr.shape) ==1):
+        decfn = decompose1d
+    elif ndim == 2:
+        decfn = decompose2d
+    elif ndim == 3:
+        decfn = decompose3d
+    else:
+        print "Can't work with %d dimensions yet, returning"%ndim
+        return
+    return decfn(arr, *args, **kwargs)
+
+
 
 def zupsample(arr):
     "Upsample array by interleaving it with zero values"
@@ -463,3 +592,24 @@ def DFoSD(v, level=9, smooth = 0):
     return vd/sd
     
 
+## def _decompose2p5d(arr, level=1,
+##                   phi = _phi_,
+##                   boundary = 'mirror'):
+##     """Semi-separable a trous wavelet decomposition for 3D data"""
+##     phi2d = make_phi2d(phi)
+##     if level <= 0: return arr
+##     arr = arr.astype(_dtype_)
+##     approx = np.zeros(arr.shape,_dtype_)
+##     for k in xrange(arr.shape[0]):
+##         approx[k] = signal.convolve2d(arr[k], phi2d, mode='same',
+##                                       boundary='symm')
+##     details = arr - approx
+##     upkern = zupsample(phi)
+##     shapecheck = map(lambda a,b:a>b, arr.shape, upkern.shape)
+##     if level == 1:
+##         return [details, approx]
+##     elif not np.all(shapecheck):
+##         print "Maximum allowed decomposition level reached, returning"
+##         return [details, approx]
+##     else:
+##         return [details] + _decompose2p5d(approx, level-1, upkern)

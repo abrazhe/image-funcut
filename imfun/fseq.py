@@ -247,7 +247,9 @@ class FrameSequence(object):
             out.flush()
         return out
     
-    def pix_iter(self, mask=None, max_frames=None, rand=False, **kwargs):
+    def pix_iter(self, mask=None, max_frames=None, rand=False,
+		 sliceobj = None,
+		 **kwargs):
         """Return iterator over time signals from each pixel.
 
 	Parameters:
@@ -261,19 +263,29 @@ class FrameSequence(object):
 	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
 	
 	"""
-        arr = self.as3darray(max_frames, **kwargs)
+        arr = self.as3darray(max_frames, sliceobj=sliceobj,**kwargs)
+	sh = self.shape()
         if mask== None:
             mask = np.ones(self.shape(), np.bool)
         nrows, ncols = arr.shape[1:]
         rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
         if rand: rcpairs = np.random.permutation(rcpairs)
+	if sliceobj is None:
+	    submask = mask
+	    r0,c0 = 0,0
+	else:
+	    submask = mask[sliceobj]
+	    r0,c0 = sliceobj[0].start,sliceobj[1].start
         for row,col in rcpairs:
-            if mask[row,col]:
+	    if r0+row>=sh[0] or c0+col>=sh[1]:
+		continue
+            if submask[row,col]:
                 ## asarray to convert from memory-mapped array
                 yield np.asarray(arr[:,row,col]), row, col
         if hasattr(arr, 'flush'):
             arr.flush()
         del arr
+	return
         
 
     def length(self):
