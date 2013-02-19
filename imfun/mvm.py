@@ -236,7 +236,7 @@ def deblend_node_old(node, coefs, acc = None):
             deblend_node(c, coefs, acc)
     return acc
 
-def deblend_node(node, coefs, acc = None, min_scales=2):
+def deblend_node(node, coefs, acc = None):
     """Make an attempt to deblend overlapping objects.
 
     Parameters:
@@ -254,6 +254,7 @@ def deblend_node(node, coefs, acc = None, min_scales=2):
     mxcoef = lambda level, loc : coefs[level][loc]
     sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
     tocut = []
+    ## for each branch we decide if we want to cut it off
     for b in node.branches:
 	wjm = mxcoef(b.level, b.max_pos)
 	if len(b.branches) == 0:
@@ -265,15 +266,19 @@ def deblend_node(node, coefs, acc = None, min_scales=2):
 	wjp1m = np.max(coefs[b.level+1][b.labels==b.ind])
 	## NB! only cut if there are more than one structure at the same level
 	## which belongs to the same tree!
+	print wjm, wjm1m, wjp1m
 	if (wjm1m < wjm > wjp1m):
+	    print 'True!'
 	    atlevel = sublevel(node.level)
 	    if len(atlevel)>1:
 		tocut.append(b)
     for c in tocut:
 	free = c.cut()
-	if  nscales(free) >= min_scales:
-	    acc.append(free)
-	    deblend_node(c, coefs, acc)
+	acc.append(free)
+	deblend_node(c, coefs, acc)
+    # check if we will need to deblend further down
+    for b in node.branches:
+	deblend_node(b, coefs, acc)
     return acc
 
 
