@@ -170,7 +170,7 @@ def decompose1d_weave(sig, level,
 
 def make_phi2d(phi):
     x = phi.reshape(1,-1)
-    return dot(x.T,x)
+    return np.dot(x.T,x)
 
 def decompose2d_weave(arr2d, level,
 		      phi=_phi_,
