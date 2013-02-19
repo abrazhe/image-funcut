@@ -314,7 +314,7 @@ def decompose3d_numpy(arr, level=1,
         print "Maximum allowed decomposition level reached, returning"
         return [details, approx]
     else:
-        return [details] + decompose3d(approx, level-1, upkern)
+        return [details] + decompose3d_numpy(approx, level-1, upkern)
 
 def decompose3d_weave(arr, level=1,
 		      phi = _phi_,
