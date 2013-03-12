@@ -266,9 +266,9 @@ def deblend_node(node, coefs, acc = None):
 	wjp1m = np.max(coefs[b.level+1][b.labels==b.ind])
 	## NB! only cut if there are more than one structure at the same level
 	## which belongs to the same tree!
-	print wjm, wjm1m, wjp1m
+	#print wjm, wjm1m, wjp1m
 	if (wjm1m < wjm > wjp1m):
-	    print 'True!'
+	    #print 'True!'
 	    atlevel = sublevel(node.level)
 	    if len(atlevel)>1:
 		tocut.append(b)

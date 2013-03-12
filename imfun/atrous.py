@@ -590,7 +590,39 @@ def DFoSD(v, level=9, smooth = 0):
     if sd == 0:
 	return np.zeros(vd.shape)
     return vd/sd
+
+def _DFoF_asym(v, level=5, r=1.0):
+    """Normalize `v` as :math:`v/v_0 - 1` for :math:`v_0` taken as
+    asymmetric-approximation baseline at givel level
+
+    """
+    baseline = _asymmetric_smooth(v, level, r=r)
+    zi = np.where(np.abs(baseline) < 1e-6)
+    baseline[zi] = 1.0
+    out = v/baseline - 1.0
+    out[zi] = 0
+    return out
     
+
+def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
+    import pylab as pl
+    acc = []
+    vcurr = np.copy(v)
+    sd = estimate_sigma_mad(v)
+    sprev = None
+    for i in xrange(niter):
+	s = smooth(vcurr, level)
+	sd = np.std(vcurr-s)
+	clip = (vcurr > s+r*sd)
+	vcurr = np.where(clip, s, vcurr)
+	if sprev is not None:
+	    conv = np.std(s-sprev)
+	    if conv < tol:
+		if verbose:
+		    print 'converged after %d iterations' %(i+1)
+		break
+	sprev = s
+    return s
 
 ## def _decompose2p5d(arr, level=1,
 ##                   phi = _phi_,
