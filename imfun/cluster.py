@@ -226,7 +226,7 @@ def quality_threshold(points, max_diam, dist_fn = euclidean):
 ## note: can't work with points as ndarrays because
 ## 1. they are not hashable (convert to tuples) and
 ## 2. can't be compared simply by p1 == p2.
-def dbscan(points, eps, min_pts, dist_fn = euclidean,
+def dbscan_old(points, eps, min_pts, dist_fn = euclidean,
            verbose=False):
     """ Implementation of DBSCAN density-based clustering algorithm
 
@@ -281,45 +281,69 @@ def dbscan(points, eps, min_pts, dist_fn = euclidean,
     clusters.sort(key=lambda x: len(x), reverse = True)
     return [Cluster(c, dist_fn = dist_fn) for c in clusters]
 
-#expandCluster(P, N, C, eps, MinPts)
-#   add P to cluster C
-#   for each point P' in N 
-#      if P' is not visited
-#         mark P' as visited
-#         N' = getNeighbors(P', eps)
-#         if sizeof(N') >= MinPts
-#            N = N joined with N'
-#      if P' is not yet member of any cluster
-#         add P' to cluster C
+## here I used dbscan_.py from sklearn as a reference
+def dbscan(points, eps, min_pts, dist_fn='euclidean',verbose=True):
+    """ Implementation of DBSCAN density-based clustering algorithm
 
-### here i tried with pre-calculation of distances between points
-### for dbscan. Didn't help the speed though
-def _distance_dict_redun(points, dist_fn=euclidean):
-    "redundant mapping of pairwise distances"
-    dd = {}
-    for p in points: dd[p] = {}
-    for p1,p2 in itt.permutations(points,2):
-        dd[p1][dist_fn(p1,p2)] = p2
-    return dd
+    Parameters:
+      - `points`: input collection of points. points must be hashable
+                  (i.e. a point is a tuple of coordinates)
+      - `eps`: (`number`) --  neighborhood radius
+      - `min_pts`: (`number`) -- minimal number of neighborhood points
+      - `dist_fn`: (`function`) -- distance measure, [``euclidean``]
+      - `verbose`: (`bool`) -- if ``True``, be verbose
 
-def _kdist(points, k, dist_fn = euclidean):
-    dd = _distance_dict_redun(points, dist_fn)
-    dists = []
-    for point in points:
-        x = sorted(dd[point].keys())
-        dists.append(x[k])
-    return sorted(dists, reverse=True)
+    Returns:
+      a list of clusters (each cluster is a Cluster class instance)
+    """
+    points = np.asarray(points)
+    L = len(points)
+    D = _pairwise_euclidean_distances(points)
+    neighborhoods = [np.where(x <= eps)[0] for x in D]
+    labels = -np.ones(L) # everything is noise at start
+    core_points = []
+    label_marker = 0
+    perm = np.random.permutation(L) # we iterate through points in random order
+    for k in perm: 
+	if labels[k] != -1 or len(neighborhoods[k]) < min_pts:
+	    # either visited or not a core point
+	    continue
+	core_points.append(k)
+	labels[k] = label_marker
+	# expand cluster
+	candidates = [k]
+	while len(candidates) > 0:
+	    new_candidates = []
+	    for c in candidates:
+		noise = np.where(labels[neighborhoods[c]] == -1)[0]
+		noise = neighborhoods[c][noise] # ?
+		labels[noise] = label_marker
+		for neigh in noise:
+		    if len(neighborhoods[neigh]) >= min_pts:
+			new_candidates.append(neigh) # another core point
+			core_points.append(neigh)
+	    candidates = new_candidates
+	label_marker += 1
+    clusters = sorted([points[labels==lm] for lm in range(label_marker)],
+		      key=lambda x: len(x), reverse=True)
+    clusters = [Cluster(c, dist_fn = dist_fn) for c in clusters]
+    
+    return clusters, core_points, labels
 
-def _distance_dict(points, dist_fn = euclidean):
-    "non-redundant mapping of distances"
-    dd = {}
-    for pair in itt.combinations(points,2):
-        dd[pair] = dist_fn(*pair)
-    return dd
 
-def _alldistances_test1(points, dist_fn = euclidean):
-    for pair in itt.combinations(points,2):
-        dist_fn(*pair)
+def _pairwise_euclidean_distances(points):
+    """pairwise euclidean distances between points.
+    Calculated as distance between vectors x and y:
+    d = sqrt(dot(x,x) -2*dot(x,y) + dot(Y,Y))
+    """
+    X = np.asarray(points)
+    XX = np.sum(X*X, axis=1)[:,np.newaxis]
+    D = -2 * np.dot(X,X.T) + XX + XX.T
+    np.maximum(D, 0, D)
+    # todo triangular matrix, sparse matrix
+    return np.sqrt(D)
+    
+
         
 def _neighbours_dict(points, eps,dist_fn = euclidean):
     nd = {}
