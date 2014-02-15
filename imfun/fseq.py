@@ -404,11 +404,23 @@ class FrameSequence(object):
             sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
         plt.close()
 	return fnames
-    def export_mpeg(self, mpeg_name, fps = None, **kwargs):
-	"""Create an mpg  movie from the frame sequence using mencoder.
+    def export_movie_anim(self, mpeg_name,fps=None, **kwargs):
+        """
+        Create an mpg  movie from the frame sequence using mencoder.
+        and mpl.Animation
 
 	Parameters:
 	  - `mpeg_name`: (`str`) -- a name (without extension) for the movie to
+	    be created
+	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
+	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
+	"""
+
+    def export_avi(self, mpeg_name, fps = None, **kwargs):
+	"""Create an avi  movie from the frame sequence using mencoder.
+
+	Parameters:
+	  - `avi_name`: (`str`) -- a name (without extension) for the movie to
 	    be created
 	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
@@ -424,7 +436,7 @@ class FrameSequence(object):
 	fnames = self.export_img(**kwargs)
         print 'Running mencoder, this can take a while'
         mencoder_string = """mencoder mf://%s*.png -mf type=png:fps=%d\
-        -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.mpg"""%(path+base,fps,mpeg_name)
+        -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o %s.avi"""%(path+base,fps,mpeg_name)
         os.system(mencoder_string)
         map(os.remove, fnames)
 
@@ -470,7 +482,7 @@ class FSeq_arr(FrameSequence):
 		    v = self.data[:,row,col].copy()
 		    yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    x = super(FSeq_mlf,self)
+	    x = super(FSeq_arr,self)
 	    for a in x.pix_iter(mask=mask,max_frames=max_frames,
 				rand=rand,**kwargs):
 		yield a
@@ -656,7 +668,38 @@ class FSeq_tiff_2(FSeq_arr):
 	x = tiffile.imread(fname)
 	parent = super(FSeq_tiff_2, self)
 	parent.__init__(x, **kwargs)
-	
+
+
+class FSeq_hdf5_lsc(FrameSequence):
+    "Class for hdf5 files"
+    def __init__(self, fname):
+        import h5py
+        parent = super(FSeq_hdf5_lsc, self)
+	parent.__init__()
+        f = h5py.File(fname, 'r')
+        t = f['tstamps']
+        self.tv = (t-t[0])/1e6 # relative time, in s
+        self.dt = np.mean(np.diff(self.tv))
+        self.data = f['lsc']
+        self.fns = []
+    def length(self):
+        return self.data.shape[0]
+    def frames(self):
+        fn = self.pipeline()
+        return itt.imap(fn, (f for f in self.data))
+    def __getitem__(self, val):
+        x = self.data[val]
+        if self.fns == []:
+            return self.data[val]
+        if type(val) is int:
+	    return self.pipeline()(x)
+	out = np.zeros(x.shape,x.dtype)
+	for j,f in enumerate(x):
+	    out[j] = self.pipeline()(x)
+	return out
+        
+        
+        
             
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
@@ -669,7 +712,7 @@ def open_seq(path, *args, **kwargs):
     Returns:
       - `instance`  of an appropriate Frame Sequence class
     """
-    images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff')
+    images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
     if type(path) is np.ndarray:
 	return FSeq_arr(path, *args, **kwargs)
     ending = re.findall('[^*\.]+', path)[-1]

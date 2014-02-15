@@ -175,6 +175,36 @@ def restore_object(object, coefs, min_level=0,):
     supp = supp_from_obj(object,min_level)
     return atrous.rec_with_support(coefs, supp)
 
+def _restore_object_iterative(arr, object, min_level=0, niter=5,
+                              dec_fn = atrous.decompose,
+                              coefs = None, fullout = 0,
+                              positive_only = True,
+                              step_size=2,
+                              step_damp=0.85):
+    rws = atrous.rec_with_support
+    # todo: step size damping
+    supp = supp_from_obj(object,min_level)
+    nlevels = len(supp)
+    if coefs is None:
+        coefs = dec_fn(arr, nlevels)
+
+    Xn = rws(coefs,supp)
+    if fullout:
+        out = [Xn]
+        
+    for i in range(niter):
+        upd = rws(coefs - dec_fn(Xn,nlevels),supp)
+        Xnp1 = Xn + step_size*upd
+        step_size *= step_damp
+        if positive_only:
+            Xnp1 *= Xnp1>=0
+        Xn = Xnp1
+        if fullout:
+            out.append(Xn)
+    if not fullout:
+        out = Xn
+    return out
+
 def supp_from_connectivity(graph,nlevels):
     nodes = lib.flatten(graph)
     sh = nodes[0].labels.shape
@@ -647,6 +677,8 @@ def objects_to_array(objlist):
 #### algorithm for conjugated gradient reconstruction ####
 #### -------------------------------------------------####
 
+
+### --- old ----
 
 _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
 __x = _phi_.reshape(1,-1)

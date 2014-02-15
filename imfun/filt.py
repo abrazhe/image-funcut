@@ -12,16 +12,17 @@ def gauss_kern(xsize=1.5, ysize=None):
     Return a normalized 2D gauss kernel for convolutions
 
     Parameters:
-      - `xsize`: :math:`\sigma^2_x`, variance for x dimension
-      - `ysize`: :math:`\sigma^2_y`, variance for y dimension
+      - `xsize`: :math:`\sigma_x`, standard deviation for x dimension
+      - `ysize`: :math:`\sigma_y`, standard deviation for y dimension
 
     Returns:
       - `g` : the 2D kernel as an array
     """
-    xsize = int(xsize)
-    ysize = ysize and int(ysize) or xsize
-    x, y = np.mgrid[-xsize:xsize+1, -ysize:ysize+1]
-    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
+    norm = lambda _u: 2*int(np.ceil(_u))
+    ysize = ysize and ysize or xsize
+    xn,yn = norm(xsize), norm(ysize)
+    x, y = np.mgrid[-xn:xn+1, -yn:yn+1]
+    g = np.exp(-( 0.5*(x/float(xsize))**2 + 0.5*(y/float(ysize))**2))
     return g / g.sum()
 
 def gauss_kern1d(size=1.5):

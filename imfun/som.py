@@ -94,7 +94,7 @@ def som1(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss,
 	    patt = np.array([x.ravel() for x in patterns])
 	    u,s,vh = np.linalg.svd(patt.T,full_matrices=False)
 	    init_templates = [c.reshape(sh) for c in u.T[:len(locs)]]
-	    del u,s,v,patt
+	    del u,s,vh,patt
 	else:
 	    init_ks = np.random.randint(len(patterns), size=len(locs))
 	    init_templates = [patterns[k] for k in init_ks]
