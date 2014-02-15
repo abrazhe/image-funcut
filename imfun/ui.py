@@ -936,7 +936,8 @@ class Picker:
 
         dx,dy, scale_setp = self.fseq.get_scale()
 	sy,sx = self.fseq.shape()[:2]
-        avmin,avmax = self.fseq.data_range()
+        if vmin is None or vmax is None:
+            avmin,avmax = self.fseq.data_range()
         if vmin is None: vmin = avmin
         if vmax is None: vmax = avmax
         if hasattr(self.fseq, 'ch'):
@@ -1101,6 +1102,7 @@ class Picker:
                                  vmax = None,
                                  normp = True,
                                  **keywords):
+	from swan import utils as swu
         "Create a figure of a signal, spectrogram and a colorbar"
         if not self.isCircleROI(roitag):
             print "This is not a circle ROI, exiting"
@@ -1114,7 +1116,7 @@ class Picker:
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roitag].get_color()
-        fig,axlist = lib.setup_axes_for_spectrogram((8,4))
+        fig,axlist = swu.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         axlist[1].set_xlabel('time, s')
         utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,

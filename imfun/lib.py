@@ -358,6 +358,7 @@ def extrema2(v, *args, **kwargs):
 
 def group_maps(maplist, ncols=None,
                titles=None,
+               figscale = 2,
 	       figsize = None,
 	       suptitle = None,
 	       background = None,
@@ -369,10 +370,12 @@ def group_maps(maplist, ncols=None,
     import pylab as pl
     if imkw is None:
         imkw = {}
+    else:
+        imkw = imkw.copy()
     if ncols is None:
 	ncols = min(10, len(maplist))
     nrows = int(np.ceil(len(maplist)/float(ncols)))
-    figsize = ifnot (figsize, (2*ncols,2*nrows)) 
+    figsize = ifnot (figsize, (figscale*ncols,figscale*nrows)) 
     figh = pl.figure(figsize=figsize)
     print samerange
     if samerange:
@@ -398,7 +401,7 @@ def group_maps(maplist, ncols=None,
 	if titles is not None: pl.title(titles[i])
     if single_colorbar:
 	pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
-	cax = pl.axes([0.85, 0.1, 0.03, 0.8])
+	cax = pl.axes([0.85, 0.1, 0.03, 0.618])
 	pl.colorbar(im, cax=cax, **cbkw)
     if suptitle:
         pl.suptitle(suptitle)
@@ -414,26 +417,25 @@ def group_plots(ylist, ncols, x = None,
 		suptitle = None,
 		ylabels = None,
 		figsize = None,
-		new_figure = True,
 		sameyscale = True,
+                order='C',
 		imkw={}):
     import pylab as pl
     nrows = np.ceil(len(ylist)/float(ncols))
     figsize = ifnot(figsize, (2*ncols,2*nrows))
-    if new_figure:
-	    pl.figure(figsize=figsize)
+    fh, axs = pl.subplots(int(nrows), int(ncols),
+                          sharex=True,
+                          sharey=bool(sameyscale),
+                          figsize=figsize)
     ymin,ymax = data_range(ylist)
+    axlist = axs.ravel(order=order)
     for i,f in enumerate(ylist):
 	x1 = ifnot(x, range(len(f)))
-        if i == 0:
-	    top = pl.subplot(nrows,ncols,i+1)
-	else:
-	    _ax = pl.subplot(nrows,ncols,i+1, sharex=top)
-	if sameyscale:
-	    pl.ylim(ymin,ymax)
-	_im = pl.plot(x1, f, **imkw)
-	if titles is not None: pl.title(titles[i])
-	if ylabels is not None: pl.ylabel(ylabels[i])
+        _im = axlist[i].plot(x1,f,**imkw)
+	if titles is not None:
+            pl.setp(axlist[i], title = titles[i])
+	if ylabels is not None:
+            pl.setp(axlist[i], ylabel=ylabels[i])
     if suptitle:
         pl.suptitle(suptitle)
     return

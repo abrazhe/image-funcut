@@ -31,8 +31,8 @@ def adaptive_threshold(arr, n = 3, k = 0):
     nrows,ncols = arr.shape
     out = np.zeros(arr.shape)
     for row,col in locations(arr.shape):
-	sl = (slice((row-n)%nrows,(row+n)%nrows),
-	      slice((col-n)%ncols,(col+n)%ncols))
+	sl = (slice((row-n)%nrows,(row+n+1)%nrows),
+	      slice((col-n)%ncols,(col+n+1)%ncols))
 	m = np.mean(arr[sl])
 	if arr[row,col] > m - k:
 	    out[row,col] = 1

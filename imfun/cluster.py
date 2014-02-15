@@ -46,7 +46,13 @@ def xcorrdist(v1,v2):
     return 1/np.correlate(v1,v2)
 
 
-## TODO: distance_matrix
+## TODO:
+### [X] distance_matrix
+### [ ] sparse distance matrix
+### [ ] rename dist_fn to metrics
+### [ ] use scipy.spatial for distance calculations
+
+
 
 ##---------------------------
 
@@ -282,7 +288,7 @@ def dbscan_old(points, eps, min_pts, dist_fn = euclidean,
     return [Cluster(c, dist_fn = dist_fn) for c in clusters]
 
 ## here I used dbscan_.py from sklearn as a reference
-def dbscan(points, eps, min_pts, dist_fn='euclidean',verbose=True):
+def dbscan(points, eps, min_pts, distances=None,dist_fn='euclidean',verbose=True):
     """ Implementation of DBSCAN density-based clustering algorithm
 
     Parameters:
@@ -298,7 +304,11 @@ def dbscan(points, eps, min_pts, dist_fn='euclidean',verbose=True):
     """
     points = np.asarray(points)
     L = len(points)
-    D = _pairwise_euclidean_distances(points)
+    if distances is None:
+	D = _pairwise_euclidean_distances(points)
+    else:
+	D = distances
+    #neighborhoods = [np.where(x <= eps)[0] for x in D]
     neighborhoods = [np.where(x <= eps)[0] for x in D]
     labels = -np.ones(L) # everything is noise at start
     core_points = []
@@ -345,15 +355,6 @@ def _pairwise_euclidean_distances(points):
     
 
         
-def _neighbours_dict(points, eps,dist_fn = euclidean):
-    nd = {}
-    #dd = distance_dict(points,dist_fn)
-    for p in points: nd[p] = []
-    for p1,p2 in itt.permutations(points,2):
-        d =  dist_fn(p1,p2)
-        if d <  eps:
-            nd[p1].append(p2)
-    return nd
 ###-----------------------------------
 
 
@@ -498,8 +499,18 @@ def locations(shape):
     """ all locations for a shape; substitutes nested cycles
     """
     return itt.product(*map(xrange, shape))
-    
+
 def mask2points(mask):
+    "mask to a list of points, as row,col"
+    points = []
+    for loc in locations(mask.shape):
+        if mask[loc]:
+            points.append(loc) 
+    return points
+
+    
+def mask2pointsr(mask):
+    "mask to a list of points, with X,Y coordinates reversed"
     points = []
     for loc in locations(mask.shape):
         if mask[loc]:
@@ -516,13 +527,17 @@ def cluster2array(c):
 def points2array(points,dtype=np.float64):
     return np.array(points, dtype=dtype)
 
-def surfconvert(frame):
+
+def surfconvert(frame, mask):
+    from imfun import lib
     out = []
     nr,nc = map(float, frame.shape)
+    space_scale = max(nr, nc)
     f = lib.rescale(frame)
     for r in range(int(nr)):
         for c in range(int(nc)):
-            out.append([c/nc,r/nr, f[r,c]])
+	    if not mask[r,c]:
+		out.append([c/space_scale,r/space_scale, f[r,c]])
     return np.array(out)
 
 

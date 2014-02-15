@@ -489,7 +489,7 @@ def estimate_sigma_mad(arr, is_details = False):
     else:
 	w1 = decompose(arr,1)[0]
     nd = w1.ndim
-    return np.median(np.abs(w1))/(0.6745*sigmaej[nd][0])
+    return np.median(np.abs(w1-np.median(w1)))/(0.6745*sigmaej[nd][0])
 
 def smooth(arr, level=1):
     """Return a smoothed representation of the input data by retaining only
