@@ -184,9 +184,11 @@ def _restore_object_iterative(arr, object, min_level=0, niter=5,
     rws = atrous.rec_with_support
     # todo: step size damping
     supp = supp_from_obj(object,min_level)
-    nlevels = len(supp)
     if coefs is None:
         coefs = dec_fn(arr, nlevels)
+        nlevels = len(supp)
+    else:
+        nlevels = len(coefs)-1
 
     Xn = rws(coefs,supp)
     if fullout:
@@ -304,11 +306,13 @@ def deblend_node(node, coefs, acc = None):
 		tocut.append(b)
     for c in tocut:
 	free = c.cut()
-	acc.append(free)
-	deblend_node(c, coefs, acc)
+        acc.append(free)
+	deblend_node(free, coefs, acc) # this is important to add freely-cut
+                                       # nodes to the acc, not the base (we are
+                                       # already dealing with it)
     # check if we will need to deblend further down
     for b in node.branches:
-	deblend_node(b, coefs, acc)
+    	deblend_node(b, coefs, acc)
     return acc
 
 
@@ -380,18 +384,22 @@ def just_denoise(arr, k=3, level=5, noise_std=None,
     new_supp = supp_from_connectivity(g,level)
     return atrous.rec_with_support(coefs, new_supp)
     
-    
+
+import mmt,multiscale    
 
 ### This is one of the main functions ###
 #----------------------------------------
 def find_objects(arr, k=3, level=5, noise_std=None,
                  coefs=None,
                  supp=None,
+                 dec_fn = atrous.decompose,
 		 retraw=False, # only used for testing
 		 start_scale=0,
 		 weights=[1., 1., 1., 1., 1.],
+                 deblendp=True,
                  min_px_size=200,
                  min_nscales=2,
+                 rec_variant=2,
 		 modulus = False):
     """Use MVM to find objects in the input array.
 
@@ -423,7 +431,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if np.iterable(k):
         level = len(k)
     if coefs is None:
-        coefs = atrous.decompose(arr, level)
+        coefs = dec_fn(arr, level)
     if noise_std is None:
 	noise_std =  atrous.estimate_sigma_mad(coefs[0], True)
 	## if arr.ndim > 2:
@@ -431,23 +439,38 @@ def find_objects(arr, k=3, level=5, noise_std=None,
 	## else:
 	##     noise_std = atrous.estimate_sigma(arr, coefs)
     ## calculate support taking only positive coefficients (light sources)
+    sigmaej = atrous.sigmaej
+    if dec_fn == mmt.decompose_mwt:
+        sigmaej = mmt.sigmaej_mwts2
     if supp is None:
-        supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
-                                  modulus=modulus)  
+        supp = multiscale.threshold_w(coefs, np.array(k,_dtype_)*noise_std,
+                                      modulus=modulus, sigmaej=sigmaej)  
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures)
+    if deblendp:
+        gdeblended = deblend_all(g, coefs, min_nscales) # destructive
+    else:
+        gdeblended = [r for r in g if nscales(r) >= min_nscales]
 
-    gdeblended = deblend_all(g, coefs, min_nscales) # destructive
     check = lambda x: len(tree_locations2(x)) > min_px_size
     objects = sorted([x for x in gdeblended if check(x)],
 		     key = lambda u: tree_mass(u), reverse=True)
     if retraw:
 	return objects
-    pipeline = lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
-							 weights = weights),
-			     lambda x:atrous.rec_with_support(coefs, x),
-			     embedding)
-    recovered = (pipeline(obj, start_scale) for obj in objects)
+    # note: even if we decompose with mmt.decompose_mwt
+    # we use atrous.decompose for object reconstruction because
+    # we don't expect too many outliers and this way it's faster
+    pipelines = [lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
+                                                           weights = weights),
+                               lambda x: multiscale.simple_rec(coefs, x),
+                               embedding),
+                 lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
+                                                           weights = weights),
+                               lambda x:
+                               multiscale.simple_rec_iterative(coefs, x, 
+                                                               positive_only=(not modulus)),
+                               embedding)]
+    recovered = (pipelines[rec_variant-1](obj, start_scale) for obj in objects)
     return filter(lambda x: np.sum(x[0]>0) > min_px_size, recovered)
 # ----------
 
