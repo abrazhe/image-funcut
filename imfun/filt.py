@@ -147,6 +147,16 @@ def adaptive_medianf(arr, k = 2):
                 out[row, col] = np.median(arr[sl])
     return out
     
+def adaptive_medianf2(arr, k=3, s=1):
+    import atrous
+    sh = arr.shape
+    approx = ndimage.median_filter(arr, 2*s+1)
+    ns = atrous.estimate_sigma_mad(arr)
+    d = arr-approx
+    d[np.abs(d) > k*ns] = 0 
+    return d + approx
+    
+    
 
 _bclose = ndimage.binary_closing
 _bopen = ndimage.binary_opening

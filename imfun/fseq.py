@@ -404,7 +404,10 @@ class FrameSequence(object):
             sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
         plt.close()
 	return fnames
-    def export_movie_anim(self, mpeg_name,fps=None, **kwargs):
+    
+    def export_movie_anim(self, mpeg_name, fps=None, start=0, stop=None,
+                          show_title=True, fig_size=(4,4),
+                          vmin=None, vmax=None,**kwargs):
         """
         Create an mpg  movie from the frame sequence using mencoder.
         and mpl.Animation
@@ -415,7 +418,46 @@ class FrameSequence(object):
 	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
+        from matplotlib import animation
+        import matplotlib.pyplot as plt
 
+        if fps is None:
+            fps = 0.5*self.dt
+
+        if stop is None or stop == -1:
+            stop = self.length()
+	if hasattr(self, 'data'):
+	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
+	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
+	else:
+	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
+	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
+        kwargs.update({'vmin':vmin, 'vmax':vmax})
+        L = min(stop-start, self.length())
+
+        fig = plt.figure(figsize=fig_size)
+        ax = fig.add_subplot(111)
+        plh = ax.imshow(self[start], interpolation='nearest',
+                        aspect='equal', **kwargs)
+        mytitle = ax.set_title('')
+        def _init():
+            k = 0
+            if show_title:
+                mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
+            plh.set_data(self[k])
+            return plh, 
+        def _animate(framecount):
+            k = framecount+start
+            plh.set_data(self[k])
+            if show_title:
+                mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
+            return plh,
+        
+        anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
+        mencoder_extra_args=['-ovc', 'lavc', '-lavcopts', 'vcodec=mpeg4']
+        plt.close(anim._fig)
+        anim.save(mpeg_name, writer='mencoder', fps=fps, extra_args=mencoder_extra_args)
+        return 
     def export_avi(self, mpeg_name, fps = None, **kwargs):
 	"""Create an avi  movie from the frame sequence using mencoder.
 
@@ -679,7 +721,7 @@ class FSeq_hdf5_lsc(FrameSequence):
         f = h5py.File(fname, 'r')
         t = f['tstamps']
         self.tv = (t-t[0])/1e6 # relative time, in s
-        self.dt = np.mean(np.diff(self.tv))
+        self.dt = np.median(np.diff(self.tv))
         self.data = f['lsc']
         self.fns = []
     def length(self):

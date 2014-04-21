@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 ### Functions for à trous wavelet transforms
-### Synonyms: stationary wavelet transform, non-decimated wavelet transform
+### Synonyms: stationary wavelet transform, non-decimated wavelet transform,
+### starlet transform
 
 from __future__ import division
 
@@ -25,48 +26,6 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]]  # 3D
 
-def mc_levels(size=(256,256),level=3, N = 1e3):
-    """Return Monte-Carlo estimation of noise :math:`\\sigma`
-
-    Parameters:
-      - size: (`tuple`) -- size of random noisy images
-      - level: (`int`) -- level of decomposition
-      - N: (`num`) -- number of random images to process
-
-    Returns:
-      - 1 :math:`\\times` level vector of noise :math:`\\sigma` estimations
-    """
-    import sys
-    images = (randn(*size) for i in arange(N))
-    out  = np.zeros((N,level))
-    for n,im in enumerate(images):
-	x = np.mean(out[:n], axis=0)
-	#sys.stderr.write('\r image %06d out of %d, current: %05.3f'%(n+1,N, x))
-	print n+1, 'current: ', x
-	out[n] = map(np.std, decompose(im, level)[:-1])
-    return np.mean(out, axis=0)
-
-def _mc_levels1d(size=1e5, level=12, N = 1e3):
-    """Return Monte-Carlo estimation of noise :math:`\\sigma`
-
-    Parameters:
-      - size: (`tuple`) -- size of random signals
-      - level: (`int`) -- level of decomposition
-      - N: (`num`) -- number of random images to process
-
-    Returns:
-      - 1 :math:`\\times` level vector of noise :math:`\\sigma` estimations
-    """
-    import sys
-    signals = (np.random.randn(size) for i in np.arange(N))
-    out  = np.zeros((N,level))
-    for n,im in enumerate(signals):
-	x = np.mean(out[:n], axis=0)
-	s0 = ','.join(['%1.2e'%a for a in x])
-	s = '\r signal {:06d} out of {:06d}, current: {}'.format(n+1,long(N), s0)
-	sys.stderr.write(s)
-	out[n] = map(np.std, decompose1d_direct(im, level)[:-1])
-    return np.mean(out, axis=0)
     	   
 
 ## Default spline wavelet scaling function
@@ -391,52 +350,7 @@ def rec_atrous(coefs, level=None):
     """Reconstruct from a trous decomposition. Last coef is last approx"""
     return np.sum(coefs[-1:level:-1], axis=0)
 
-def represent_support(supp):
-    """Create a graphical representation of the support"""
-    out = [2**(j+1)*supp[j] for j in range(len(supp)-1)]
-    return np.sum(out, axis=0)
 
-def get_support(coefs, th, neg=False, modulus = True,soft=False):
-    """Return support for wavelet coefficients that are larger than threshold.
-
-    Parameters:
-      - coefs : wavelet coefficients
-      - th : (`num` or `iterable`) -- threshold. If a number, this number is
-        used as a threshold (but is scaled usign the ``sigmaej`` table for
-	different levels). If a 1D array, different thresholds are used for
-	different levels. If a 2D array, at each level retain only coefficients
-	that are within bounds provided as columns.
-      - neg: (`Bool`) -- if `True` take coefficients that are *smaller* than
-        the threshold
-      - modulus: (`Bool`) -- if `True`, absolute value of coefficients is
-        compared to the threshold
-      - soft: (`Bool`) -- if `True` do "soft" thresholding
-
-    Returns:
-      - a list of supports (`False`--`True` masks) for each level
-    """
-    out = []
-    nd = len(coefs[0].shape)
-    fn = neg and np.less or np.greater
-    for j,w in enumerate(coefs[:-1]):
-	sj= sigmaej[nd][j]
-
-	if np.iterable(th): t = th[j]
-	else: t = th
-
-	if modulus: wa = np.abs(w)
-	else: wa = w
-
-	if np.iterable(t):
-	    out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
-	else:
-	    mask = fn(wa, t*sj)
-	    if soft:
-		out.append(1.0*mask*np.sign(w)*(np.abs(w)-t*sj))
-	    else:
-		out.append(mask)
-    out.append(np.ones(coefs[-1].shape)*(not neg))
-    return out
 
 
 def estimate_sigma(arr, coefs=None, k=3, eps=0.01, max_iter=1e9):
@@ -472,6 +386,8 @@ def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
 	d = d[abs(d) < k*np.std(d)]
     return np.std(d)
 
+
+
 def estimate_sigma_mad(arr, is_details = False):
     """Estimate standard deviation of noise in data using median absolute
     difference (M.A.D) algorithm
@@ -483,14 +399,14 @@ def estimate_sigma_mad(arr, is_details = False):
     Returns:
       - estimation of standard deviation (:math:`\\sigma`) as a number.
     """
-    
+    mad = lambda x: np.median(np.abs(x-np.median(x)))
     if is_details:
 	w1 = arr
     else:
 	w1 = decompose(arr,1)[0]
     nd = w1.ndim
-    return np.median(np.abs(w1-np.median(w1)))/(0.6745*sigmaej[nd][0])
-
+    return mad(w1)/(0.6745*sigmaej[nd][0])
+ 
 def smooth(arr, level=1):
     """Return a smoothed representation of the input data by retaining only
     approximation at a given level.
@@ -503,30 +419,18 @@ def detrend(arr, level=7):
     """
     return arr - decompose(arr, level)[-1]
 
-def _wavelet_enh_std(f, level=4, out = 'rec', absp = False):
-    fw = dec_atrous2d(f, level)
-    if absp:
-        supp = map(lambda x: abs(x) > x.std(), fw)
-    else:
-        supp = map(lambda x: x > x.std(), fw)
-    if out == 'rec':
-        return rec_with_support(fw, supp)
-    elif out == 'supp':
-        return represent_support(supp)
+## def _wavelet_enh_std(f, level=4, out = 'rec', absp = False):
+##     fw = dec_atrous2d(f, level)
+##     if absp:
+##         supp = map(lambda x: abs(x) > x.std(), fw)
+##     else:
+##         supp = map(lambda x: x > x.std(), fw)
+##     if out == 'rec':
+##         return rec_with_support(fw, supp)
+##     elif out == 'supp':
+##         return represent_support(supp)
 
-def rec_with_support(coefs, supp):
-    """Return reconstruction from wavelet coefficients and a support.
-
-    Only coefficients where supp is non-zero are used for reconstruction.
-    
-    """
-    return rec_atrous([c*s for c,s in zip(coefs, supp)])
-
-
-def qmf(filt = _phi_):
-    """Quadrature mirror relationship"""
-    L = len(filt)
-    return [(-1)**(l+1)*filt[L-l-1] for l in range(len(filt))]
+ 
         
 def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None,
 		    modulus=False,
@@ -605,7 +509,6 @@ def _DFoF_asym(v, level=5, r=1.0):
     
 
 def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
-    import pylab as pl
     acc = []
     vcurr = np.copy(v)
     sd = estimate_sigma_mad(v)
@@ -615,6 +518,7 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
 	sd = np.std(vcurr-s)
 	clip = (vcurr > s+r*sd)
 	vcurr = np.where(clip, s, vcurr)
+        #vcurr = np.where(clip, np.sign(vcurr)*(np.abs(vcurr)-(r*sd)), vcurr)
 	if sprev is not None:
 	    conv = np.std(s-sprev)
 	    if conv < tol:
