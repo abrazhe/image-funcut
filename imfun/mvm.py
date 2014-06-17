@@ -393,7 +393,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
                  coefs=None,
                  supp=None,
                  dec_fn = atrous.decompose,
-		 retraw=False, # only used for testing
+		 retraw=False, # return raw, only used for testing
 		 start_scale=0,
 		 weights=[1., 1., 1., 1., 1.],
                  deblendp=True,
@@ -455,8 +455,10 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     check = lambda x: len(tree_locations2(x)) > min_px_size
     objects = sorted([x for x in gdeblended if check(x)],
 		     key = lambda u: tree_mass(u), reverse=True)
-    if retraw:
+    if retraw == 1:
 	return objects
+    if retraw == 2:
+        return [supp_from_obj(o,start_scale) for o in objects]
     # note: even if we decompose with mmt.decompose_mwt
     # we use atrous.decompose for object reconstruction because
     # we don't expect too many outliers and this way it's faster

@@ -101,7 +101,7 @@ def eu_dist(p1,p2):
 
 def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
     urand = lambda : np.random.uniform(mlength/10, size-mlength)
-    X,Y = np.meshgrid(range(128),range(128))
+    X,Y = np.meshgrid(range(size),range(size))
     out = []
     k,n,max_tries = 0,0,1e4
     while k < max_tries:
