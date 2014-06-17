@@ -422,7 +422,7 @@ class FrameSequence(object):
         import matplotlib.pyplot as plt
 
         if fps is None:
-            fps = 0.5*self.dt
+            fps = 0.5/self.dt
 
         if stop is None or stop == -1:
             stop = self.length()
@@ -437,7 +437,7 @@ class FrameSequence(object):
 
         fig = plt.figure(figsize=fig_size)
         ax = fig.add_subplot(111)
-        plh = ax.imshow(self[start], interpolation='nearest',
+        plh = ax.imshow(self[start], 
                         aspect='equal', **kwargs)
         mytitle = ax.set_title('')
         def _init():
@@ -711,9 +711,46 @@ class FSeq_tiff_2(FSeq_arr):
 	parent = super(FSeq_tiff_2, self)
 	parent.__init__(x, **kwargs)
 
+class FSeq_hdf5(FrameSequence):
+    "Base class for hdf5 files"
+    def __init__(self, fname, dataset=None):
+        import h5py
+        parent = super(FSeq_hdf5, self)
+	parent.__init__()
+        f = h5py.File(fname, 'r')
 
+        if dataset not in f:
+            print "Dataset name doesn't exist in file, setting to None "
+            dataset is None
+
+        if dataset is None: # no dataset name is provided
+            keys = f.keys()
+            if len(keys) == 1: # there is only one dataset, use it
+                dataset = keys[0]
+            else:
+                raise KeyError("No or wrong dataset name provided and the file has\
+                more than one")
+        self.data = f[dataset]
+        self.fns = []
+    def length(self):
+        return self.data.shape[0]
+    def frames(self):
+        fn = self.pipeline()
+        return itt.imap(fn, (f for f in self.data))
+    def __getitem__(self, val):
+        x = self.data[val]
+        if self.fns == []:
+            return self.data[val]
+        if type(val) is int:
+	    return self.pipeline()(x)
+	out = np.zeros(x.shape,x.dtype)
+	for j,f in enumerate(x):
+	    out[j] = self.pipeline()(x)
+	return out
+        
+    
 class FSeq_hdf5_lsc(FrameSequence):
-    "Class for hdf5 files"
+    "Class for hdf5 files written by pylsi software"
     def __init__(self, fname):
         import h5py
         parent = super(FSeq_hdf5_lsc, self)
