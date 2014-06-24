@@ -582,8 +582,6 @@ class CircleROI(DraggableObj):
         self.obj.remove()
         self.tagtext.remove()
         self.disconnect()
-        #self.obj.axes.legend()
-        #self.parent.legend()
         self.redraw()
 
     def move(self, p):
@@ -626,7 +624,7 @@ class CircleROI(DraggableObj):
 	  - else, returns :math:`\\Delta v/\\bar v` 
 
 	"""
-        shape = self.parent.fseq.shape()
+        shape = self.parent.fseq.shape()[:2]
         v = self.parent.fseq.mask_reduce(self.in_circle(shape))
         if normp:
 	    if callable(normp):
@@ -937,16 +935,20 @@ class Picker:
 
         dx,dy, scale_setp = self.fseq.get_scale()
 	sy,sx = self.fseq.shape()[:2]
-        if vmin is None or vmax is None:
-            avmin,avmax = self.fseq.data_range()
-        if vmin is None: vmin = avmin
-        if vmax is None: vmax = avmax
+        if len(self.fseq.shape()) ==2:
+            if vmin is None or vmax is None:
+                avmin,avmax = self.fseq.data_range()
+            if vmin is None: vmin = avmin
+            if vmax is None: vmax = avmax
         if hasattr(self.fseq, 'ch'):
             pl.title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
         if type(mean_frame) is np.ndarray:
 	    f = mean_frame
 	elif mean_frame:
-            f = self.fseq.mean_frame()
+            dtype = self.fseq[0].dtype
+            f = self.fseq.mean_frame().astype(dtype)
+            if dtype != 'uint8' and f.max() > 1:
+                f = lib.rescale(f)
         else:
             f = self.fseq.frames().next()
 	self.mean_frame = f
