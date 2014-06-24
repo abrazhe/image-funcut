@@ -99,7 +99,8 @@ class FrameSequence(object):
         rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
         ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self.frames()])
         minv,maxv = np.min(ranges[:,0],axis=0), np.max(ranges[:,1],axis=0)
-        return (minv, maxv)
+        return np.array([minv,maxv]).T
+        #return (minv, maxv)
 
     def data_percentile(self, p):
 	"""Return a percentile `p` value on data.
@@ -477,8 +478,12 @@ class FSeq_arr(FrameSequence):
 	    out[j] = self.pipeline()(x)
 	return out
     def data_percentile(self, p):
-        #from scipy.stats import scoreatpercentile
-        return np.percentile(np.ravel(self.data),p)
+        sh = self.shape()
+        arr = self.data
+        if len(sh) == 2:
+            return  np.percentile(arr,p)
+        else:
+            return [np.percentile(arr[...,k],p) for k in range(sh[2])]
 
     def pix_iter(self, pmask=None,fslice=None,rand=False,**kwargs):
 	"Iterator over time signals from each pixel (FSeq_arr)"
