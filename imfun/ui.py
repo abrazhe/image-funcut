@@ -514,6 +514,7 @@ class LineScan(DraggableObj):
             ax.imshow(timeview,
                       extent=(0, self.dx*timeview.shape[1], 0,
                               fseq.dt*timeview.shape[0]),
+                      interpolation='nearest',
                       )
                       #aspect='equal')
             if self.scale_setp:

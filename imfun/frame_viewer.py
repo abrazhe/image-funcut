@@ -187,17 +187,12 @@ class FrameSequenceOpts(HasTraits):
         '04. DF/sigma' : lib.DFoSD,
 	'05. DF/F with detrend': atrous.DFoF,
 	'06. DF/sigma with detrend': atrous.DFoSD,	
-        '07. Med. filter ' : mfilt7,
-        '08. Med. filter -> DF/F': lib.flcompose(mfilt7,lib.DFoF),
-        '09. DF/F -> Med. filter': lib.flcompose(lib.DFoF, mfilt7),
-        '10. Med. filter -> DF/SD':lib.flcompose(mfilt7,lib.DFoSD),
-        '11. DF/SD -> Med. filter':lib.flcompose(lib.DFoSD, mfilt7),
         }
     linescan_scope = Range(0,500,0, label='Linescan half-range')
     linescan_width = Int(2, label="Linecan linewidth")
     #gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
-    fig_path = Directory("")
+    fig_path = File("")
     ch = Enum('green', 'red', 'blue', label='Color channel')
     glob = Str('*_t*.tif', label='Glob', description='Image name contains...')
     leica_xml = File('', label='Leica XML', description='Leica properties file')
