@@ -59,7 +59,7 @@ def cut_branch(stem, branch):
 
 def max_pos(arr, labels, ind, xslice):
     """Returns position of the maximum value"""
-    offset = np.array([x.start for x in xslice], _dtype_)
+    offset = np.array([x.start for x in xslice], 'int')
     x = ndimage.maximum_position(arr[xslice], labels[xslice], ind)
     return tuple(x + offset)
 

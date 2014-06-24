@@ -705,81 +705,17 @@ class FSeq_multiff(FrameSequence):
                 break
 class FSeq_tiff_2(FSeq_arr):
     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
-    def __init__(self, fname, **kwargs):
+    def __init__(self, fname, ch=None, flipv = False, **kwargs):
 	import tiffile
 	x = tiffile.imread(fname)
 	parent = super(FSeq_tiff_2, self)
 	parent.__init__(x, **kwargs)
+        if ch is not None and self.data.ndim > 3:
+            self.data = self.data[:,:,:,ch]
+        if flipv:
+            self.data = self.data[:,::-1,...]
 
-class FSeq_hdf5(FrameSequence):
-    "Base class for hdf5 files"
-    def __init__(self, fname, dataset=None):
-        import h5py
-        parent = super(FSeq_hdf5, self)
-	parent.__init__()
-        f = h5py.File(fname, 'r')
 
-        if dataset not in f:
-            print "Dataset name doesn't exist in file, setting to None "
-            dataset is None
-
-        if dataset is None: # no dataset name is provided
-            keys = f.keys()
-            if len(keys) == 1: # there is only one dataset, use it
-                dataset = keys[0]
-            else:
-                raise KeyError("No or wrong dataset name provided and the file has\
-                more than one")
-        self.data = f[dataset]
-        self.fns = []
-    def length(self):
-        return self.data.shape[0]
-    def frames(self):
-        fn = self.pipeline()
-        return itt.imap(fn, (f for f in self.data))
-    def __getitem__(self, val):
-        x = self.data[val]
-        if self.fns == []:
-            return self.data[val]
-        if type(val) is int:
-	    return self.pipeline()(x)
-	out = np.zeros(x.shape,x.dtype)
-	for j,f in enumerate(x):
-	    out[j] = self.pipeline()(x)
-	return out
-        
-    
-class FSeq_hdf5_lsc(FrameSequence):
-    "Class for hdf5 files written by pylsi software"
-    def __init__(self, fname):
-        import h5py
-        parent = super(FSeq_hdf5_lsc, self)
-	parent.__init__()
-        f = h5py.File(fname, 'r')
-        t = f['tstamps']
-        self.tv = (t-t[0])/1e6 # relative time, in s
-        self.dt = np.median(np.diff(self.tv))
-        self.data = f['lsc']
-        self.fns = []
-    def length(self):
-        return self.data.shape[0]
-    def frames(self):
-        fn = self.pipeline()
-        return itt.imap(fn, (f for f in self.data))
-    def __getitem__(self, val):
-        x = self.data[val]
-        if self.fns == []:
-            return self.data[val]
-        if type(val) is int:
-	    return self.pipeline()(x)
-	out = np.zeros(x.shape,x.dtype)
-	for j,f in enumerate(x):
-	    out[j] = self.pipeline()(x)
-	return out
-        
-        
-        
-            
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
 
@@ -813,3 +749,91 @@ def open_seq(path, *args, **kwargs):
             return FSeq_tiff_2(path, *args, **kwargs)
             
     
+## HDF5-related stuff
+
+try:
+    import h5py
+
+    class FSeq_hdf5(FSeq_arr):
+        "Base class for hdf5 files"
+        def __init__(self, fname, dataset=None,**kwargs):
+            parent = super(FSeq_hdf5, self)
+            f = h5py.File(fname, 'r')
+
+            if dataset and dataset not in f:
+                print "Dataset name doesn't exist in file, setting to None "
+                dataset is None
+
+            if dataset is None: # no dataset name is provided
+                keys = f.keys()
+                if len(keys) == 1: # there is only one dataset, use it
+                    dataset = keys[0]
+                else:
+                    raise KeyError("No or wrong dataset name provided and the file has\
+                    more than one")
+            arr = f[dataset]
+            parent.__init__(arr,**kwargs)
+
+        def length(self):
+            return self.data.shape[0]
+        def frames(self):
+            fn = self.pipeline()
+            return itt.imap(fn, (f for f in self.data))
+
+
+    class FSeq_hdf5_lsc(FrameSequence):
+        "Class for hdf5 files written by pylsi software"
+        def __init__(self, fname):
+            parent = super(FSeq_hdf5_lsc, self)
+            parent.__init__()
+            f = h5py.File(fname, 'r')
+            t = f['tstamps']
+            self.tv = (t-t[0])/1e6 # relative time, in s
+            self.dt = np.median(np.diff(self.tv))
+            self.data = f['lsc']
+            self.fns = []
+        def length(self):
+            return self.data.shape[0]
+        def frames(self):
+            fn = self.pipeline()
+            return itt.imap(fn, (f for f in self.data))
+        def __getitem__(self, val):
+            x = self.data[val]
+            if self.fns == []:
+                return self.data[val]
+            if type(val) is int:
+                return self.pipeline()(x)
+            out = np.zeros(x.shape,x.dtype)
+            for j,f in enumerate(x):
+                out[j] = self.pipeline()(x)
+            return out
+
+    def fseq2h5(seq, name,compress_level=-1):
+        # todo: add metadata, such as time and spatial scales
+        if os.path.exists(name):
+            sys.stderr.write("File exists, removing\n")
+            os.remove(name)
+        fid = h5py.File(name, 'w')
+        L = seq.length()
+        sh = seq.shape()
+        chunkshape = tuple([1] + list(sh))
+        fullshape = tuple([L] + list(sh))
+        kwargs = dict()
+        if compress_level > -1:
+            kwargs['compression'] = 'gzip'
+            kwargs['compression_opts'] = compress_level
+
+        dset = fid.create_dataset('data', fullshape, dtype=seq[0].dtype,
+                                  chunks = chunkshape, **kwargs)
+        for k,f in enumerate(seq.frames()):
+            dset[k,...] = f
+            sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
+        fid.close()
+        return name
+
+except ImportError as e:
+    print "Import Error", e
+        
+        
+        
+            
