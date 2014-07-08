@@ -109,14 +109,11 @@ def line_reslice2(data, p1, p2):
     return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
                      for i in range(L)])
 
-
 def color_walker():
     ar1 = lib.ar1
     red, green, blue = ar1(), ar1(), ar1()
     while True:
         yield map(lambda x: np.mod(x.next(),1.0), (red,green,blue))
-
-
 
 def rezip(a):
     return zip(*a)
@@ -176,7 +173,6 @@ Diameter Manager:
 - rigth-click or type 'd' to remove point under mouse
 - type 'a' to calculate propagation velocity
 """
-
 
 class GWExpansionMeasurement1:
     def __init__(self, ax):
@@ -502,8 +498,6 @@ class LineScan(DraggableObj):
 	elif output == 'function':
 	    return _
 	
-
-
     def show_timeview(self,frange=None,hwidth=2):
         timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
         if timeview is not None:
@@ -624,8 +618,14 @@ class CircleROI(DraggableObj):
 	  - else, returns :math:`\\Delta v/\\bar v` 
 
 	"""
-        shape = self.parent.fseq.shape()[:2]
-        v = self.parent.fseq.mask_reduce(self.in_circle(shape))
+        
+        fullshape = self.parent.fseq.shape()
+        sh = fullshape[:2]
+        v = self.parent.fseq.mask_reduce(self.in_circle(sh))
+        print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
+        if len(fullshape)>2 and hasattr(self.parent.fseq, 'ch') \
+           and (self.parent.fseq.ch is not None):
+            v = v[:,self.parent.fseq.ch]
         if normp:
 	    if callable(normp):
 		return normp(v)
@@ -940,7 +940,7 @@ class Picker:
                 avmin,avmax = self.fseq.data_range()
             if vmin is None: vmin = avmin
             if vmax is None: vmax = avmax
-        if hasattr(self.fseq, 'ch'):
+        if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             pl.title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
         if type(mean_frame) is np.ndarray:
 	    f = mean_frame

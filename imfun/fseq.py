@@ -693,6 +693,107 @@ class FSeq_tiff_2(FSeq_arr):
 
 
 
+## -- MES files --
+## TODO: move to a separate file?
+
+from scipy import io
+
+class FSeq_mes(FSeq_arr):
+    def __init__(self, fname, record=1, ch=None, fns=[],verbose=False):
+        """
+        The following format is assumed:
+        the matlab (.mes) file contains description in a field like "DF0001",
+        and actual data records in fields like 'If0001_001', 'If0001_002'.
+        These fields contain data for the red and green channel, accordingly
+        The images are stored as NXM arrays, where N is one side of an image,
+        and then columns iterate over the other image dimension and time.
+        """
+        self.ch = ch
+        self.fns = fns
+        self.file_name = fname
+        self.record = record
+        self._verbose=verbose
+
+        meta = self.load_metainfo(record)
+        streams, background = self.load_record(record)
+        base_shape = (self._nframes, self._nlines, self._linesize)
+        if ch is not None:
+            stream = streams[ch]
+            self.data = np.zeros(base_shape, dtype=stream.dtype)
+            for k,f in enumerate(self._reshape_frames(stream)):
+                self.data[k] = f
+        else:
+            streams = [self.clip_and_rescale(s) for s in streams]
+            reshape_iter = itt.izip(*map(self._reshape_frames, streams))
+            sh = base_shape + (max(3, len(streams)),)
+            self.data = np.zeros(sh, dtype=streams[0].dtype)
+            for k, a in enumerate(reshape_iter):
+                for j, f in enumerate(a):
+                    self.data[k,...,j] = f
+                    
+    def meta_name(self,n):
+        return 'Df%04d'%n
+
+    def load_metainfo(self,record,):
+        # with struct_as_record=False it's easier to acces metadata structures
+        # could change with newer versions of scipy
+        allmeta = io.loadmat(self.file_name, struct_as_record=False,
+                             variable_names = map(self.meta_name, range(1,1000)))
+        self._allmeta = allmeta
+        if self._verbose:
+            meta_keys = [k for k in sorted(allmeta.keys()) if 'Df' in k]
+            print 'MES file contains these records:'
+            print meta_keys
+
+        get_meta_val = lambda s: s[0][0]
+        meta = get_meta_val(allmeta[self.meta_name(record)])
+        self._meta = meta
+        ffi = get_meta_val(meta.FoldedFrameInfo)
+        self._nlines = get_meta_val(ffi.numFrameLines)
+        self._nframes = get_meta_val(ffi.numFrames)
+        dx = get_meta_val(meta.WidthStep)
+        dt = (get_meta_val(ffi.frameTimeLength)-
+              get_meta_val(ffi.firstFrameStartTime))/self._nframes
+        self.dt = dt
+        self.set_scale(dx)
+        # store to check if it varies from file to file
+        self.first_frame_pos = get_meta_val(ffi.firstFramePos)
+        return meta
+
+    def load_record(self, record):
+        patt = 'If%04d_%03d'
+        var_names = [patt%(record, k) for k in range(1,100)]
+        recs = io.loadmat(self.file_name, struct_as_record=False,
+                          variable_names=var_names)
+        recs = [recs[n] for n in var_names if n in recs]
+        if len(recs) == 0:
+            raise IndexError("can't load record number %d"%record)
+        streams = [r for r in recs if
+                   long(r.shape[1]) >= self._nframes*long(self._nlines)]
+        self._linesize = streams[0].shape[0]
+        background = [r for r in recs if
+                      long(r.shape[1]) < self._nframes*long(self._nlines)]
+        if self._verbose:
+            print 'Number of working channels:', len(streams)
+        return (streams, background)
+
+    def clip_and_rescale(self,arr,nout=100):
+        "convert data to floats in 0...1, throwing out nout max values"
+        cutoff = 100*(1-float(nout)/np.prod(arr.shape))
+        m = np.percentile(arr, cutoff)
+        return np.where(arr < m, arr, m)/m
+        
+    def _reshape_frames(self, stream):
+        side = self._nlines
+        return (stream[:,k*side:(k+1)*side].T for k in xrange(self._nframes))
+      
+
+
+## -- End of MES files --        
+
+
+
+
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
 
@@ -724,7 +825,9 @@ def open_seq(path, *args, **kwargs):
                 return FSeq_img(path, *args, **kwargs)
         elif ending in ('tif', 'tiff'): # single multi-frame tiff
             return FSeq_tiff_2(path, *args, **kwargs)
-            
+
+
+
     
 ## HDF5-related stuff
 
