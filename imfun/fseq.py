@@ -785,9 +785,7 @@ class FSeq_mes(FSeq_arr):
 
 
 ## -- End of MES files --        
-
-
-
+import inspect
 
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
@@ -805,23 +803,28 @@ def open_seq(path, *args, **kwargs):
 	return FSeq_arr(path, *args, **kwargs)
     ending = re.findall('[^*\.]+', path)[-1].lower()
     if ending == 'txt':
-        return FSeq_txt(path, *args, **kwargs)
+        handler = FSeq_txt
     elif ending == 'mes':
-        return FSeq_mes(path, *args, **kwargs)
+        handler = FSeq_mes
     elif ending == 'mlf':
-        return FSeq_mlf(path, *args, **kwargs)
+        handler = FSeq_mlf
     elif ending == 'npy':
-        return FSeq_npy(path, *args, **kwargs)
+        handler =  FSeq_npy
     elif ending in images:  # A collection of images or a big tiff
         if '*' in path: # many files
             from imfun import leica
             xml_try = leica.get_xmljob(path.split('*')[0])
             if kwargs.has_key('xmlname') or xml_try:
-                return FSeq_imgleic(path, *args, **kwargs)
+                handler =  FSeq_imgleic
             else:
-                return FSeq_img(path, *args, **kwargs)
+                handler =  FSeq_img
         elif ending in ('tif', 'tiff'): # single multi-frame tiff
-            return FSeq_tiff_2(path, *args, **kwargs)
+            handler = FSeq_tiff_2
+    spec = inspect.getargspec(handler.__init__)
+    for k in kwargs.keys():
+        if k not in spec[0]:
+            kwargs.pop(k) # skip arguments the __init__ doesn't know about
+    return handler(path, *args, **kwargs)
 
 
 
