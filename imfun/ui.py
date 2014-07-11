@@ -31,8 +31,9 @@ from scipy.interpolate import splrep, splev, splprep
 
 
 mpl.rcParams['image.aspect'] = 'auto'
-mpl.rcParams['image.origin'] = 'lower'
 
+#let the user decide where image origin should be
+##mpl.rcParams['image.origin'] = 'lower'
 
 import itertools
 
@@ -312,7 +313,7 @@ class GWExpansionMeasurement1:
 	self.canvas.draw()
     def event_ok(self, event):
         return event.inaxes == self.ax and \
-               pl.get_current_fig_manager().toolbar.mode ==''
+               self.canvas.toolbar.mode ==''
 
 
 
@@ -339,7 +340,7 @@ class DraggableObj:
             containsp, _ = self.obj.contains(event)
         return event.inaxes == self.obj.axes and \
                containsp and \
-               pl.get_current_fig_manager().toolbar.mode ==''
+               self.obj.axes.figure.canvas.toolbar.mode ==''
 
     def connect(self):
         "connect all the needed events"
@@ -622,7 +623,7 @@ class CircleROI(DraggableObj):
         fullshape = self.parent.fseq.shape()
         sh = fullshape[:2]
         v = self.parent.fseq.mask_reduce(self.in_circle(sh))
-        print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
+        #print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
         if len(fullshape)>2 and hasattr(self.parent.fseq, 'ch') \
            and (self.parent.fseq.ch is not None):
             v = v[:,self.parent.fseq.ch]
@@ -792,7 +793,7 @@ class Picker:
         return self._Nf
     
     def on_click(self,event):
-        tb = pl.get_current_fig_manager().toolbar
+        tb = self.fig.canvas.toolbar
         if event.inaxes != self.ax1 or tb.mode != '': return
 
         x,y = round(event.xdata), round(event.ydata)
@@ -827,7 +828,7 @@ class Picker:
     def event_canvas_ok(self, event):
 	pred = event.inaxes !=self.ax1 or \
 		   self.any_roi_contains(event) or \
-		   pl.get_current_fig_manager().toolbar.mode !=''
+		   self.fig.canvas.toolbar.mode !=''
 	return not pred
     def on_press(self, event):
 	if not self.event_canvas_ok(event) or event.button != 3 :
@@ -941,13 +942,14 @@ class Picker:
             if vmin is None: vmin = avmin
             if vmax is None: vmax = avmax
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
-            pl.title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
+            self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
+
         if type(mean_frame) is np.ndarray:
 	    f = mean_frame
 	elif mean_frame:
             dtype = self.fseq[0].dtype
             f = self.fseq.mean_frame().astype(dtype)
-            if dtype != 'uint8' and f.max() > 1:
+            if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
                 f = lib.rescale(f)
         else:
             f = self.fseq.frames().next()
@@ -964,12 +966,23 @@ class Picker:
 
         self.disconnect()
         self.connect()
-	#self.fig.show()
+	self.fig.canvas.draw()
         return self.ax1, self.pl, self
+
+    def set_frame_index(self,n):
+        Nf = self.fseq.length()
+	fi = n%Nf
+        self.frame_index = fi
+        _title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
+        show_f = self.fseq[fi]
+        self.pl.set_data(show_f)
+        self.ax1.set_title(_title)
+        self.fig.canvas.draw()
+
+        
     def frame_skip(self,event, n=1):
 	if not self.event_canvas_ok(event):
 	    return
-	Nf = self.fseq.length()
 	fi = self.frame_index
 	key = hasattr(event, 'button') and event.button or event.key
 	prev_keys = [4,'4','down','left','p']
@@ -980,18 +993,18 @@ class Picker:
 	    if key in home_keys:
 		show_f = self.mean_frame
 		_title = ""
+                self.pl.set_data(show_f)
+                self.ax1.set_title(_title)
+                self.fig.canvas.draw()
+
 	    else:
 		if key in prev_keys:
 		    fi -= n
 		elif key in next_keys:
 		    fi += n
-		fi = fi%Nf
-		self.frame_index = fi
-		_title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
-		show_f = self.fseq[fi]
-	    self.pl.set_data(show_f)
-	    self.ax1.set_title(_title)
-	    self.fig.canvas.draw()
+		self.set_frame_index(fi)
+        if hasattr(self, 'caller'): #called from frame_viewer
+            self.caller.frame_index = self.frame_index
 
     def connect(self):
         "connect all the needed events"

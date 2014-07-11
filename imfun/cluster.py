@@ -542,24 +542,24 @@ def surfconvert(frame, mask):
 
 
 
-###### Now, use mdp (no good so far)
-try:
-    import mdp
-    def do_gng(arr,**kwargs):
-        gng = mdp.nodes.GrowingNeuralGasNode(**kwargs)
-        gng.train(arr)
-        gng.stop_training()
-        return gng
+## ###### Now, use mdp (no good so far)
+## try:
+##     import mdp
+##     def do_gng(arr,**kwargs):
+##         gng = mdp.nodes.GrowingNeuralGasNode(**kwargs)
+##         gng.train(arr)
+##         gng.stop_training()
+##         return gng
 
 
-    def plot_mdp_nodes(arr, gng):
-        #figure(figsize=(6,6));
-        #scatter(*arr.T, color='k', s = 0.3)
-        colors = ['r', 'b','g','c','m','y']
-        objs = gng.graph.connected_components()
-        for j,o in enumerate(objs):
-            coords = np.array([node.data.pos for node in o])
-            scatter(coords[:,1],coords[:,2],color=colors[j%len(colors)])
-except:
-    pass
+##     def plot_mdp_nodes(arr, gng):
+##         #figure(figsize=(6,6));
+##         #scatter(*arr.T, color='k', s = 0.3)
+##         colors = ['r', 'b','g','c','m','y']
+##         objs = gng.graph.connected_components()
+##         for j,o in enumerate(objs):
+##             coords = np.array([node.data.pos for node in o])
+##             scatter(coords[:,1],coords[:,2],color=colors[j%len(colors)])
+## except:
+##     pass
         
