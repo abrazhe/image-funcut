@@ -107,6 +107,7 @@ class FrameSequenceOpts(HasTraits):
     #gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = File("")
+    record = Int(1)
     ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
     glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
 
@@ -189,6 +190,7 @@ class FrameSequenceOpts(HasTraits):
 	view = View(
 	    Group(
 		Group('fig_path', 'glob',
+                      'record',
 		      'ch', 'dt',
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
@@ -366,7 +368,7 @@ class FrameSequenceOpts(HasTraits):
             path = str(self.fig_path)
         if self._verbose:
             print path
-        self.fs = fseq.open_seq(path, ch=color_channels[self.ch])
+        self.fs = fseq.open_seq(path, record = self.record, ch=color_channels[self.ch])
         if self._verbose:
             print "new fs created"
         self.fs.fns = self.fw_presets[self.fw_trans1]
