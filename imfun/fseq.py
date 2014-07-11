@@ -326,7 +326,7 @@ class FrameSequence(object):
             the pixels
 	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
 	"""
-	nrows, ncols = self.shape()[:2]
+	#nrows, ncols = self.shape()[:2]
 	if kwargs.has_key('dtype'):
 	    dtype = kwargs['dtype']
 	else:
@@ -334,7 +334,7 @@ class FrameSequence(object):
 	L = len(pwfn(np.random.randn(self.length())))
 	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
 	#L = len(testv)
-	out = lib.memsafe_arr((L, nrows, ncols), dtype)
+	out = lib.memsafe_arr((L,) + self.shape(), dtype)
         for v, row, col in self.pix_iter(**kwargs):
 	    if verbose:
 		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
@@ -489,8 +489,8 @@ class FSeq_arr(FrameSequence):
 	"Iterator over time signals from each pixel (FSeq_arr)"
 	if self.fns == []:
 	    if pmask == None:
-		pmask = np.ones(self.shape(), np.bool)
-	    nrows, ncols = self.shape()
+                pmask = np.ones(self.shape()[:2], np.bool)
+	    nrows, ncols = self.shape()[:2]
 	    if kwargs.has_key('dtype'):
 		dtype = kwargs['dtype']
 	    else: dtype=_dtype_
@@ -569,6 +569,7 @@ class FSeq_txt(FSeq_glob):
     """FrameSequence around a set of text-image files"""
     loadfn= lambda self,y: np.loadtxt(y)
 
+## TODO: but npy can be just one array
 class FSeq_npy(FSeq_glob):
     """FrameSequence around a set of npy files"""
     loadfn= lambda self,y: np.load(y)
@@ -723,7 +724,7 @@ class FSeq_mes(FSeq_arr):
             for k,f in enumerate(self._reshape_frames(stream)):
                 self.data[k] = f
         else:
-            streams = [self.clip_and_rescale(s) for s in streams]
+            streams = [lib.clip_and_rescale(s) for s in streams]
             reshape_iter = itt.izip(*map(self._reshape_frames, streams))
             sh = base_shape + (max(3, len(streams)),)
             self.data = np.zeros(sh, dtype=streams[0].dtype)
@@ -777,12 +778,6 @@ class FSeq_mes(FSeq_arr):
             print 'Number of working channels:', len(streams)
         return (streams, background)
 
-    def clip_and_rescale(self,arr,nout=100):
-        "convert data to floats in 0...1, throwing out nout max values"
-        cutoff = 100*(1-float(nout)/np.prod(arr.shape))
-        m = np.percentile(arr, cutoff)
-        return np.where(arr < m, arr, m)/m
-        
     def _reshape_frames(self, stream):
         side = self._nlines
         return (stream[:,k*side:(k+1)*side].T for k in xrange(self._nframes))
@@ -808,9 +803,11 @@ def open_seq(path, *args, **kwargs):
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
     if type(path) is np.ndarray:
 	return FSeq_arr(path, *args, **kwargs)
-    ending = re.findall('[^*\.]+', path)[-1]
+    ending = re.findall('[^*\.]+', path)[-1].lower()
     if ending == 'txt':
         return FSeq_txt(path, *args, **kwargs)
+    elif ending == 'mes':
+        return FSeq_mes(path, *args, **kwargs)
     elif ending == 'mlf':
         return FSeq_mlf(path, *args, **kwargs)
     elif ending == 'npy':

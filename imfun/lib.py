@@ -276,10 +276,19 @@ def DFoF(vec, normL=None, th = 1e-6):
     return out
 
 
+def clip_and_rescale(arr,nout=100):
+    "convert data to floats in 0...1, throwing out nout max values"
+    out = arr - np.min(arr)
+    cutoff = 100*(1-float(nout)/np.prod(arr.shape))
+    m = np.percentile(arr, cutoff)
+    return np.where(arr < m, arr, m)/m
+    
+
+
 def rescale(arr):
-	"Rescales array to [0..1] interval"
-	out = arr - np.min(arr)
-	return out/np.max(out)
+    "Rescales array to [0..1] interval"
+    out = arr - np.min(arr)
+    return out/np.max(out)
 	
 
 def mask4overlay(mask,colorind=0, alpha=0.9):
