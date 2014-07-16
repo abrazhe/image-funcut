@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.21',
+      version = '0.0.22',
       scripts = ['imfun/frame_viewer.py'],
       requires = ['swan'],
       py_modules = ['imfun.atrous',
