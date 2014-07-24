@@ -16,6 +16,7 @@ import numpy as np
 from imfun import fseq, fnmap, lib, atrous
 from imfun import filt
 from imfun import ui as ifui
+from imfun import mesa
 import glob as Glob
 
 
@@ -108,6 +109,8 @@ class FrameSequenceOpts(HasTraits):
     dt = Float(0.2, label='sampling interval')
     fig_path = File("")
     record = Int(1)
+    min_record = Int(1)
+    max_record = Int(100)
     ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
     glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
 
@@ -124,7 +127,7 @@ class FrameSequenceOpts(HasTraits):
                            'spline16',],
                           label = "Image interpolation")
 
-    colormap = Enum(['gray', 'jet', 'hsv', 'hot','winter','spring'])
+    colormap = Enum(['gray', 'jet', 'hsv', 'hot','winter','spring','spectral'])
 
     vmax = Float(255)
     vmin = Float(0)
@@ -190,7 +193,11 @@ class FrameSequenceOpts(HasTraits):
 	view = View(
 	    Group(
 		Group('fig_path', 'glob',
-                      'record',
+                      Item('record',
+                           editor=EnumEditor(low_name='min_record',
+                                             high_name='max_record',
+                                             style='simple'),
+                                             
 		      'ch', 'dt',
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
@@ -250,9 +257,12 @@ class FrameSequenceOpts(HasTraits):
         self.get_fs = self.get_fs2
 
     def _fig_path_changed(self):
-        ext = self.fig_path.split('.')[-1]
+        ext = self.fig_path.split('.')[-1].lower()
         if ext in ['mes', 'mlf']:
             self.glob = ''
+        if ext == 'mes':
+            meta = mesa.load_meta(self.fig_path)
+            
         ##png_pattern = str(self.fig_path + os.sep + '*.png')
         ##if len(fseq.sorted_file_names(png_pattern)) > 30:
         ##    self.glob = '*_t*.png'
