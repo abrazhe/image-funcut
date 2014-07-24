@@ -696,14 +696,14 @@ class FSeq_tiff_2(FSeq_arr):
 
 ## -- MES files --
 ## TODO: move to a separate file?
-
-from scipy import io
+    
+import mesa                      
 
 class FSeq_mes(FSeq_arr):
     def __init__(self, fname, record=1, ch=None, fns=[],verbose=False):
         """
         The following format is assumed:
-        the matlab (.mes) file contains description in a field like "DF0001",
+        the matlab (.mes) file contains description in a field like "Df0001",
         and actual data records in fields like 'If0001_001', 'If0001_002'.
         These fields contain data for the red and green channel, accordingly
         The images are stored as NXM arrays, where N is one side of an image,
@@ -715,8 +715,34 @@ class FSeq_mes(FSeq_arr):
         self.record = record
         self._verbose=verbose
 
-        meta = self.load_metainfo(record)
-        streams, background = self.load_record(record)
+        meta = mesa.load_meta(fname)
+        if verbose:
+            print "file %s has following records:"%fname
+            #print record_keys(meta)
+            for k in mesa.record_keys(meta):
+                if mesa.is_zstack(meta[k]):
+                    desc = 'z_stack'
+                elif mesa.is_xyt(meta[k]):
+                    desc = 'XYT measure'
+                else:
+                    desc = 'unknown'
+                print k, 'is a', desc
+
+        entry = meta['Df%04d'%record]
+        if not mesa.is_xyt(entry):
+            print "record numebr %d is not an XYT measurement"%record
+            return
+
+        self._rec_meta = entry
+        self.date = mesa.get_date(entry)
+        self.ffi = mesa.get_ffi(entry)
+
+        nframes, sh = mesa.get_xyt_shape(entry)
+        self._nframes = nframes
+        self._nlines = sh[1]
+        self._shape = sh
+        self.dt = mesa.get_sampling_interval(self.ffi)
+        streams = self.load_record(record)
         base_shape = (self._nframes, self._nlines, self._linesize)
         if ch is not None:
             stream = streams[ch]
@@ -731,52 +757,20 @@ class FSeq_mes(FSeq_arr):
             for k, a in enumerate(reshape_iter):
                 for j, f in enumerate(a):
                     self.data[k,...,j] = f
-                    
-    def meta_name(self,n):
-        return 'Df%04d'%n
-
-    def load_metainfo(self,record,):
-        # with struct_as_record=False it's easier to acces metadata structures
-        # could change with newer versions of scipy
-        allmeta = io.loadmat(self.file_name, struct_as_record=False,
-                             variable_names = map(self.meta_name, range(1,1000)))
-        self._allmeta = allmeta
-        if self._verbose:
-            meta_keys = [k for k in sorted(allmeta.keys()) if 'Df' in k]
-            print 'MES file contains these records:'
-            print meta_keys
-
-        get_meta_val = lambda s: s[0][0]
-        meta = get_meta_val(allmeta[self.meta_name(record)])
-        self._meta = meta
-        ffi = get_meta_val(meta.FoldedFrameInfo)
-        self._nlines = get_meta_val(ffi.numFrameLines)
-        self._nframes = get_meta_val(ffi.numFrames)
-        dx = get_meta_val(meta.WidthStep)
-        dt = (get_meta_val(ffi.frameTimeLength)-
-              get_meta_val(ffi.firstFrameStartTime))/self._nframes
-        self.dt = dt
-        self.set_scale(dx)
-        # store to check if it varies from file to file
-        self.first_frame_pos = get_meta_val(ffi.firstFramePos)
-        return meta
+    
 
     def load_record(self, record):
-        patt = 'If%04d_%03d'
-        var_names = [patt%(record, k) for k in range(1,100)]
-        recs = io.loadmat(self.file_name, struct_as_record=False,
-                          variable_names=var_names)
-        recs = [recs[n] for n in var_names if n in recs]
-        if len(recs) == 0:
+        meas_info = mesa.only_measures(self._rec_meta)
+        var_names = [x[0] for x in meas_info['ImageName']]
+        var_names.sort()
+        recs = mesa.io.loadmat(self.file_name, variable_names=var_names)
+        streams = [recs[n] for n in var_names if n in recs]
+        if len(streams) == 0:
             raise IndexError("can't load record number %d"%record)
-        streams = [r for r in recs if
-                   long(r.shape[1]) >= self._nframes*long(self._nlines)]
         self._linesize = streams[0].shape[0]
-        background = [r for r in recs if
-                      long(r.shape[1]) < self._nframes*long(self._nlines)]
         if self._verbose:
             print 'Number of working channels:', len(streams)
-        return (streams, background)
+        return streams
 
     def _reshape_frames(self, stream):
         side = self._nlines
@@ -785,6 +779,8 @@ class FSeq_mes(FSeq_arr):
 
 
 ## -- End of MES files --        
+
+
 import inspect
 
 def open_seq(path, *args, **kwargs):

@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.22',
+      version = '0.0.23',
       scripts = ['imfun/frame_viewer.py'],
       requires = ['swan'],
       py_modules = ['imfun.atrous',
@@ -15,6 +15,7 @@ setup(name='image-funcut',
                     'imfun.fseq',
                     'imfun.lib',
                     'imfun.leica',
+                    'imfun.mesa',
                     'imfun.mmt',
                     'imfun.multiscale',
                     'imfun.mvm',
