@@ -108,12 +108,16 @@ class FrameSequenceOpts(HasTraits):
     #gw_opts = Instance(GWOpts)
     dt = Float(0.2, label='sampling interval')
     fig_path = File("")
-    record = Int(1)
-    min_record = Int(1)
-    max_record = Int(100)
-    ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
-    glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
 
+    record = Str('1')
+    avail_records = List(['1'])
+    record_enabled = Bool(False)
+
+    ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
+
+    glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
+    glob_enabled = Bool(True)
+    
     fw_trans1 = Enum(*sorted(fw_presets.keys()),
                      label='Framewise transform before')
     pw_trans = Enum(*sorted(pw_presets.keys()), label='Pixelwise transform')
@@ -192,12 +196,12 @@ class FrameSequenceOpts(HasTraits):
 	## has to be a method so we can declare views for dialogs !?
 	view = View(
 	    Group(
-		Group('fig_path', 'glob',
+		Group('fig_path',
+                      Item('glob', enabled_when='glob_enabled is True'),
                       Item('record',
-                           editor=EnumEditor(low_name='min_record',
-                                             high_name='max_record',
-                                             style='simple'),
-                                             
+                           editor=EnumEditor(name='avail_records'),
+                           enabled_when='record_enabled is True',
+                           style='simple'),
 		      'ch', 'dt',
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
@@ -258,15 +262,27 @@ class FrameSequenceOpts(HasTraits):
 
     def _fig_path_changed(self):
         ext = self.fig_path.split('.')[-1].lower()
+        self.glob_enabled=True
         if ext in ['mes', 'mlf']:
             self.glob = ''
+            self.glob_enabled=False
         if ext == 'mes':
             meta = mesa.load_meta(self.fig_path)
+            keys = mesa.record_keys(meta)
+            valid_records = [k for k in keys if mesa.is_xyt(meta[k])]
+            self.avail_records = valid_records
+            self.record = valid_records[0]
+            self.record_enabled=True
             
         ##png_pattern = str(self.fig_path + os.sep + '*.png')
         ##if len(fseq.sorted_file_names(png_pattern)) > 30:
         ##    self.glob = '*_t*.png'
 
+    def _record_changed(self):
+        if self.fig_path.split('.')[-1].lower() == 'mes':
+            meta = mesa.load_meta(self.fig_path)
+            print "Measurement date and time: ", mesa.get_date(meta[self.record])
+            
     def _glob_changed(self):
         if len(self.glob) > 5 and '*' in self.glob:
             gl = self.glob.split('*')[0]
