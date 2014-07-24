@@ -715,6 +715,14 @@ class FSeq_mes(FSeq_arr):
         self.record = record
         self._verbose=verbose
 
+        if type(record) is int:
+            record = 'Df%04d'%record
+        elif type(record) is str:
+            if not ('Df' in record):
+                record = 'Df%04d'%int(record)
+        else:
+            print "Unknown record definition format"
+
         meta = mesa.load_meta(fname)
         if verbose:
             print "file %s has following records:"%fname
@@ -728,9 +736,9 @@ class FSeq_mes(FSeq_arr):
                     desc = 'unknown'
                 print k, 'is a', desc
 
-        entry = meta['Df%04d'%record]
+        entry = meta[record]
         if not mesa.is_xyt(entry):
-            print "record numebr %d is not an XYT measurement"%record
+            print "record %s is not an XYT measurement"%record
             return
 
         self._rec_meta = entry
