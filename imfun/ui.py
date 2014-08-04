@@ -1061,7 +1061,14 @@ class Picker:
         t = self.timevec()
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
 	    if self.isCircleROI(tag):
-		ax.plot(t, x, color = roi.get_facecolor())
+                if np.ndim(x) == 1:
+                    ax.plot(t, x, color = roi.get_facecolor(), label=tag)
+                else:
+                    colors = ('r','g','b')
+                    for k,xe in enumerate(x.T):
+                        color = colors[k%3]
+                        if np.any(xe):
+                            ax.plot(t, xe, color=color,label=tag+':'+color)
 	    else:
 		sh = x.shape
 		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*self.fseq.dx),
@@ -1170,21 +1177,24 @@ class Picker:
 	
 	L = len(rois)
 	if L < 1: return
-	fig = pl.figure(figsize=(8,4.5), dpi=80)
+	fig,axlist = pl.subplots(len(rois),1,sharey=True,sharex=True,
+                                 squeeze = False,
+                                 figsize=(5*L,4.5))
+        
 	for i, roi_label in enumerate(rois):
 	    roi = self.roi_objs[roi_label]
-	    if i == 0:
-		ax = fig.add_subplot(L,1,i+1)
-		ax0 = ax
-	    else:
-		ax = fig.add_subplot(L,1,i+1, sharex = ax0)
+            ax = axlist[i,0]
 	    if self.isCircleROI(roi_label):
 		x = roi.get_timeview(**kwargs)
 	    else:
 		x,points = roi.get_timeview(**kwargs)
 	    if i == L-1:
 		ax.set_xlabel("time, sec")
-	    ax.set_ylabel(roi_label)
+            if L == 1:
+                ax.set_title(roi_label, color=roi.get_color(),
+                             backgroundcolor='w', size='large')
+            else:
+                ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
 	    yield x, roi_label, roi.obj, ax
 
 
