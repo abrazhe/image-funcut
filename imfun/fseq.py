@@ -750,8 +750,9 @@ class FSeq_mes(FSeq_arr):
         self._nlines = sh[1]
         self._shape = sh
         self.dt = mesa.get_sampling_interval(self.ffi)
+        self.dx = self.dy = 1 #TODO: fix this
         streams = self.load_record(record)
-        base_shape = (self._nframes, self._nlines, self._linesize)
+        base_shape = (self._nframes-1, self._nlines, self._linesize)
         if ch is not None:
             stream = streams[ch]
             self.data = np.zeros(base_shape, dtype=stream.dtype)
@@ -782,7 +783,7 @@ class FSeq_mes(FSeq_arr):
 
     def _reshape_frames(self, stream):
         side = self._nlines
-        return (stream[:,k*side:(k+1)*side].T for k in xrange(self._nframes))
+        return (stream[:,k*side:(k+1)*side].T for k in xrange(1,self._nframes))
       
 
 
