@@ -506,12 +506,15 @@ class LineScan(DraggableObj):
 	    f = pl.figure()
             ax = f.add_subplot(111)
             # TODO: work out if sx differs from sy
+            y_extent = (0,fseq.dt*timeview.shape[0])
+            if mpl.rcParams['image.origin'] == 'lower':
+                lowp = 1
+            else:
+                lowp = -1
             ax.imshow(timeview,
-                      extent=(0, self.dx*timeview.shape[1], 0,
-                              fseq.dt*timeview.shape[0]),
-                      interpolation='nearest',
-                      )
-                      #aspect='equal')
+                      extent=(0, self.dx*timeview.shape[1]) +\
+                      y_extent[::lowp],
+                      interpolation='nearest')
             if self.scale_setp:
                 ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
@@ -834,7 +837,7 @@ class Picker:
 	if not self.event_canvas_ok(event) or event.button != 3 :
             return
         self.pressed = event.xdata, event.ydata
-        axrange = self.ax1.get_xbound() + self.ax1.get_ybound()
+        axrange = self.ax1.axis()
         self.curr_line_handle = self.init_line_handle()
         self.ax1.axis(axrange)
         return
@@ -954,8 +957,9 @@ class Picker:
         else:
             f = self.fseq.frames().next()
 	self.mean_frame = f
+        lowp = [1,-1][mpl.rcParams['image.origin']=='upper']
         self.pl = self.ax1.imshow(f,
-                                  extent = (0, sx*dx, 0, sy*dy),
+                                  extent = (0, sx*dx)+(0, sy*dy)[::lowp],
                                   interpolation = interpolation,
                                   aspect='equal',
                                   vmax=vmax,  vmin=vmin,

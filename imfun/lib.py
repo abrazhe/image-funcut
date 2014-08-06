@@ -156,7 +156,7 @@ def with_time_dec(fn):
     _.__doc__ = fn.__doc__
     return _
 
-
+## not needed, use ipython magic %time
 def with_time(fn, *args, **kwargs):
     "take a function and timer its evaluation"
     import time
@@ -584,3 +584,8 @@ def som_cluster_fseq(seq, **kwargs):
 	affiliations = som.som1(tracks,**kwargs)
 	return som.cluster_map_permutation(affiliations, perm, shape)
 	
+def n_random_locs(n, shape):
+    """
+    return a list of n random locations within shape
+    """
+    return zip(*[tuple(np.random.choice(dim, n)) for dim in shape])
