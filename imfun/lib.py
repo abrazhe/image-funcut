@@ -336,22 +336,22 @@ def baseline_als(y, lam=None, p=0.1, niter=10):
 def locextr(v, x=None, refine = True, output='full',
 	    sort_values = True,
 	    **kwargs):
-   "Finds local extrema "
-   if x is None: x = np.arange(len(v))
-   tck = splrep(x,v, **kwargs) # spline representation
-   if refine:
-	   xfit = np.linspace(x[0],x[-1], len(x)*10)
-   else:
-	   xfit = x
-   yfit = splev(xfit, tck)
-   der1 = splev(xfit, tck, der=1)
-   #der2 = splev(xfit, tck, der=2)
-   dersign = np.sign(der1)
+       "Finds local extrema "
+       if x is None: x = np.arange(len(v))
+       tck = splrep(x,v, **kwargs) # spline representation
+       if refine:
+               xfit = np.linspace(x[0],x[-1], len(x)*10)
+       else:
+               xfit = x
+       yfit = splev(xfit, tck)
+       der1 = splev(xfit, tck, der=1)
+       #der2 = splev(xfit, tck, der=2)
+       dersign = np.sign(der1)
 
-   maxima = np.where(np.diff(dersign) < 0)[0]
-   minima = np.where(np.diff(dersign) > 0)[0]
-   if sort_values:
-       maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
+       maxima = np.where(np.diff(dersign) < 0)[0]
+       minima = np.where(np.diff(dersign) > 0)[0]
+       if sort_values:
+           maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
        minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
 
    if output=='full':
@@ -457,9 +457,6 @@ def group_plots(ylist, ncols, x = None,
 	
 ###------------- Wavelet-related -------------	    
 
-
-
-
 def alias_freq(f, fs):
     if f < 0.5*fs:
         return f
@@ -468,7 +465,7 @@ def alias_freq(f, fs):
     else:
         return alias_freq(f%fs, fs)
 
-
+###---------- End Wavelet-related -------------	
 
 
 ### Stackless trampolining

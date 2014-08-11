@@ -775,7 +775,7 @@ class FSeq_mes(FSeq_arr):
         recs = mesa.io.loadmat(self.file_name, variable_names=var_names)
         streams = [recs[n] for n in var_names if n in recs]
         if len(streams) == 0:
-            raise IndexError("can't load record number %d"%record)
+            raise IndexError("can't load record %d"%str(record))
         self._linesize = streams[0].shape[0]
         if self._verbose:
             print 'Number of working channels:', len(streams)
