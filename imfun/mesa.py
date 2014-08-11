@@ -1,4 +1,4 @@
-# Routines to read MESA files
+# Routines to read MES files
 
 from scipy import io
 
