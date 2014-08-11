@@ -352,14 +352,13 @@ def locextr(v, x=None, refine = True, output='full',
        minima = np.where(np.diff(dersign) > 0)[0]
        if sort_values:
            maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
-       minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
-
-   if output=='full':
-      return xfit, yfit, der1, maxima, minima 
-   elif output=='max':
-      return zip(xfit[maxima], yfit[maxima])
-   elif output =='min':
-      return zip(xfit[minima], yfit[minima])
+           minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
+       if output=='full':
+           return xfit, yfit, der1, maxima, minima 
+       elif output=='max':
+           return zip(xfit[maxima], yfit[maxima])
+       elif output =='min':
+           return zip(xfit[minima], yfit[minima])
 	
 	
 
