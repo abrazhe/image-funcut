@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.25',
+      version = '0.0.26',
       scripts = ['imfun/frame_viewer.py'],
       requires = ['swan'],
       py_modules = ['imfun.atrous',
@@ -25,5 +25,6 @@ setup(name='image-funcut',
                     'imfun.som',
                     'imfun.synthdata',
 		    'imfun.tiffile',
+                    'imfun.track',
                     'imfun.ui',
                     'imfun.MLFImage'],)
