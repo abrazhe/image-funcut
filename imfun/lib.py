@@ -360,7 +360,6 @@ def locextr(v, x=None, refine = True, output='full',
        elif output =='min':
            return zip(xfit[minima], yfit[minima])
 	
-	
 
 def extrema2(v, *args, **kwargs):
    "First and second order extrema"

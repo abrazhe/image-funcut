@@ -653,31 +653,35 @@ class FSeq_mlf(FrameSequence):
 		
 	    #FrameSequence.pix_iter(self, mask=mask,max_frames=max_frames,rand=rand,**kwargs)
 
-import PIL.Image as Image
 import matplotlib.image as mpl_img
-class FSeq_multiff(FrameSequence):
-    "Class for multi-frame tiff files"
-    def __init__(self, fname, dt=1.0):
-        self.dt = dt
-        self.fns = []
-        self.im = Image.open(fname)
-        self.set_scale()
-    def frames(self, count=0):
-	"""
-	Return iterator over frames.
-
-	The composition of functions in `self.fns`
-	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
-	"""
-        fn = self.pipeline()
-        while True:
-            try:
-                self.im.seek(count)
-                count += 1
-                yield fn(mpl_img.pil_to_array(self.im))
-            except EOFError:
-                break
+try:
+    import PIL.Image as Image
+    class FSeq_multiff(FrameSequence):
+        "Class for multi-frame tiff files"
+        def __init__(self, fname, dt=1.0):
+            self.dt = dt
+            self.fns = []
+            self.im = Image.open(fname)
+            self.set_scale()
+        def frames(self, count=0):
+            """
+            Return iterator over frames.
+            
+            The composition of functions in `self.fns`
+            list is applied to each frame. By default, this list is empty. Examples
+            of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
+            """
+            fn = self.pipeline()
+            while True:
+                try:
+                    self.im.seek(count)
+                    count += 1
+                    yield fn(mpl_img.pil_to_array(self.im))
+                except EOFError:
+                    break
+except ImportError:
+    print "Cant defince FSeq_multiff because can't import PIL"
+                    
 class FSeq_tiff_2(FSeq_arr):
     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
     def __init__(self, fname, ch=None, flipv = False, fliph = False, **kwargs):
