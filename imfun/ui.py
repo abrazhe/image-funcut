@@ -441,6 +441,7 @@ class LineScan(DraggableObj):
     def on_type(self, event):
 	if not self.event_ok(event, True):
 	    return
+        # press "/" for reslice, as in imagej
 	if event.key == '/':
 	    self.diameter_manager = self.show_timeview()
 
@@ -786,33 +787,16 @@ class Picker:
         self._Nf = None
         self.roi_objs = {}
         self.min_length = 5
-	self.frame_index = 0 
+	self.frame_index = 0
+        self.shift_on = False
 
-        pass
+        return 
 
     def length(self):
         if self._Nf is None:
             self._Nf = self.fseq.length()
         return self._Nf
     
-    def on_click(self,event):
-        tb = self.fig.canvas.toolbar
-        if event.inaxes != self.ax1 or tb.mode != '': return
-
-        x,y = round(event.xdata), round(event.ydata)
-        if event.button is 1 and \
-           not self.any_roi_contains(event):
-            label = unique_tag(self.roi_tags(), tagger=self.tagger)
-            c = pl.Circle((x,y), 5, alpha = 0.5,
-                       label = label,
-                       color=self.cw.next())
-            c.figure = self.fig
-            self.ax1.add_patch(c)
-            self.roi_objs[label]= CircleROI(c, self)
-            #drc.connect()
-        self.legend()    
-        #self.ax1.legend()
-        self.ax1.figure.canvas.draw()
 
     def legend(self):
         if self._show_legend == True:
@@ -833,17 +817,51 @@ class Picker:
 		   self.any_roi_contains(event) or \
 		   self.fig.canvas.toolbar.mode !=''
 	return not pred
-    def on_press(self, event):
-	if not self.event_canvas_ok(event) or event.button != 3 :
+
+
+    def on_modkey(self, event):
+        if not self.event_canvas_ok(event):
             return
-        self.pressed = event.xdata, event.ydata
-        axrange = self.ax1.axis()
-        self.curr_line_handle = self.init_line_handle()
-        self.ax1.axis(axrange)
+        if event.key == 'shift':
+            if not self.shift_on:
+                self.shift_on = True
+                for spine in self.ax1.spines.values():
+                    spine.set_color('r')
+            else:
+                self.shift_on = False
+                for spine in self.ax1.spines.values():
+                    spine.set_color('k')
+        self.ax1.figure.canvas.draw()
         return
+    def on_keyrelease(self, event):
+        return 
+
     def init_line_handle(self):
         lh, = self.ax1.plot([0],[0],'-', color=self.cw.next())
         return lh
+
+    def on_click(self,event):
+        if not self.event_canvas_ok(event): return
+        
+        #x,y = round(event.xdata), round(event.ydata)
+        x,y = event.xdata, event.ydata # do I really need to round?
+        if event.button is 1 and \
+           not self.any_roi_contains(event) and \
+           not self.shift_on:
+            label = unique_tag(self.roi_tags(), tagger=self.tagger)
+            c = pl.Circle((x,y), 5, alpha = 0.5,
+                       label = label,
+                       color=self.cw.next())
+            c.figure = self.fig
+            self.ax1.add_patch(c)
+            self.roi_objs[label]= CircleROI(c, self)
+        elif event.button == 3 and not self.shift_on:
+            self.pressed = event.xdata, event.ydata
+            axrange = self.ax1.axis()
+            self.curr_line_handle = self.init_line_handle()
+            self.ax1.axis(axrange)
+        self.legend()    
+        self.ax1.figure.canvas.draw()
 
 
     def on_motion(self, event):
@@ -1000,6 +1018,7 @@ class Picker:
                 self.pl.set_data(show_f)
                 self.ax1.set_title(_title)
                 self.fig.canvas.draw()
+                self.frame_index = 0
 
 	    else:
 		if key in prev_keys:
@@ -1016,11 +1035,12 @@ class Picker:
         cf = self.fig.canvas.mpl_connect
         self.cid = {
             'click': cf('button_press_event', self.on_click),
-            'press': cf('button_press_event', self.on_press),
             'release': cf('button_release_event', self.on_release),
             'motion': cf('motion_notify_event', self.on_motion),
 	    'scroll':cf('scroll_event',self.frame_skip),
-	    'type':cf('key_press_event',self.frame_skip),	    
+	    'type':cf('key_press_event',self.frame_skip),
+            'modkey_on':cf('key_press_event', self.on_modkey),
+            'key_release':cf('key_release_event', self.on_keyrelease)
             }
     def disconnect(self):
         if hasattr(self, 'cid'):
