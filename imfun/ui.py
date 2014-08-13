@@ -4,10 +4,11 @@ import os
 import sys
 import glob
 import time
-import pylab as pl
 import itertools as itt
+import pylab as pl
 
-
+from matplotlib import path
+from matplotlib.widgets import Lasso
 
 import numpy as np
 from pylab import mpl
@@ -860,10 +861,33 @@ class Picker:
             axrange = self.ax1.axis()
             self.curr_line_handle = self.init_line_handle()
             self.ax1.axis(axrange)
+        elif self.shift_on:
+            if not self.ax1.figure.canvas.widgetlock.locked():
+                self.lasso = Lasso(event.inaxes, (x, y), self.lasso_callback,facecolor='red')
+                self.ax1.figure.canvas.widgetlock(self.lasso)
         self.legend()    
         self.ax1.figure.canvas.draw()
 
-
+    def lasso_callback(self, verts):
+        p = path.Path(verts)
+        sh = self.fseq.shape()
+        locs = list(itt.product(*map(xrange, sh)))
+        dy,dx, scale_setp = self.fseq.get_scale()
+        out = np.zeros(sh)
+        self.pmask = out
+        xys = np.array(locs, 'float')
+        xys[:,0] *= dy
+        xys[:,1] *= dx # coordinates with scale
+        ind = p.contains_points(xys)
+        for loc,i in zip(locs, ind):
+            if i : out[loc[::-1]] = 1
+        self.ax1.figure.canvas.draw_idle()
+        self.ax1.figure.canvas.widgetlock.release(self.lasso)
+        del self.lasso
+        f = pl.figure()
+        ax = f.add_subplot(111)
+        ax.imshow(out)
+        return 
     def on_motion(self, event):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
