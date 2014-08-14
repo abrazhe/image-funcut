@@ -16,7 +16,7 @@ import numpy as np
 from imfun import fseq, fnmap, lib, atrous
 from imfun import filt
 from imfun import ui as ifui
-from imfun import mesa
+from imfun import mes
 import glob as Glob
 
 
@@ -267,9 +267,9 @@ class FrameSequenceOpts(HasTraits):
             self.glob = ''
             self.glob_enabled=False
         if ext == 'mes':
-            meta = mesa.load_meta(self.fig_path)
-            keys = mesa.record_keys(meta)
-            valid_records = [k for k in keys if mesa.is_xyt(meta[k])]
+            meta = mes.load_meta(self.fig_path)
+            keys = mes.record_keys(meta)
+            valid_records = [k for k in keys if mes.is_xyt(meta[k])]
             self.avail_records = valid_records
             self.record = valid_records[0]
             self.record_enabled=True
@@ -280,8 +280,8 @@ class FrameSequenceOpts(HasTraits):
 
     def _record_changed(self):
         if self.fig_path.split('.')[-1].lower() == 'mes':
-            meta = mesa.load_meta(self.fig_path)
-            print "Measurement date and time: ", mesa.get_date(meta[self.record])
+            meta = mes.load_meta(self.fig_path)
+            print "Measurement date and time: ", mes.get_date(meta[self.record])
             
     def _glob_changed(self):
         if len(self.glob) > 5 and '*' in self.glob:
