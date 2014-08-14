@@ -443,7 +443,8 @@ class LineScan(DraggableObj):
 	if not self.event_ok(event, True):
 	    return
         # press "/" for reslice, as in imagej
-	if event.key == '/':
+        accepted_keys = ['/', '-', 'r']
+	if event.key in accepted_keys:
 	    self.diameter_manager = self.show_timeview()
 
     def transform_point(self, p):
