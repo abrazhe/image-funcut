@@ -863,7 +863,7 @@ class Picker:
             self.ax1.axis(axrange)
         elif self.shift_on:
             if not self.ax1.figure.canvas.widgetlock.locked():
-                self.lasso = Lasso(event.inaxes, (x, y), self.lasso_callback,facecolor='red')
+                self.lasso = Lasso(event.inaxes, (x, y), self.lasso_callback)
                 self.ax1.figure.canvas.widgetlock(self.lasso)
         self.legend()    
         self.ax1.figure.canvas.draw()
