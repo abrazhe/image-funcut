@@ -703,7 +703,7 @@ class FSeq_tiff_2(FSeq_arr):
 ## -- MES files --
 ## TODO: move to a separate file?
     
-import mesa                      
+import mes                      
 
 class FSeq_mes(FSeq_arr):
     def __init__(self, fname, record=1, ch=None, fns=[],verbose=False):
@@ -729,33 +729,33 @@ class FSeq_mes(FSeq_arr):
         else:
             print "Unknown record definition format"
 
-        meta = mesa.load_meta(fname)
+        meta = mes.load_meta(fname)
         if verbose:
             print "file %s has following records:"%fname
             #print record_keys(meta)
-            for k in mesa.record_keys(meta):
-                if mesa.is_zstack(meta[k]):
+            for k in mes.record_keys(meta):
+                if mes.is_zstack(meta[k]):
                     desc = 'z_stack'
-                elif mesa.is_xyt(meta[k]):
+                elif mes.is_xyt(meta[k]):
                     desc = 'XYT measure'
                 else:
                     desc = 'unknown'
                 print k, 'is a', desc
 
         entry = meta[record]
-        if not mesa.is_xyt(entry):
+        if not mes.is_xyt(entry):
             print "record %s is not an XYT measurement"%record
             return
 
         self._rec_meta = entry
-        self.date = mesa.get_date(entry)
-        self.ffi = mesa.get_ffi(entry)
+        self.date = mes.get_date(entry)
+        self.ffi = mes.get_ffi(entry)
 
-        nframes, sh = mesa.get_xyt_shape(entry)
+        nframes, sh = mes.get_xyt_shape(entry)
         self._nframes = nframes
         self._nlines = sh[1]
         self._shape = sh
-        self.dt = mesa.get_sampling_interval(self.ffi)
+        self.dt = mes.get_sampling_interval(self.ffi)
         self.dx = self.dy = 1 #TODO: fix this
         streams = self.load_record(record)
         base_shape = (self._nframes-1, self._nlines, self._linesize)
@@ -775,10 +775,10 @@ class FSeq_mes(FSeq_arr):
     
 
     def load_record(self, record):
-        meas_info = mesa.only_measures(self._rec_meta)
+        meas_info = mes.only_measures(self._rec_meta)
         var_names = [x[0] for x in meas_info['ImageName']]
         var_names.sort()
-        recs = mesa.io.loadmat(self.file_name, variable_names=var_names)
+        recs = mes.io.loadmat(self.file_name, variable_names=var_names)
         streams = [recs[n] for n in var_names if n in recs]
         if len(streams) == 0:
             raise IndexError("can't load record %s"%str(record))

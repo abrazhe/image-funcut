@@ -869,6 +869,7 @@ class Picker:
         self.ax1.figure.canvas.draw()
 
     def lasso_callback(self, verts):
+        "from Lasso widget, get a mask, which is 1 inside the Lasso"
         p = path.Path(verts)
         sh = self.fseq.shape()
         locs = list(itt.product(*map(xrange, sh[::-1])))
@@ -888,6 +889,7 @@ class Picker:
         ax = f.add_subplot(111)
         ax.imshow(out)
         return 
+
     def on_motion(self, event):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
@@ -974,8 +976,6 @@ class Picker:
 	else:
 	    self.ax1 = ax
 	    self.fig = self.ax1.figure
-        #self.ax1 = ifnot(ax, pl.figure().add_subplot(111))
-        #self.fig = self.ax1.figure
         self.legtype = legend_type
         self.pressed = None
 
