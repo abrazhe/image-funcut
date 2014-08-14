@@ -871,7 +871,7 @@ class Picker:
     def lasso_callback(self, verts):
         p = path.Path(verts)
         sh = self.fseq.shape()
-        locs = list(itt.product(*map(xrange, sh)))
+        locs = list(itt.product(*map(xrange, sh[::-1])))
         dy,dx, scale_setp = self.fseq.get_scale()
         out = np.zeros(sh)
         self.pmask = out

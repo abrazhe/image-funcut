@@ -218,7 +218,7 @@ class FrameSequence(object):
                   dtype = _dtype_):
 	"""Return the frames as a `3D` array.
 
-	//An alternative way is to use the __get_item__ interface:
+	//An alternative way is to use the __getitem__ interface:
 	//``data = np.asarray(fs[10:100])``
 	
 
@@ -471,12 +471,13 @@ class FSeq_arr(FrameSequence):
 	x = self.data[val]
 	if self.fns == []:
 	    return self.data[val]
-	if type(val) is int:
+        if type(val) is slice or np.ndim(val) > 0:
+            out = np.zeros(x.shape,x.dtype)
+            for j,f in enumerate(x):
+                out[j] = self.pipeline()(x)
+                return out
+        else: 
 	    return self.pipeline()(x)
-	out = np.zeros(x.shape,x.dtype)
-	for j,f in enumerate(x):
-	    out[j] = self.pipeline()(x)
-	return out
     def data_percentile(self, p):
         sh = self.shape()
         arr = self.data
@@ -550,16 +551,17 @@ class FSeq_glob(FrameSequence):
 					   ifnot(ch, self.ch), self.loadfn))
     def __getitem__(self, val):
 	fn = self.pipeline()
-	if type(val) is int:
+
+        if type(val) is slice or np.ndim(val) > 0:
+            seq =  map(self.loadfn, self.file_names[val])
+	    if self.ch is not None:
+		seq = (img_getter(f, self.ch) for f in seq)
+            return map(fn, seq)
+        else:
 	    frame = self.loadfn(self.file_names[val])
 	    if self.ch is not None:
 		frame = img_getter(frame, self.ch)
 	    return fn(frame)
-	else:
-	    seq =  map(self.loadfn, self.file_names[val])
-	    if self.ch is not None:
-		seq = (img_getter(f, self.ch) for f in seq)
-            return map(fn, seq)
             
 class FSeq_img(FSeq_glob):
     """FrameSequence around a set of image files"""
@@ -623,11 +625,11 @@ class FSeq_mlf(FrameSequence):
     def __getitem__(self, val):
 	L = self.length()
 	fn = self.pipeline()
-	if type(val) is int:
-	    return fn(self.mlfimg[val])
-	else:
-	    indices = range(self.mlfimg.nframes)
+        if type(val) is slice or np.ndim(val) > 0:
+	    indices = np.arange(self.mlfimg.nframes)
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
+        else:
+            return fn(self.mlfimg[val])
     def length(self):
         return self.mlfimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, **kwargs):
@@ -890,12 +892,13 @@ try:
             x = self.data[val]
             if self.fns == []:
                 return self.data[val]
-            if type(val) is int:
-                return self.pipeline()(x)
-            out = np.zeros(x.shape,x.dtype)
-            for j,f in enumerate(x):
-                out[j] = self.pipeline()(x)
-            return out
+            if type(val) is slice or np.ndim(val) > 0:
+                out = np.zeros(x.shape,x.dtype)
+                for j,f in enumerate(x):
+                    out[j] = self.pipeline()(x)
+                return out
+            else:
+                return self.pipeline()(int(x))
 
     def fseq2h5(seq, name,compress_level=-1):
         # todo: add metadata, such as time and spatial scales
