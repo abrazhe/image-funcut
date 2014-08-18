@@ -451,8 +451,8 @@ class FrameSequence(object):
         
         anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
         mencoder_extra_args=['-ovc', 'lavc', '-lavcopts', 'vcodec=mpeg4']
-        plt.close(anim._fig)
         anim.save(mpeg_name, writer='mencoder', fps=fps, extra_args=mencoder_extra_args)
+        plt.close(anim._fig)
         return 
 
 class FSeq_arr(FrameSequence):

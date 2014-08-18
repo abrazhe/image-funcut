@@ -408,14 +408,14 @@ class FrameSequenceOpts(HasTraits):
 
     def _export_btn_fired(self):
         seq = self.get_fs2()
-        seq.export_mpeg(self.export_movie_filename,
-                        fps = self.export_fps,
-			start = self.export_start,
-			stop = self.export_stop,
-                        cmap=self.colormap,
-                        interpolation = self.interpolation,
-                        vmin = self.vmin,
-                        vmax=self.vmax)
+        seq.export_movie_anim(self.export_movie_filename,
+                              fps = self.export_fps,
+                              start = self.export_start,
+                              stop = self.export_stop,
+                              cmap=self.colormap,
+                              interpolation = self.interpolation,
+                              vmin = self.vmin,
+                              vmax=self.vmax)
 
     def _load_rois_dict_btn_fired(self):
 	ui = self.edit_traits(view='load_rois_dict_view')
