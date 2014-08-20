@@ -48,7 +48,8 @@ def line_from_struct(line_props):
     lp = line_props.copy()
     _ = lp.pop('func')
     xdata, ydata = lp.pop('xdata'), lp.pop('ydata')
-    return LineScan(xdata, ydata,**lp)
+    lh = pl.Line2D(xdata, ydata, **lp)
+    return lh
 
 
 import pickle
@@ -951,7 +952,7 @@ class Picker:
         saved_rois = pickle.load(file(fname))
         rois = [x['func'](x) for x in saved_rois]
         circles = filter(lambda x: isinstance(x, pl.Circle), rois)
-        lines = filter(lambda x: isinstance(x, LineScan), rois)
+        lines = filter(lambda x: isinstance(x, pl.Line2D), rois)
         map(self.ax1.add_patch, circles) # add points to the axes
         map(self.ax1.add_line, lines) # add points to the axes
         self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
