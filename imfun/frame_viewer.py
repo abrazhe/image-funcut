@@ -431,7 +431,7 @@ class FrameSequenceOpts(HasTraits):
 	if ui.result == True:
 	    print self._export_rois_dict
 	    picker = self.parent.picker
-	    picker.save_rois(self._export_rois_dict)
+	    picker.export_rois(self._export_rois_dict)
 
     def _export_timeseries_btn_fired(self):
 	print "_export_timeseries_btn_fired"
@@ -495,9 +495,6 @@ class FrameViewer(HasTraits):
                 statusbar = [StatusItem('coords_stat'),
                              StatusItem('time_stat')])
 
-    def _save_rois(self):
-        pass
-    
     def _frame_fwd_btn_fired(self):
         self.frame_index += 1
 
