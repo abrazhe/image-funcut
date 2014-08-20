@@ -852,7 +852,7 @@ class Picker:
            not self.any_roi_contains(event) and \
            not self.shift_on:
             label = unique_tag(self.roi_tags(), tagger=self.tagger)
-            c = pl.Circle((x,y), 5, alpha = 0.5,
+            c = pl.Circle((x,y), 5*self.fseq.dx, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
@@ -937,20 +937,25 @@ class Picker:
         "List of tags for all ROIs"
         return self.roi_objs.keys()
     
-    def save_rois(self, fname):
-        "Saves picked ROIs to a file"
-        print "Saving ROIs to ", fname
+    def export_rois(self, fname=None):
+        """Exports picked ROIs as structures to a file and/or returns as list"""
+        out = [x.to_struct() for x in self.roi_objs.values()]
         if fname:
-            pickle.dump([x.to_struct() for x in self.roi_objs.values()],
-                        file(fname, 'w'),
-                        protocol=0)
-#                     if isinstance(x, CircleROI)],
+            print "Saving ROIs to ", fname
+            pickle.dump(out,
+                        open(fname, 'w'), protocol=0)
+        return out
 
 
-    def load_rois(self, fname):
+    def load_rois(self, source):
         "Load stored ROIs from a file"
-        saved_rois = pickle.load(file(fname))
-        rois = [x['func'](x) for x in saved_rois]
+        if type(source) is str:
+            data = pickle.load(file(source))
+        elif type(source) is file:
+            data = pickle.load(source)
+        else:
+            data = source
+        rois = [x['func'](x) for x in data]
         circles = filter(lambda x: isinstance(x, pl.Circle), rois)
         lines = filter(lambda x: isinstance(x, pl.Line2D), rois)
         map(self.ax1.add_patch, circles) # add points to the axes
