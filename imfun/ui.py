@@ -5,13 +5,20 @@ import sys
 import glob
 import time
 import itertools as itt
-import pylab as pl
 
+import numpy as np
+
+
+from scipy import signal
+from scipy.interpolate import splrep, splev, splprep
+
+import pylab as pl
+from pylab import mpl
 from matplotlib import path
 from matplotlib.widgets import Lasso
 
-import numpy as np
-from pylab import mpl
+
+
 
 try:
     from swan import pycwt, utils
@@ -23,11 +30,10 @@ except:
     
 
 from imfun import lib, fnmap
+from imfun import track
+
 ifnot = lib.ifnot
 in_circle = lib.in_circle
-
-from scipy import signal
-from scipy.interpolate import splrep, splev, splprep
 
 
 
@@ -170,7 +176,7 @@ def resample_velocity(rad, v,rstart=10.0):
     return xnew, np.interp(xnew,rad,v)
 
 
-DM_help_msg =  """
+_DM_help_msg =  """
 Diameter Manager:   
 - left-click or type 'i' to add point under mouse
 - rigth-click or type 'd' to remove point under mouse
@@ -200,7 +206,17 @@ class GWExpansionMeasurement1:
             'type': cf('key_press_event', self._on_key_press)
             }
 	pl.show()
-	print DM_help_msg
+	print _DM_help_msg
+    def disconnect(self):
+        if self.line_par:
+            self.line_par.remove()
+        if self.line:
+            self.line.remove()
+        if self.line2:
+            self.line2.remove()
+        map(self.canvas.mpl_disconnect, self.cid.values())
+        self.canvas.draw()
+
 	
     def get_ind_closest(self,event):
 	xy = np.asarray(self.points)
@@ -383,11 +399,15 @@ class DraggableObj:
 class LineScan(DraggableObj):
     def __init__(self, obj, parent):
         DraggableObj.__init__(self, obj, parent)
-        ep = self.endpoints()[1]
+        ep_start,ep_stop = self.endpoints()
         ax = self.obj.axes
-        self.length_tag = ax.text(ep[0],ep[1], '%2.2f'%self.length(),
+        self.length_tag = ax.text(ep_stop[0],ep_stop[1], '%2.2f'%self.length(),
                                   size = 'small',
                                   color = self.obj.get_color())
+        self.name_tag = ax.text(ep_start[0],ep_start[1], self.obj.get_label(),
+                                  size = 'small',
+                                  color = self.obj.get_color())
+        
         print "%2.2f"%self.length()
         self.parent.legend()
         self.redraw()
@@ -397,6 +417,13 @@ class LineScan(DraggableObj):
         ep = self.endpoints()[1]
         lt.set_position(ep)
         lt.set_text('%2.2f'%self.length())
+    def update_name_tag(self):
+        "updates text with line length"
+        nt = self.name_tag
+        ep = self.endpoints()[0]
+        nt.set_position(np)
+        
+        
     def endpoints(self):
         return rezip(self.obj.get_data())
     def length(self):
@@ -420,6 +447,7 @@ class LineScan(DraggableObj):
         self.obj.set_data((x0 + dx,y0 + dy))
         self.pressed = p
         self.update_length_tag()
+        self.update_name_tag()
 
     def on_press(self, event):
         if not self.event_ok(event, True):
@@ -502,9 +530,30 @@ class LineScan(DraggableObj):
 	    return _(self.parent.fseq.as3darray())
 	elif output == 'function':
 	    return _
+    def segment_vessel_levelsets(self,
+                                 timeview=None,
+                                 levelset=None,
+                                 max_iter=500,
+                                 min_diameter=2,
+                                 th_percentile=50,
+                                 smoothing=2,
+                                 lambda2 = 2):
+        'use morphsnakes to segment vessel in the linescan'
+        import morphsnakes
+        if timeview is None:
+            timeview, points = self.get_timeview(hwidth=2)
+        if timeview is None: return
+        m = morphsnakes.MorphACWE(timeview, smoothing=smoothing,lambda2=lambda2)
+        if levelset is None:
+            levelset = timeview > np.percentile(timeview, th_percentile)
+            levelset = np.float_(levelset)
+        m.set_levelset(levelset)
+        m.run(max_iter)
+        return m.levelset
 	
     def show_timeview(self,frange=None,hwidth=2):
         timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
+        gw_meas = [None]
         if timeview is not None:
             fseq = self.parent.fseq
 	    f = pl.figure()
@@ -523,8 +572,50 @@ class LineScan(DraggableObj):
                 ax.set_xlabel('um')
             ax.set_ylabel('time, sec')
             ax.set_title('Timeview for '+ self.tag)
-	    pc = GWExpansionMeasurement1(ax)
-	    return pc
+
+            def _event_ok(event):
+                return event.inaxes == ax and \
+                       f.canvas.toolbar.mode ==''
+            def _on_type(event):
+                if not _event_ok(event): return
+                if event.key == 'w':
+                    if gw_meas[0] is None:
+                        print gw_meas[0]
+                        gw_meas[0] = GWExpansionMeasurement1(ax)
+                    else:
+                        print 'disconnecting GW measurerer'
+                        gw_meas[0].disconnect()
+                        gw_meas[0] = None
+                elif event.key == 'd':
+                    print 'Vessel wall tracking'
+                    lines1 = track.track_walls(timeview,output='kalman')
+                    lines1 = np.array(lines1)#*fseq.dx
+                    lset = self.segment_vessel_levelsets(timeview)
+                    #lines2 = track.track_walls(timeview[::-1],output='all')
+                    #lines2 = np.fliplr(np.array(lines2)*fseq.dx)
+                    _f, _ax = pl.subplots(1,1)
+                    _extent = (0, self.dx*timeview.shape[1]) +\
+                              y_extent[::lowp]
+                    _ax.imshow(timeview.T, cmap='gray',
+                               #extent=_extent,
+                               interpolation='nearest')
+                    print '3'
+                    a = _ax.axis()
+                    yv = np.arange(len(timeview))
+                    _ax.plot(lines1[0].T, 'r',
+                             lines1[1].T, 'r')
+                             #lines1[2], yv, 'y',
+                             #lines1[3], yv, 'y')
+                    _ax.contour(lset.T, levels=[0.5],
+                                colors='green')
+
+                    _ax.axis(a)
+                    _f.canvas.draw()
+                return # _on_type
+            
+            f.canvas.mpl_connect('key_press_event', _on_type)
+
+        return
 	    
 
     def to_struct(self):
@@ -737,7 +828,7 @@ def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
         
     
 
-def track_vessels(frames, width=30, height=60, measure = sse_measure):
+def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
     f = pl.figure()
     axf = pl.axes()
     frame_index = [0]
@@ -777,6 +868,15 @@ def track_vessels(frames, width=30, height=60, measure = sse_measure):
     return drs
 
 
+def track_and_show_vessel_diameter(linescan):
+    t1,t2 = track.track_walls(linescan,output='mean')
+    d = np.abs(t1-t2)
+    fj, ax = pl.subplots(1,1)
+    ax.imshow(d.T, cmap='gray', interpolation='nearest')
+    axrange = ax.axis()
+    ax.plot(t1, 'r'), ax.plot(t2,  'r')
+    ax.axis(axrange)
+    return d
 
 class Picker:
     verbose = True
