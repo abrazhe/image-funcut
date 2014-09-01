@@ -478,6 +478,13 @@ def DFoF(v, level=9):
     out[zi] = 0
     return out
 
+
+def loc_std(y):
+    "local estimate of standard deviation of y"
+    s = smooth(y, 1)
+    var = 1e-6 + np.sqrt(smooth((y-s)**2,1))/0.663
+    return var
+
 def DFoSD(v, level=9, smooth = 0):
     """Normalize `v` as :math:`(v-v_0)/\\sigma` for :math:`v_0` taken as
     approximation at given level and :math:`\\sigma` taken as an estimation of
