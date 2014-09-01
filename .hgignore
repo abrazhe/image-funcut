@@ -3,5 +3,5 @@ syntax: glob
 *~
 MANIFEST
 build/*
-docs/_build/*
+doc/_build/*
 dist/*
