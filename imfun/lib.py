@@ -387,7 +387,9 @@ def group_maps(maplist, ncols=None,
     if ncols is None:
 	ncols = min(10, len(maplist))
     nrows = int(np.ceil(len(maplist)/float(ncols)))
-    figsize = ifnot (figsize, (figscale*ncols,figscale*nrows)) 
+    sh = maplist[0].shape
+    aspect = float(sh[0])/sh[1]
+    figsize = ifnot (figsize, (figscale*ncols/aspect,figscale*nrows)) 
     figh = pl.figure(figsize=figsize)
     print samerange
     if samerange:

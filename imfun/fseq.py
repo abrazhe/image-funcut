@@ -401,15 +401,17 @@ class FrameSequence(object):
         plt.close()
 	return fnames
     
-    def export_movie_anim(self, mpeg_name, fps=None, start=0, stop=None,
+    def export_movie_anim(self, video_name, fps=None, start=0, stop=None,
                           show_title=True, fig_size=(4,4),
+                          bitrate=-1,
+                          writer = 'mencoder',
                           vmin=None, vmax=None,**kwargs):
         """
         Create an mpg  movie from the frame sequence using mencoder.
         and mpl.Animation
 
 	Parameters:
-	  - `mpeg_name`: (`str`) -- a name (without extension) for the movie to
+	  - `video_name`: (`str`) -- a name (without extension) for the movie to
 	    be created
 	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
@@ -451,7 +453,15 @@ class FrameSequence(object):
         
         anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
         mencoder_extra_args=['-ovc', 'lavc', '-lavcopts', 'vcodec=mpeg4']
-        anim.save(mpeg_name, writer='mencoder', fps=fps, extra_args=mencoder_extra_args)
+        if writer in animation.writers.list():
+            # Set up formatting for the movie files
+            Writer = animation.writers.avail[writer]
+            w = Writer(fps=fps,bitrate=bitrate)#, metadata=dict(artist='Me'), bitrate=1800)
+            anim.save(video_name, writer=w)
+        else:
+            anim.save(video_name+'.avi', writer='mencoder',
+                      fps=fps, extra_args=mencoder_extra_args)
+            
         plt.close(anim._fig)
         return 
 

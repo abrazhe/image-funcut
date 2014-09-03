@@ -421,7 +421,7 @@ class LineScan(DraggableObj):
         "updates text with line length"
         nt = self.name_tag
         ep = self.endpoints()[0]
-        nt.set_position(np)
+        nt.set_position(ep)
         
         
     def endpoints(self):
