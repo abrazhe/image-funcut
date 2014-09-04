@@ -109,9 +109,9 @@ def _mirrorpd(k, L):
     else: return -(k+1)%L
 
 
-def bspline_denoise(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
+def bspline_smooth(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     """
-    Denoise signal `sig` by 1D convolution with a cubic b-spline
+    Smooth signal `sig` by 1D convolution with a cubic b-spline
 
     see `imfun.atrous.smooth` and `imfun.atrous.wavelet_denoise` for more variants
     """
