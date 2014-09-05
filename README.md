@@ -81,7 +81,7 @@ The script `frame_viewer.py`, a simple GUI wrapper for `imfun`, also uses
 ## License
 
 Except for files, adopted from external sources (such as `tiffile.py`) the code
-is GPL. Other open licensing (e.g. LGPL)
+is GPL. Other open licensing (e.g. MIT LGPL) can be leased on demand.
 
 ## Publications
 The software has been used in production of the following journal articles:
