@@ -886,7 +886,6 @@ class Picker:
     def __init__(self, fseq):
         self._corrfn = 'pearson'
         self.cw = color_walker()
-
         self._show_legend=False
         self.fseq = fseq
         self.dt = fseq.dt
@@ -895,10 +894,10 @@ class Picker:
         self.min_length = 5
 	self.frame_index = 0
         self.shift_on = False
-
+        self.widgetcolor = 'lightyellow'
         return 
 
-    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
+    def start(self, roi_objs={}, ax=None, legend_type = self.widgetcolor,
               mean_frame =True,
               vmax = None, vmin = None, 
               cmap = 'gray',
@@ -909,7 +908,6 @@ class Picker:
         self.frame_slider = None
         Nf = self.fseq.length()
 	if ax is None:
-            
             self.fig, self.ax1 = plt.subplots()
             plt.subplots_adjust(left=0.25, bottom=0.25)
             axfslider = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg='lightyellow')
