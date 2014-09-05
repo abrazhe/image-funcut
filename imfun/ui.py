@@ -13,9 +13,12 @@ from scipy import signal
 from scipy.interpolate import splrep, splev, splprep
 
 import pylab as pl
+import matplotlib.pyplot as plt
+
 from pylab import mpl
 from matplotlib import path
-from matplotlib.widgets import Lasso
+#from matplotlib.widgets import Lasso, Slider
+import matplotlib.widgets as mw
 
 
 
@@ -895,6 +898,67 @@ class Picker:
 
         return 
 
+    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
+              mean_frame =True,
+              vmax = None, vmin = None, 
+              cmap = 'gray',
+              interpolation = 'nearest'):
+        "Start picking up ROIs"
+        self.tagger = tags_iter()
+        #self.drcs = {}
+        self.frame_slider = None
+        Nf = self.fseq.length()
+	if ax is None:
+            
+            self.fig, self.ax1 = plt.subplots()
+            plt.subplots_adjust(left=0.25, bottom=0.25)
+            axfslider = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg='lightyellow')
+            self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
+                                          valfmt=u'%d')
+            self.frame_slider.on_changed(self.set_frame_index)
+	else:
+	    self.ax1 = ax
+	    self.fig = self.ax1.figure
+        self.legtype = legend_type
+        self.pressed = None
+
+        dx,dy, scale_setp = self.fseq.get_scale()
+	sy,sx = self.fseq.shape()[:2]
+        if len(self.fseq.shape()) ==2:
+            if vmin is None or vmax is None:
+                avmin,avmax = self.fseq.data_range()
+            if vmin is None: vmin = avmin
+            if vmax is None: vmax = avmax
+        if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
+            self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
+
+        if type(mean_frame) is np.ndarray:
+	    f = mean_frame
+	elif mean_frame:
+            dtype = self.fseq[0].dtype
+            f = self.fseq.mean_frame().astype(dtype)
+            if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
+                f = lib.rescale(f)
+        else:
+            f = self.fseq.frames().next()
+	self.mean_frame = f
+        lowp = [1,-1][mpl.rcParams['image.origin']=='upper']
+        self.pl = self.ax1.imshow(f,
+                                  extent = (0, sx*dx)+(0, sy*dy)[::lowp],
+                                  interpolation = interpolation,
+                                  aspect='equal',
+                                  vmax=vmax,  vmin=vmin,
+                                  cmap=cmap)
+        if scale_setp:
+            self.ax1.set_xlabel('um')
+            self.ax1.set_ylabel('um')
+
+        self.disconnect()
+        self.connect()
+	self.fig.canvas.draw()
+        return self.ax1, self.pl, self
+
+
     def length(self):
         if self._Nf is None:
             self._Nf = self.fseq.length()
@@ -965,7 +1029,7 @@ class Picker:
             self.ax1.axis(axrange)
         elif self.shift_on:
             if not self.ax1.figure.canvas.widgetlock.locked():
-                self.lasso = Lasso(event.inaxes, (x, y), self.lasso_callback)
+                self.lasso = mw.Lasso(event.inaxes, (x, y), self.lasso_callback)
                 self.ax1.figure.canvas.widgetlock(self.lasso)
         self.legend()    
         self.ax1.figure.canvas.draw()
@@ -1068,59 +1132,6 @@ class Picker:
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
-
-    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
-              mean_frame =True,
-              vmax = None, vmin = None, 
-              cmap = 'gray',
-              interpolation = 'nearest'):
-        "Start picking up ROIs"
-        self.tagger = tags_iter()
-        self.drcs = {}
-	if ax is None:
-	    self.fig = pl.figure()
-	    self.ax1 = self.fig.add_subplot(111)
-	else:
-	    self.ax1 = ax
-	    self.fig = self.ax1.figure
-        self.legtype = legend_type
-        self.pressed = None
-
-        dx,dy, scale_setp = self.fseq.get_scale()
-	sy,sx = self.fseq.shape()[:2]
-        if len(self.fseq.shape()) ==2:
-            if vmin is None or vmax is None:
-                avmin,avmax = self.fseq.data_range()
-            if vmin is None: vmin = avmin
-            if vmax is None: vmax = avmax
-        if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
-            self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
-
-        if type(mean_frame) is np.ndarray:
-	    f = mean_frame
-	elif mean_frame:
-            dtype = self.fseq[0].dtype
-            f = self.fseq.mean_frame().astype(dtype)
-            if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
-                f = lib.rescale(f)
-        else:
-            f = self.fseq.frames().next()
-	self.mean_frame = f
-        lowp = [1,-1][mpl.rcParams['image.origin']=='upper']
-        self.pl = self.ax1.imshow(f,
-                                  extent = (0, sx*dx)+(0, sy*dy)[::lowp],
-                                  interpolation = interpolation,
-                                  aspect='equal',
-                                  vmax=vmax,  vmin=vmin,
-                                  cmap=cmap)
-        if scale_setp:
-            self.ax1.set_xlabel('um')
-            self.ax1.set_ylabel('um')
-
-        self.disconnect()
-        self.connect()
-	self.fig.canvas.draw()
-        return self.ax1, self.pl, self
 
     def set_frame_index(self,n):
         Nf = self.fseq.length()

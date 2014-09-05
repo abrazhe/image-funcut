@@ -551,9 +551,9 @@ class FrameViewer(HasTraits):
 	self.picker.caller = self
 
         ax1,self.pl,_ = self.picker.start(ax=self.axes, legend_type='axlegend',
-                                        cmap = self.fso.colormap,
-                                        vmin = vl, vmax=vh,
-                                        interpolation = self.fso.interpolation)
+                                          cmap = self.fso.colormap,
+                                          vmin = vl, vmax=vh,
+                                          interpolation = self.fso.interpolation)
         self.axes.figure.canvas.mpl_connect('motion_notify_event',
                                             self.update_status_bar)
         self.frame_index = 0
