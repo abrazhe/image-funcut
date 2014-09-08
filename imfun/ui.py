@@ -12,7 +12,7 @@ import numpy as np
 from scipy import signal
 from scipy.interpolate import splrep, splev, splprep
 
-import pylab as pl
+#import pylab as pl
 import matplotlib.pyplot as plt
 
 from pylab import mpl
@@ -29,7 +29,7 @@ try:
     _cmap = swanrgb
 except:
     "Can't load swan (not installed?)"
-    _cmap = pl.cm.spectral
+    _cmap = plt.cm.spectral
     
 
 from imfun import lib, fnmap
@@ -40,7 +40,8 @@ in_circle = lib.in_circle
 
 
 
-mpl.rcParams['image.aspect'] = 'auto'
+#Just trust what the user sets in mpl.rcParams for image.aspect
+#mpl.rcParams['image.aspect'] = 'auto' #
 
 #let the user decide where image origin should be
 ##mpl.rcParams['image.origin'] = 'lower'
@@ -51,13 +52,13 @@ def circle_from_struct(circ_props):
     cp = circ_props.copy()
     _  = cp.pop('func')
     center = cp.pop('center')
-    return pl.Circle(center, **cp)
+    return plt.Circle(center, **cp)
 
 def line_from_struct(line_props):
     lp = line_props.copy()
     _ = lp.pop('func')
     xdata, ydata = lp.pop('xdata'), lp.pop('ydata')
-    lh = pl.Line2D(xdata, ydata, **lp)
+    lh = plt.Line2D(xdata, ydata, **lp)
     return lh
 
 
@@ -132,8 +133,8 @@ def rezip(a):
 
 
 def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
-    f = pl.figure()
-    axf = pl.axes()
+    f = plt.figure()
+    axf = plt.axes()
     frame_index = [0]
     Nf = fseq.length()
 
@@ -154,9 +155,9 @@ def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
                      vmax = vmax, vmin = vmin,
                      aspect = 'equal', cmap=cmap)
     if scale_setp:
-        pl.ylabel('um')
-        pl.xlabel('um')
-    pl.colorbar(plf)
+        plt.ylabel('um')
+        plt.xlabel('um')
+    plt.colorbar(plf)
     def skip(event,n=1):
         fi = frame_index[0]
         key = hasattr(event, 'button') and event.button or event.key
@@ -208,7 +209,7 @@ class GWExpansionMeasurement1:
             #'scroll': cf('scroll_event', self.on_scroll),
             'type': cf('key_press_event', self._on_key_press)
             }
-	pl.show()
+	plt.show()
 	print _DM_help_msg
     def disconnect(self):
         if self.line_par:
@@ -243,7 +244,7 @@ class GWExpansionMeasurement1:
 	self.points.sort(key = lambda u:u[0])
 	xd, yd = rezip(self.points)
 	if self.line is None:
-	    self.line = pl.Line2D(xd,yd,marker='o',
+	    self.line = plt.Line2D(xd,yd,marker='o',
 				  ls = '--',
 				  color='r', alpha=0.75,
 				  markerfacecolor='r')
@@ -270,12 +271,12 @@ class GWExpansionMeasurement1:
 	if self.line_par:
 	    self.line_par.set_data(xfit_par, yfit_par)
 	else:
-	    self.line_par = pl.Line2D(xfit_par, yfit_par, color='cyan')
+	    self.line_par = plt.Line2D(xfit_par, yfit_par, color='cyan')
 	    self.ax.add_line(self.line_par)
 	if self.line2:
 	    self.line2.set_data(out[0], out[1])
 	else:
-	    self.line2 = pl.Line2D(out[0], out[1], color='w',
+	    self.line2 = plt.Line2D(out[0], out[1], color='w',
 				   lw=2,alpha=0.75)
 	    self.ax.add_line(self.line2)
 	x,y = out[0], out[1]
@@ -291,8 +292,8 @@ class GWExpansionMeasurement1:
 	vmean_at_r = lambda r0:\
 		     np.mean([v_at_r(lh_r,lh_v,r0),
 			      v_at_r(rh_r,rh_v,r0)])
-	
-	ax = pl.figure().add_subplot(111);
+
+	ax = plt.figure().add_subplot(111);
 	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)
 	ax.plot(rh_r[rh_r>min_r],rh_v,'g-',lw=2)
 	ax.legend(['left-hand branch','right-hand branch'])
@@ -559,7 +560,7 @@ class LineScan(DraggableObj):
         gw_meas = [None]
         if timeview is not None:
             fseq = self.parent.fseq
-	    f = pl.figure()
+	    f = plt.figure()
             ax = f.add_subplot(111)
             # TODO: work out if sx differs from sy
             y_extent = (0,fseq.dt*timeview.shape[0])
@@ -596,7 +597,7 @@ class LineScan(DraggableObj):
                     lset = self.segment_vessel_levelsets(timeview)
                     #lines2 = track.track_walls(timeview[::-1],output='all')
                     #lines2 = np.fliplr(np.array(lines2)*fseq.dx)
-                    _f, _ax = pl.subplots(1,1)
+                    _f, _ax = plt.subplots(1,1)
                     _extent = (0, self.dx*timeview.shape[1]) +\
                               y_extent[::lowp]
                     _ax.imshow(timeview.T, cmap='gray',
@@ -832,15 +833,15 @@ def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
     
 
 def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
-    f = pl.figure()
-    axf = pl.axes()
+    f = plt.figure()
+    axf = plt.axes()
     frame_index = [0]
     Nf = len(frames)
 
     plf = axf.imshow(frames[0],
                      interpolation = 'nearest',
                      aspect = 'equal', cmap=mpl.cm.gray)
-    pl.colorbar(plf)
+    plt.colorbar(plf)
     def skip(event,n=1):
         fi = frame_index[0]
         key = hasattr(event, 'button') and event.button or event.key
@@ -874,7 +875,7 @@ def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
 def track_and_show_vessel_diameter(linescan):
     t1,t2 = track.track_walls(linescan,output='mean')
     d = np.abs(t1-t2)
-    fj, ax = pl.subplots(1,1)
+    fj, ax = plt.subplots(1,1)
     ax.imshow(d.T, cmap='gray', interpolation='nearest')
     axrange = ax.axis()
     ax.plot(t1, 'r'), ax.plot(t2,  'r')
@@ -940,7 +941,8 @@ class Picker:
         else:
             f = self.fseq.frames().next()
 	self.mean_frame = f
-        lowp = [1,-1][mpl.rcParams['image.origin']=='upper']
+        iorigin = mpl.rcParams['image.origin']
+        lowp = [1,-1][iorigin == 'upper']
         self.pl = self.ax1.imshow(f,
                                   extent = (0, sx*dx)+(0, sy*dy)[::lowp],
                                   interpolation = interpolation,
@@ -970,7 +972,7 @@ class Picker:
             try:
                 axs= self.ax1.axis
                 if self.legtype is 'figlegend':
-                    pl.figlegend(handles, keys, 'upper right')
+                    plt.figlegend(handles, keys, 'upper right')
                 elif self.legtype is 'axlegend':
                     self.ax1.legend(handles, keys)
                     self.ax1.axis(axs)
@@ -1014,7 +1016,7 @@ class Picker:
            not self.any_roi_contains(event) and \
            not self.shift_on:
             label = unique_tag(self.roi_tags(), tagger=self.tagger)
-            c = pl.Circle((x,y), 5*self.fseq.dx, alpha = 0.5,
+            c = plt.Circle((x,y), 5*self.fseq.dx, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
@@ -1049,7 +1051,7 @@ class Picker:
         self.ax1.figure.canvas.draw_idle()
         self.ax1.figure.canvas.widgetlock.release(self.lasso)
         del self.lasso
-        f = pl.figure()
+        f = plt.figure()
         ax = f.add_subplot(111)
         ax.imshow(out)
         return 
@@ -1118,8 +1120,8 @@ class Picker:
         else:
             data = source
         rois = [x['func'](x) for x in data]
-        circles = filter(lambda x: isinstance(x, pl.Circle), rois)
-        lines = filter(lambda x: isinstance(x, pl.Line2D), rois)
+        circles = filter(lambda x: isinstance(x, plt.Circle), rois)
+        lines = filter(lambda x: isinstance(x, plt.Line2D), rois)
         map(self.ax1.add_patch, circles) # add points to the axes
         map(self.ax1.add_line, lines) # add points to the axes
         self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
@@ -1137,7 +1139,7 @@ class Picker:
         self.frame_index = fi
         _title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
         show_f = self.fseq[fi]
-        self.pl.set_data(show_f)
+        self.plt.set_data(show_f)
         self.ax1.set_title(_title)
         self.fig.canvas.draw()
 
@@ -1155,7 +1157,7 @@ class Picker:
 	    if key in home_keys:
 		show_f = self.mean_frame
 		_title = ""
-                self.pl.set_data(show_f)
+                self.plt.set_data(show_f)
                 self.ax1.set_title(_title)
                 self.fig.canvas.draw()
                 self.frame_index = 0
@@ -1237,7 +1239,7 @@ class Picker:
 		sh = x.shape
 		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*self.fseq.dx),
 			  aspect='auto',cmap=_cmap)
-            pl.xlim(0,t[-1])
+            plt.xlim(0,t[-1])
 	ax.figure.show()
 	    
     def show_ffts(self, rois = None, **keywords):
@@ -1256,12 +1258,12 @@ class Picker:
         xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
         mask = roi.in_circle(xcmap.shape)
         xshow = np.ma.masked_where(mask,xcmap)
-        fig = pl.figure(figsize=figsize)
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         vmin, vmax = xshow.min(), xshow.max()
         im = ax.imshow(ndimage.median_filter(xcmap,3), aspect = 'equal', vmin=vmin,
                        vmax=vmax,cmap=_cmap)
-        pl.colorbar(im, ax=ax)
+        plt.colorbar(im, ax=ax)
         ax.set_title('Correlation to %s'%roitag)
         return xcmap
 
@@ -1341,7 +1343,7 @@ class Picker:
 	
 	L = len(rois)
 	if L < 1: return
-	fig,axlist = pl.subplots(len(rois),1,sharey=True,sharex=True,
+	fig,axlist = plt.subplots(len(rois),1,sharey=True,sharex=True,
                                  squeeze = False,
                                  figsize=(5*L,4.5))
         
@@ -1381,13 +1383,13 @@ class Picker:
 
         t = self.timevec()
 
-        pl.figure();
-        ax1= pl.subplot(211);
+        plt.figure();
+        ax1= plt.subplot(211);
         roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
-        pl.plot(t,s1,color=roi1.get_color(), label=tag1)
-        pl.plot(t,s2,color=roi2.get_color(), label = tag2)
+        plt.plot(t,s1,color=roi1.get_color(), label=tag1)
+        plt.plot(t,s2,color=roi2.get_color(), label = tag2)
         #legend()
-        ax2 = pl.subplot(212, sharex = ax1);
+        ax2 = plt.subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
         ax2.imshow(res, extent = ext, cmap = _cmap)
         #self.cone_infl(freqs,wavelet)
@@ -1408,12 +1410,12 @@ class Picker:
 	for k1, k2 in lib.allpairs(range(nrois)):
 	    coef = getter(corrfn(ts[k1], ts[k2]))
 	    out[k2,k1] = coef
-	pl.figure();
-	ax = pl.imshow(out, aspect='equal', interpolation='nearest')
+	f = plt.figure();
+	ax = plt.imshow(out, aspect='equal', interpolation='nearest')
 	ticks = np.arange(nrois)
-	pl.setp(ax.axes, xticks=ticks, yticks=ticks),
-	pl.setp(ax.axes, xticklabels=rois, yticklabels=rois)
-	pl.colorbar()
+	plt.setp(ax.axes, xticks=ticks, yticks=ticks),
+	plt.setp(ax.axes, xticklabels=rois, yticklabels=rois)
+	plt.colorbar()
 	return out
 
     def show_xwt(self, **kwargs):
