@@ -460,6 +460,8 @@ class LineScan(DraggableObj):
             self.disconnect()
             self.length_tag.set_alpha(0)
             self.length_tag.remove()
+            self.name_tag.set_alpha(0)
+            self.name_tag.remove()
             self.obj.remove()
             self.parent.roi_objs.pop(self.tag)
             self.parent.legend()
