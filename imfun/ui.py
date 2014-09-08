@@ -898,7 +898,7 @@ class Picker:
         self.widgetcolor = 'lightyellow'
         return 
 
-    def start(self, roi_objs={}, ax=None, legend_type = self.widgetcolor,
+    def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
               mean_frame =True,
               vmax = None, vmin = None, 
               cmap = 'gray',
@@ -911,7 +911,7 @@ class Picker:
 	if ax is None:
             self.fig, self.ax1 = plt.subplots()
             plt.subplots_adjust(left=0.25, bottom=0.25)
-            axfslider = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg='lightyellow')
+            axfslider = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=self.widgetcolor)
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
