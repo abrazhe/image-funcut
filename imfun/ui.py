@@ -943,7 +943,7 @@ class Picker:
 	self.mean_frame = f
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
-        self.pl = self.ax1.imshow(f,
+        self.plh = self.ax1.imshow(f,
                                   extent = (0, sx*dx)+(0, sy*dy)[::lowp],
                                   interpolation = interpolation,
                                   aspect='equal',
@@ -956,7 +956,7 @@ class Picker:
         self.disconnect()
         self.connect()
 	self.fig.canvas.draw()
-        return self.ax1, self.pl, self
+        return self.ax1, self.plh, self
 
 
     def length(self):
@@ -1139,7 +1139,7 @@ class Picker:
         self.frame_index = fi
         _title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
         show_f = self.fseq[fi]
-        self.plt.set_data(show_f)
+        self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         self.fig.canvas.draw()
 
@@ -1157,7 +1157,7 @@ class Picker:
 	    if key in home_keys:
 		show_f = self.mean_frame
 		_title = ""
-                self.plt.set_data(show_f)
+                self.plh.set_data(show_f)
                 self.ax1.set_title(_title)
                 self.fig.canvas.draw()
                 self.frame_index = 0
