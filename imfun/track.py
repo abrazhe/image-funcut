@@ -58,11 +58,11 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    if x is None or type(x) is str:
        x = np.arange(len(v))
        
-   sp = ip.UnivariateSpline(x,atrous.smooth(v),s=0)
+   sp0 = ip.UnivariateSpline(x,atrous.smooth(v),s=0)
    if mode in ['max', 'min']:
-       sp = sp.derivative(1)
+       sp = sp0.derivative(1)
    elif mode in ['gup', 'gdown', 'gany']:
-       sp = sp.derivative(2)
+       sp = sp0.derivative(2)
    res = 0.05
    if refine > 1:
        xfit = np.linspace(0,x[-1], len(x)*refine)
@@ -76,7 +76,7 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    locations = dersign[:-1] - dersign[1:] > 1.5
    
    if output is 'all':
-       out =  xfit[locations], di[locations]
+       out =  xfit[locations], sp0(xfit)[locations]
    elif output is 'yfit':
        out = di[locations]
    elif output is 'xfit':
