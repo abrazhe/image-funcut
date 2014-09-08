@@ -49,21 +49,43 @@ def mirrorpd(k, L):
     else: return -(k+1)%L
 
 
-def locextr(x, mode = 'max', **kwargs):
+def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    "Finds local maxima when mode = 1, local minima when mode = -1"
-   sp = ip.UnivariateSpline(np.arange(len(x)),atrous.smooth(x),s=0)
+
+   if type(x) is str:
+       mode = x
+
+   if x is None or type(x) is str:
+       x = np.arange(len(v))
+       
+   sp = ip.UnivariateSpline(x,atrous.smooth(v),s=0)
    if mode in ['max', 'min']:
        sp = sp.derivative(1)
    elif mode in ['gup', 'gdown', 'gany']:
        sp = sp.derivative(2)
    res = 0.05
-   xfit = np.arange(0,len(x), res)
+   if refine > 1:
+       xfit = np.linspace(0,x[-1], len(x)*refine)
+   else:
+       xfit = x
    di = sp(xfit)
    if mode in ['max', 'gup']:
        dersign = np.sign(di)
    elif mode in ['min', 'gdown']:
        dersign = -np.sign(di)
-   return xfit[dersign[:-1] - dersign[1:] > 1.5]
+   locations = dersign[:-1] - dersign[1:] > 1.5
+   
+   if output is 'all':
+       out =  xfit[locations], di[locations]
+   elif output is 'yfit':
+       out = di[locations]
+   elif output is 'xfit':
+       out = xfit[locations]
+   else:
+       print """unknown output code, should be one of  'xfit', 'yfit', 'all',
+       returning 'x' locations"""
+       out = xfit[locations]
+   return out
 
 def guess_seeds(seq, Nfirst=10):
     """
@@ -88,9 +110,9 @@ def follow_extrema(arr, start, mode='gany', memlen=5):
     def _ext(v):
         ##(xf,yf),(mx,mn), (gups, gdowns) = lib.extrema2(v)
         if mode in ['gup', 'gdown', 'max', 'min']:
-            return locextr(v, mode)
+            return locextr(v, mode=mode)
         elif mode =='gany':
-            return np.concatenate([locextr(v,'gup'),locextr(v,'gdown')])
+            return np.concatenate([locextr(v,mode='gup'),locextr(v,mode='gdown')])
     extrema = map(_ext, arr)
     v = track1(extrema, start, memlen=memlen)
     return v

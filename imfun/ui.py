@@ -1110,15 +1110,15 @@ class Picker:
         """Exports picked ROIs as structures to a file and/or returns as list"""
         out = [x.to_struct() for x in self.roi_objs.values()]
         if fname:
-            print "Saving ROIs to ", fname
             pickle.dump(out,
                         open(fname, 'w'), protocol=0)
+            print "Saved ROIs to ", fname
         return out
 
 
     def load_rois(self, source):
         "Load stored ROIs from a file"
-        if type(source) is str:
+        if type(source) is str or unicode :
             data = pickle.load(file(source))
         elif type(source) is file:
             data = pickle.load(source)
@@ -1214,21 +1214,31 @@ class Picker:
         return np.arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, normp = False):
-        rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
-        ts = self.get_timeseries(normp=normp)
-        t = self.timevec()        
-        fd = file(fname, 'w')
-        if hasattr(self.fseq, 'ch'):
-            out_string = "Channel %d\n" % self.fseq.ch
+        """If only have Point-type ROIs, export time series as text file, if also
+        have linescane, export data as pickle"""
+        point_rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
+        if len(point_rois) == len(self.roi_objs.keys()):
+            ts = self.get_timeseries(normp=normp)
+            t = self.timevec()        
+            fd = file(fname, 'w')
+            if hasattr(self.fseq, 'ch'):
+                out_string = "Channel %d\n" % self.fseq.ch
+            else:
+                out_string = ""
+            out_string += "Time\t" + '\t'.join(rois) + '\n'
+            for k in xrange(self.length()):
+                out_string += "%e\t"%t[k]
+                out_string += '\t'.join(["%e"%a[k] for a in ts])
+                out_string += '\n'
+                fd.write(out_string)
+                fd.close()
         else:
-            out_string = ""
-        out_string += "Time\t" + '\t'.join(rois) + '\n'
-        for k in xrange(self.length()):
-            out_string += "%e\t"%t[k]
-            out_string += '\t'.join(["%e"%a[k] for a in ts])
-            out_string += '\n'
-        fd.write(out_string)
-        fd.close()
+            acc = [(tag,self.roi_objs[tag].get_timeview())
+                   for tag in sorted(self.roi_objs.keys())]
+            if not '.pickle' in fname:
+                fname +='.pickle'
+            pickle.dump(acc, open(fname, 'w'))
+            print "Saved time-views for all rois to ", fname
 
 
     def show_timeseries(self, rois = None, **keywords):

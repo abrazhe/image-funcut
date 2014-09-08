@@ -389,7 +389,9 @@ class FrameSequenceOpts(HasTraits):
             self.glob = ""
 
         if len(self.glob) > 0:
-            path = str(self.fig_path + os.sep + self.glob)
+            path = os.sep.join(self.fig_path.split(os.sep)[:-1])
+            print path
+            path = str(path + os.sep + self.glob)
         else:
             path = str(self.fig_path)
         if self._verbose:
