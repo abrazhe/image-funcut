@@ -6,7 +6,7 @@ def load_meta(file_name):
     "Load meta information from a MES file"
     max_records = 1000
     var_names = ["Df%04d"%k for k in range(1,max_records+1)]
-    meta = io.loadmat(file_name, variable_names = var_names)
+    meta = io.loadmat(file_name, variable_names=var_names,appendmat=False)
     return meta
 
 def record_keys(meta):

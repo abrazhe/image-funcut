@@ -788,7 +788,7 @@ class FSeq_mes(FSeq_arr):
         meas_info = mes.only_measures(self._rec_meta)
         var_names = [x[0] for x in meas_info['ImageName']]
         var_names.sort()
-        recs = mes.io.loadmat(self.file_name, variable_names=var_names)
+        recs = mes.io.loadmat(self.file_name, variable_names=var_names,appendmat=False)
         streams = [recs[n] for n in var_names if n in recs]
         if len(streams) == 0:
             raise IndexError("can't load record %s"%str(record))
