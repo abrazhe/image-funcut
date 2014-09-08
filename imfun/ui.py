@@ -896,6 +896,7 @@ class Picker:
 	self.frame_index = 0
         self.shift_on = False
         self.widgetcolor = 'lightyellow'
+        self.frame_slider = None
         return 
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
@@ -910,8 +911,10 @@ class Picker:
         Nf = self.fseq.length()
 	if ax is None:
             self.fig, self.ax1 = plt.subplots()
-            plt.subplots_adjust(left=0.25, bottom=0.25)
-            axfslider = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=self.widgetcolor)
+            plt.subplots_adjust(left=0.2, bottom=0.2)
+            corners = self.ax1.get_position().get_points()
+            #print corners
+            axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=self.widgetcolor)
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
@@ -1135,13 +1138,17 @@ class Picker:
 
     def set_frame_index(self,n):
         Nf = self.fseq.length()
-	fi = n%Nf
+	fi = int(n)%Nf
         self.frame_index = fi
         _title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
         show_f = self.fseq[fi]
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
-        self.fig.canvas.draw()
+        if self.frame_slider:
+            if self.frame_slider.val !=n:
+                #print 'updating frame slider'
+                self.frame_slider.set_val(n)
+        self.fig.canvas.draw_idle()
 
         
     def frame_skip(self,event, n=1):
