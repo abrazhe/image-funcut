@@ -221,3 +221,17 @@ def baseline_als(y, lam, p, niter=10):
     return z
 
 
+# ---------------------------------------------
+
+
+def test_kalman_stack_filter():
+    "just tests if kalman_stack_filter function runs"
+    print "Testing Kalman stack filter"
+    import numpy as np
+    try:
+        test_arr = np.random.randn(100,64,64)
+        arr2 = kalman_stack_filter(test_arr,)
+        del  arr2, test_arr
+    except Exception as e :
+        print "filt.py: Failed to run kalman_stack_filter fuction"
+        print "Reason:", e

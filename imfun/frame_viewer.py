@@ -84,11 +84,22 @@ def find_objects(binarr,size_threshold=20):
     return ndimage.label(labels)[0]
 
 
+class KalmanStackFilterOpts(HasTraits):
+    active = Bool(False)
+    seed = Enum("mean", "first")
+    gain = Float(0.5)
+    var = Float(0.05)
+    view = View(Group('active',
+                      Item('gain', enabled_when='active is True'),
+                      Item('var', enabled_when='active is True'),
+                      label='Kalman stack filter',
+                      show_border=True))
+    
 
 class FrameSequenceOpts(HasTraits):
     _verbose=Bool(True)
-    mfilt7 = lambda v: signal.medfilt(v,7)
-    tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
+    #mfilt7 = lambda v: signal.medfilt(v,7)
+    #tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
     #normL = Int(250, label="N baseline frames")
     fw_presets = {
         '1. Do nothing' : [],
@@ -103,6 +114,10 @@ class FrameSequenceOpts(HasTraits):
 	'05. DF/F with detrend': atrous.DFoF,
 	'06. DF/sigma with detrend': atrous.DFoSD,	
         }
+
+    ## Kalman stack filter related options
+    ksf_opts = Instance(KalmanStackFilterOpts)
+
     linescan_scope = Range(0,500,0, label='Linescan half-range')
     linescan_width = Int(2, label="Linecan linewidth")
     #gw_opts = Instance(GWOpts)
@@ -126,9 +141,9 @@ class FrameSequenceOpts(HasTraits):
                      label='Framewise transform after')
     
     interpolation = Enum(['nearest', 'bilinear', 'bicubic', 'hanning',
-                           'hamming', 'hermite', 'kaiser', 'quadric',
-                           'gaussian', 'bessel', 'sinc', 'lanczos',
-                           'spline16',],
+                          'hamming', 'hermite', 'kaiser', 'quadric',
+                          'gaussian', 'bessel', 'sinc', 'lanczos',
+                          'spline16',],
                           label = "Image interpolation")
 
     colormap = Enum(['gray', 'jet', 'hsv', 'hot','winter','spring','spectral'])
@@ -142,7 +157,6 @@ class FrameSequenceOpts(HasTraits):
     high_percentile = Enum(limrange()[::-1],label='High')
     apply_percentile = Button("Apply")
 
-
     low_sd_lim = Enum(range(11),label='Low')
     high_sd_lim = Enum(range(11)[::-1],label='High')
     apply_sd_lim = Button("Apply")
@@ -151,7 +165,6 @@ class FrameSequenceOpts(HasTraits):
     export_fps = Float(25.0)
     export_start = Int(0)
     export_stop = Int(-1)
-
 
     _export_rois_dict = File()
     _load_rois_dict = File()
@@ -216,7 +229,9 @@ class FrameSequenceOpts(HasTraits):
 	    ## Group(Item('gw_opts', show_label=False,style='custom'),
 	    ## 	  show_border=False,
 	    ## 	  label='GW'),
-	    Group('fw_trans1', 'pw_trans', 'fw_trans2',
+	    Group(Group('fw_trans1', 'pw_trans', 'fw_trans2',
+                        show_border=True),
+                  Item('ksf_opts',style='custom',show_label=False),
 		  label='Post-process'),
 	    Group(Group(Item('low_percentile'),
 			Item('high_percentile'),
@@ -259,6 +274,9 @@ class FrameSequenceOpts(HasTraits):
     def __init__(self, parent):
         self.parent = parent
         self.get_fs = self.get_fs2
+
+    def _ksf_opts_default(self):
+        return KalmanStackFilterOpts()
 
     def _fig_path_changed(self):
         ext = self.fig_path.split('.')[-1].lower()
@@ -342,7 +360,6 @@ class FrameSequenceOpts(HasTraits):
         self.set_display_range(sd*self.low_sd_lim,
                                sd*self.high_sd_lim)
 
-
     def _apply_percentile_fired(self):
         fn = lambda s : self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
@@ -351,7 +368,7 @@ class FrameSequenceOpts(HasTraits):
         "returns frame sequence after pixelwise transform"
         if self.fs2_needs_reload:
             pw_fn = self.pw_presets[self.pw_trans]
-            print pw_fn
+            if self._verbose: print pw_fn
             if hasattr(self, 'fs2'):
                 del self.fs2
                 if self._verbose: print "deleted old fs2"
@@ -511,7 +528,7 @@ class FrameViewer(HasTraits):
     def _fso_default(self):
         fso = FrameSequenceOpts(self)
         return fso
-
+    
     def _frame_index_changed(self):
         if len(self.frames) > 0:
             t = self.frame_index * self.fso.fs.dt
@@ -563,8 +580,28 @@ class FrameViewer(HasTraits):
         wx.CallAfter(self.axes.figure.canvas.draw)
 
 
+class Camera(HasTraits):
+    gain = Enum(1, 2, 3, )
+    exposure = CInt(10, label="Exposure", )
+
+class TextDisplay(HasTraits):
+    string = String()
+
+    view= View( Item('string', show_label=False, springy=True, style='custom' ))
+
+class TestApp(HasTraits):
+    ksf = Instance(KalmanStackFilterOpts)
+    cam = Instance(Camera)
+    view = View(Item('cam', style='custom',show_label=False),
+                Item('ksf', style='custom',show_label=False))
+    def _cam_default(self):
+        return Camera()
+    def _ksf_default(self):
+        return KalmanStackFilterOpts()
+
 def main():
     FrameViewer().configure_traits()
+    #TestApp().configure_traits()
 
 if __name__ == "__main__":
     main()
