@@ -34,6 +34,7 @@ from traitsui.menu \
      import Action, CloseAction, Menu, MenuBar, OKCancelButtons, Separator
 
 from traitsui.wx.editor import Editor
+from traitsui.wx.themed_vertical_notebook_editor import ThemedVerticalNotebookEditor
 from traitsui.basic_editor_factory import BasicEditorFactory
 
 
@@ -73,54 +74,65 @@ def norm_mf(fs):
     mf = fs.mean_frame()
     return lambda frame: frame/mf - 1.0
 
-def find_objects(binarr,size_threshold=20):
-    labels, nlabels = ndimage.label(binarr)
-    objects =  ndimage.find_objects(labels)
-    size_count = ndimage.sum(binarr, labels, range(nlabels))
-    for k,o in enumerate(objects):
-        if size_count[k] < size_threshold:
-            x = np.where(labels[o] == k+1)
-            labels[x] = 0
-    return ndimage.label(labels)[0]
-
-
-class KalmanStackFilterOpts(HasTraits):
-    active = Bool(False)
+class KalmanStackFilter(HasTraits):
+    name = 'Kalman stack filter'
+    domain='temporal'
     seed = Enum("mean", "first")
     gain = Float(0.5)
     var = Float(0.05)
-    view = View(Group('active',
-                      Item('gain', enabled_when='active is True'),
-                      Item('var', enabled_when='active is True'),
-                      label='Kalman stack filter',
-                      show_border=True))
+    view = View('seed', 'gain', 'var')
+    def apply(self, frames):
+        return filt.kalman_stack_filter(frames, seed=self.seed, gain=self.gain,var=self.var)
+
+class SpatialGaussFilter(HasTraits):
+    name = 'Spatial Gauss filter'
+    domain='spatial'
+    sigma = 1.0
+    view = View('sigma')
+    def apply(self, f):
+        return ndimage.gaussian_filter(f, self.sigma)
+
+class SpatialMedianFilter(HasTraits):
+    name = 'Spatial Median filter'
+    domain='spatial'
+    size = 3
+    view = View('size')
+    def apply(self, f):
+        return signal.medfilt(f, self.size)
+    
+class NormalizeDFoF(HasTraits):
+    name='DF/F norm.'
+    domain='temporal'
+    detrend_level = Int(0)
+    use_first_N_points = Int(-1)
+    view = View(Item('detrend_level'),
+                Item('use_first_N_points',
+                     enabled_when='detrend_level == 0'))
+    def apply(self, frames):
+        if self.detrend_level>0:
+            return atrous.DFoF(frames, level=self.detrend_level,
+                               axis=0)
+        else:
+            return lib.DFoF(frames, normL=self.use_first_N_points)
+    
     
 
 class FrameSequenceOpts(HasTraits):
     _verbose=Bool(True)
-    #mfilt7 = lambda v: signal.medfilt(v,7)
-    #tmedian_k = Enum([5]+range(1,13,2), label='median filter kernel')
-    #normL = Int(250, label="N baseline frames")
-    fw_presets = {
-        '1. Do nothing' : [],
-        '2. Gauss blur' : [filt.gauss_blur],
-        '3. Median filter' : [lambda v:signal.medfilt(v,3)]
-        }
-    pw_presets = {
-        '01. Do nothing' : lambda x:x,
-        '02. Norm to SD' : lambda x: x/np.std(x),
-        '03. DF/F' : lib.DFoF,
-        '04. DF/sigma' : lib.DFoSD,
-	'05. DF/F with detrend': atrous.DFoF,
-	'06. DF/sigma with detrend': atrous.DFoSD,	
-        }
 
-    ## Kalman stack filter related options
-    ksf_opts = Instance(KalmanStackFilterOpts)
+    self.fs = Instance(fseq.FrameSequence) # 'original' frame sequence
+    self.fs2 = Instance(fseq.FrameSequence) # 'processed' frame sequence
 
     linescan_scope = Range(0,500,0, label='Linescan half-range')
     linescan_width = Int(2, label="Linecan linewidth")
-    #gw_opts = Instance(GWOpts)
+
+    pipeline = List()
+    inventory_dict = {p.name:p for p in [KalmanStackFilter, SpatialGaussFilter,
+                                         SpatialMedianFilter, NormalizeDFoF]}
+    
+    inventory = Enum(inventory_dict.keys())
+    add_to_pipeline_btn = Button(label='Add to pipeline')
+
     dt = Float(0.2, label='sampling interval')
     fig_path = File("")
 
@@ -132,14 +144,7 @@ class FrameSequenceOpts(HasTraits):
 
     glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
     glob_enabled = Bool(True)
-    
-    fw_trans1 = Enum(*sorted(fw_presets.keys()),
-                     label='Framewise transform before')
-    pw_trans = Enum(*sorted(pw_presets.keys()), label='Pixelwise transform')
-
-    fw_trans2 = Enum(*sorted(fw_presets.keys()),
-                     label='Framewise transform after')
-    
+ 
     interpolation = Enum(['nearest', 'bilinear', 'bicubic', 'hanning',
                           'hamming', 'hermite', 'kaiser', 'quadric',
                           'gaussian', 'bessel', 'sinc', 'lanczos',
@@ -187,7 +192,6 @@ class FrameSequenceOpts(HasTraits):
      	title = "Load ROIs from file",
      	resizable = True,)
     
-
     export_rois_dict_view = View(
      	Item('_export_rois_dict'), 
      	buttons = OKCancelButtons,
@@ -226,13 +230,16 @@ class FrameSequenceOpts(HasTraits):
 		      label = 'ROIs',
 		      show_border=True),
 		label='Open'),
-	    ## Group(Item('gw_opts', show_label=False,style='custom'),
-	    ## 	  show_border=False,
-	    ## 	  label='GW'),
-	    Group(Group('fw_trans1', 'pw_trans', 'fw_trans2',
-                        show_border=True),
-                  Item('ksf_opts',style='custom',show_label=False),
-		  label='Post-process'),
+	    Group(Group(Item('pipeline',
+                             show_label=False,
+                             style='custom',
+                             editor=ListEditor(use_notebook=True,
+                                               page_name = '.name',
+                                               deletable=True)),
+                        HGroup(Item('inventory',show_label=False),
+                               Item('add_to_pipeline_btn',show_label=False)),
+                        label='Pipeline',show_border=True),
+                  label='Post-process'),
 	    Group(Group(Item('low_percentile'),
 			Item('high_percentile'),
 			Item('apply_percentile', show_label=False),
@@ -275,9 +282,6 @@ class FrameSequenceOpts(HasTraits):
         self.parent = parent
         self.get_fs = self.get_fs2
 
-    def _ksf_opts_default(self):
-        return KalmanStackFilterOpts()
-
     def _fig_path_changed(self):
         ext = self.fig_path.split('.')[-1].lower()
         self.glob_enabled=True
@@ -292,10 +296,6 @@ class FrameSequenceOpts(HasTraits):
             self.record = valid_records[0]
             self.record_enabled=True
             
-        ##png_pattern = str(self.fig_path + os.sep + '*.png')
-        ##if len(fseq.sorted_file_names(png_pattern)) > 30:
-        ##    self.glob = '*_t*.png'
-
     def _record_changed(self):
         if self.fig_path.split('.')[-1].lower() == 'mes':
             meta = mes.load_meta(self.fig_path)
@@ -327,16 +327,6 @@ class FrameSequenceOpts(HasTraits):
         except Exception as e:
             "Can't reset sampling interval because", e
 
-    def _pw_trans_changed(self):
-        self.fs2_needs_reload = True
-
-    def _fw_trans1_changed(self):
-        self.fs2_needs_reload = True
-        self.fs.fns = self.fw_presets[self.fw_trans1]
-
-    def _fw_trans2_changed(self):
-        self.fs2.fns = self.fw_presets[self.fw_trans2]
-
     def _interpolation_changed(self):
         try:
             self.parent.pl.set_interpolation(self.interpolation)
@@ -354,6 +344,11 @@ class FrameSequenceOpts(HasTraits):
     def set_display_range(self, low, high, fn=lambda x:float(x)):
         self.vmin, self.vmax = map(fn, (low, high))
 
+    def _add_to_pipeline_btn_fired(self):
+        filt = self.inventory_dict[self.inventory]
+        self.pipeline.append(filt())
+        
+
     def _apply_sd_lim_fired(self):
         values = np.asarray(self.parent.frames[1:]).flatten()
         sd = np.std(values)
@@ -365,20 +360,9 @@ class FrameSequenceOpts(HasTraits):
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
 
     def get_fs2(self):
-        "returns frame sequence after pixelwise transform"
+        "returns frame sequence after pipeline processing"
         if self.fs2_needs_reload:
-            pw_fn = self.pw_presets[self.pw_trans]
-            if self._verbose: print pw_fn
-            if hasattr(self, 'fs2'):
-                del self.fs2
-                if self._verbose: print "deleted old fs2"
-            if self.pw_trans == '01. Do nothing':
-                self.fs2 = self.fs
-            else:
-                self.fs2 = self.fs.pw_transform(pw_fn, dtype = np.float32)
-                if self._verbose: print "fs2 created"
-            self.fs2.fns = self.fw_presets[self.fw_trans2]
-            if self._verbose: print "fs2.fns updated"
+            self.fs2 = self.fs
             self.fs2_needs_reload = False
         return self.fs2
 
@@ -398,8 +382,6 @@ class FrameSequenceOpts(HasTraits):
     def reset_fs(self):
         if hasattr(self, 'fs'): del self.fs
         if hasattr(self, 'fs2'): del self.fs2
-        gc.collect()
-        if self._verbose: print "collected garbage"
 
         ext = self.fig_path.split('.')[-1]
         if ext in ['mes', 'mlf']:
@@ -416,7 +398,7 @@ class FrameSequenceOpts(HasTraits):
         self.fs = fseq.open_seq(path, record = self.record, ch=color_channels[self.ch])
         if self._verbose:
             print "new fs created"
-        self.fs.fns = self.fw_presets[self.fw_trans1]
+        #self.fs.fns = self.fw_presets[self.fw_trans1]
         if self._verbose:
             print "fns1 set"
         self.fs2_needs_reload = True
@@ -530,7 +512,7 @@ class FrameViewer(HasTraits):
         return fso
     
     def _frame_index_changed(self):
-        if len(self.frames) > 0:
+        if hasattr(self, 'picker') and self.fso.fs is not None:
             t = self.frame_index * self.fso.fs.dt
             self.time_stat = "time: %3.3f"%t
             self.picker.set_frame_index(self.frame_index)
@@ -549,21 +531,14 @@ class FrameViewer(HasTraits):
 
         fs2 = self.fso.get_fs()
 
-        if hasattr(fs2, 'data'):
-            self.frames = fs2.data
-        else:
-            self.frames = fs2.as3darray(dtype = np.float32)
-
-        self.frames = np.ma.array(self.frames, mask=np.isnan(self.frames))    
-
         vl,vh = None, None
 
         if len(fs2.shape()) < 3:
-            vl,vh = np.percentile(self.frames, (0.01, 99.99))
+            vl, vh = fs2.data_percentile((0.01, 99.99))
             print "vl,vh:", vl, vh
             self.fso.vmin, self.fso.vmax = float(vl), float(vh)
 
-        Nf = len(self.frames)
+        Nf = fs2.length()
         if hasattr(self, 'picker'):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)
@@ -580,28 +555,50 @@ class FrameViewer(HasTraits):
         wx.CallAfter(self.axes.figure.canvas.draw)
 
 
-class Camera(HasTraits):
+class _Camera(HasTraits):
     gain = Enum(1, 2, 3, )
     exposure = CInt(10, label="Exposure", )
 
-class TextDisplay(HasTraits):
-    string = String()
-
-    view= View( Item('string', show_label=False, springy=True, style='custom' ))
+class _DummySpatialFilterFn(HasTraits):
+    name = 'Spatial filter'
+    #active=Bool(False)
+    sigma = Float(3.2)
+    view = View('sigma')
+    def __str__(self):
+        return 'Dummy filter'
+    
+    
+    
 
 class TestApp(HasTraits):
-    ksf = Instance(KalmanStackFilterOpts)
-    cam = Instance(Camera)
-    view = View(Item('cam', style='custom',show_label=False),
-                Item('ksf', style='custom',show_label=False))
-    def _cam_default(self):
-        return Camera()
+    #ksf = Instance(KalmanStackFilterOpts)
+    #cam = Instance(_Camera)
+    gsf = Instance(_DummySpatialFilterFn)
+    pipeline = List()
+    add_btn = Button('Add')
+    presets = {p.name:p for p in [KalmanStackFilter,_DummySpatialFilterFn]}
+    preset_spin = Enum(*sorted(presets.keys()),label='inventory')
+    view = View(Item('pipeline',
+                     style='custom',
+                     editor=ListEditor(use_notebook=True,
+                                       page_name='.name',
+                                       deletable=True)),
+                HGroup('preset_spin',
+                       'add_btn'),
+                resizable=True)
     def _ksf_default(self):
         return KalmanStackFilterOpts()
+    def _add_btn_fired(self):
+        filt = self.presets[self.preset_spin]
+        self.pipeline.append(filt())
+        print self.pipeline
 
 def main():
     FrameViewer().configure_traits()
-    #TestApp().configure_traits()
+    #TestApp(
+    #    pipeline=[],
+    #    ksf = KalmanStackFilterOpts(),
+    #    gsf=_DummySpatialFilterFn()).configure_traits()
 
 if __name__ == "__main__":
     main()

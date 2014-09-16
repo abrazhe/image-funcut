@@ -255,9 +255,8 @@ def DFoSD(vec, normL=None, th = 1e-6):
 		out = (vec-m(x))/sdx
     else:
 	zi = np.where(np.abs(sdx) < th)[0]
-	sdx[zi] = 1.0
+	sdx[zi] = -np.inf
 	out = (vec-m(x))/sdx
-	out[zi]=0
     return out
 
 def DFoF(vec, normL=None, th = 1e-6):
@@ -270,9 +269,8 @@ def DFoF(vec, normL=None, th = 1e-6):
 	    out =  vec/m - 1.0
     else:
 	zi = np.where(np.abs(m) < th)
-	m[zi] = 1.0
+	m[zi] = -np.inf
 	out = vec/m - 1.0
-	out[zi] = 0
     return out
 
 
