@@ -359,11 +359,25 @@ class FrameSequenceOpts(HasTraits):
         fn = lambda s : self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
 
+    def _pipeline_items_changed(self):
+        self._fs2_needs_reload=True
+
     def get_fs2(self):
         "returns frame sequence after pipeline processing"
-        if self.fs2_needs_reload:
-            self.fs2 = self.fs
-            self.fs2_needs_reload = False
+        if self._fs2_needs_reload:
+            out = self.fs
+            for f in self.pipeline:
+                if f.domain == 'spatial':
+                    out.fns.append(f.apply)
+                elif f.domain == 'temporal':
+                    out = fseq.open_seq(f.apply(out.as3darray()))
+                else:
+                    print 'unknown filter domain'
+            if hasattr(self.fs, 'dt'):
+                out.dt = self.fs.dt
+            out.dx, out.dy, out._scale_set = self.fs.get_scale()
+            self.fs2 = out
+            self._fs2_needs_reload = False
         return self.fs2
 
     def _show_all_timeseries_btn_fired(self):
@@ -380,8 +394,8 @@ class FrameSequenceOpts(HasTraits):
 
             
     def reset_fs(self):
-        if hasattr(self, 'fs'): del self.fs
-        if hasattr(self, 'fs2'): del self.fs2
+        #if hasattr(self, 'fs'): del self.fs
+        #if hasattr(self, 'fs2'): del self.fs2
 
         ext = self.fig_path.split('.')[-1]
         if ext in ['mes', 'mlf']:
@@ -401,7 +415,7 @@ class FrameSequenceOpts(HasTraits):
         #self.fs.fns = self.fw_presets[self.fw_trans1]
         if self._verbose:
             print "fns1 set"
-        self.fs2_needs_reload = True
+        self._fs2_needs_reload = True
         self.get_fs2()
         if self._verbose:
             print 'fs2 set'
@@ -526,9 +540,11 @@ class FrameViewer(HasTraits):
     def _recalc_btn_fired(self):
         if len(self.figure.axes):
             self.axes = self.figure.axes[0]
+            self.axes.clear()
         else:
             self.axes = self.figure.add_subplot(111)
 
+        self.fso._fs2_needs_reload = True # enforce re-calculation
         fs2 = self.fso.get_fs()
 
         vl,vh = None, None
