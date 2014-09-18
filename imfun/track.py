@@ -50,7 +50,8 @@ def mirrorpd(k, L):
 
 
 def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
-   "Finds local maxima when mode = 1, local minima when mode = -1"
+   """Finds local extrema, type of extrema depends on parameter "mode"
+   mode can be {'max' | 'min' | 'gup' | 'gdown' | 'gany'}"""
 
    if type(x) is str:
        mode = x
@@ -87,13 +88,13 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
        out = xfit[locations]
    return out
 
-def guess_seeds(seq, Nfirst=10):
+def guess_seeds(seq, Nfirst=10,smoothing=4):
     """
     automatically guess starting seeds for vessel walls
     relies on the fact that vessel is the largest bright stripe
     """
     Nfirst = min(len(seq), Nfirst)
-    y = np.mean(seq[:Nfirst],axis=0)
+    y = atrous.smooth(np.mean(seq[:Nfirst],axis=0), smoothing)
     (xfit,yfit), (mx,mn), (gups,gdowns) = lib.extrema2(y, sort_values=True)
     # highest gradient up to the left of the highest max
     gu1 = (g for g in gups if g < mx[0]).next()

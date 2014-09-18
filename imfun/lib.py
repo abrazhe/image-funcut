@@ -365,6 +365,25 @@ def extrema2(v, *args, **kwargs):
    xfit, _, der2, gups, gdowns = locextr(der1, x=xfit, refine=False)
    return (xfit, yfit), (maxima, minima), (gups, gdowns)
 
+def vinterpolate(v,n=3,smoothing=1):
+    L = len(v)
+    if smoothing > 0:
+        v = atrous.smooth(v, smoothing)
+    sp2 = ip.UnivariateSpline(arange(L),v, s=0)
+    xfit = np.linspace(0,L-1,L*n)
+    return sp2(xfit)
+
+def ainterpolate(arr, axis=0, n=3, smoothing=1):
+    out = None
+    fn = lambda v: vinterpolate(v, n, smoothing)
+    if axis == 1:
+        out = np.array(map(fn, arr))
+    elif axis ==0:
+        out = np.array(map(fn, arr.T)).T
+    else:
+        print "Can't work with these many dimensions yet"
+    return out
+
 
 def group_maps(maplist, ncols=None,
                titles=None,
