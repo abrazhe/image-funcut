@@ -65,12 +65,15 @@ def line_from_struct(line_props):
 import pickle
 import random
 
-vowels = "aeiouy"
-consonants = "qwrtpsdfghjklzxcvbnm"
+_vowels = "aeiouy"
+_consonants = "qwrtpsdfghjklzxcvbnm"
+
+_widgetcolor = 'lightyellow'
+
 
 def rand_tag():
     return ''.join(map(random.choice,
-                       (consonants, vowels, consonants)))
+                       (_consonants, _vowels, _consonants)))
 def tags_iter(tag_id =1):
     while True:
         yield 'r%02d'%tag_id
@@ -399,6 +402,27 @@ class DraggableObj:
     def get_color(self):
         return self.obj.get_facecolor()
 
+def dummy_callback(event):
+    print "this is a dummy callback"
+    print 'event:', event
+
+
+class Index:
+    ind = 0
+    def next(self, event):
+        self.ind += 1
+        i = self.ind % len(freqs)
+        ydata = np.sin(2*np.pi*freqs[i]*t)
+        l.set_ydata(ydata)
+        plt.draw()
+
+    def prev(self, event):
+        self.ind -= 1
+        i = self.ind % len(freqs)
+        ydata = np.sin(2*np.pi*freqs[i]*t)
+        l.set_ydata(ydata)
+        plt.draw()
+    
 
 class LineScan(DraggableObj):
     def __init__(self, obj, parent):
@@ -537,40 +561,33 @@ class LineScan(DraggableObj):
 	    return _(self.parent.fseq.as3darray())
 	elif output == 'function':
 	    return _
-    def segment_vessel_levelsets(self,
-                                 timeview=None,
-                                 levelset=None,
-                                 max_iter=500,
-                                 min_diameter=2,
-                                 th_percentile=50,
-                                 smoothing=2,
-                                 lambda2 = 2):
-        'use morphsnakes to segment vessel in the linescan'
-        import morphsnakes
-        if timeview is None:
-            timeview, points = self.get_timeview(hwidth=2)
-        if timeview is None: return
-        m = morphsnakes.MorphACWE(timeview, smoothing=smoothing,lambda2=lambda2)
-        if levelset is None:
-            levelset = timeview > np.percentile(timeview, th_percentile)
-            levelset = np.float_(levelset)
-        m.set_levelset(levelset)
-        m.run(max_iter)
-        return m.levelset
 	
     def show_timeview(self,frange=None,hwidth=2):
         timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
         gw_meas = [None]
+
+        def _vessel_callback(event):
+            print 'Vessel wall tracking'
+            tv1 = timeview
+            seeds = track.guess_seeds(tv1.T,-1)
+            margin = tv1.shape[0]/10.
+            lowc = np.ones(tv1.shape[1])*seeds[0] - margin
+            highc = np.ones(tv1.shape[1])*seeds[1] + margin
+            conts1 = track.LCV_Contours((lowc,highc),tv1,thresh=0)
+            return track.solve_contours_animated(conts1)
+
+        
         if timeview is not None:
             fseq = self.parent.fseq
-	    f = plt.figure()
-            ax = f.add_subplot(111)
+            fig, ax = plt.subplots()
+            plt.subplots_adjust(bottom=0.2)
+
             # TODO: work out if sx differs from sy
             x_extent = (0,fseq.dt*timeview.shape[0])
             if mpl.rcParams['image.origin'] == 'lower':
-                lowp = 1
+               lowp = 1
             else:
-                lowp = -1
+               lowp = -1
             ax.imshow(timeview,
                       extent=x_extent + (0, self.dx*timeview.shape[0]),
                       interpolation='nearest')
@@ -581,36 +598,13 @@ class LineScan(DraggableObj):
             ax.set_xlabel(xlabel)
             ax.set_title('Timeview for '+ self.tag)
 
-            def _event_ok(event):
-                return event.inaxes == ax and \
-                       f.canvas.toolbar.mode ==''
-            def _on_type(event):
-                if not _event_ok(event): return
-                if event.key == 'w':
-                    if gw_meas[0] is None:
-                        print gw_meas[0]
-                        gw_meas[0] = GWExpansionMeasurement1(ax)
-                    else:
-                        print 'disconnecting GW measurerer'
-                        gw_meas[0].disconnect()
-                        gw_meas[0] = None
-                elif event.key == 'd':
-                    print 'Vessel wall tracking'
-                    tv1 = timeview
-                    seeds = track.guess_seeds(tv1.T,-1)
-                    margin = tv1.shape[0]/10.
-                    lowc = np.ones(tv1.shape[1])*seeds[0] - margin
-                    highc = np.ones(tv1.shape[1])*seeds[1] + margin
-                    conts1 = track.LCV_Contours((lowc,highc),tv1,thresh=0)
-                    out = track.solve_contours_animated(conts1,ax=ax,xscale=fseq.dt)
-                    #a = _ax.axis()
-                    #_ax.axis(a)
-                    #_f.canvas.draw()
-                return # _on_type
-            
-            f.canvas.mpl_connect('key_press_event', _on_type)
+            ax_diam = plt.axes([0.1, 0.05, 0.2, 0.075])
+            btn_diam = mw.Button(ax_diam, "Trace vessel walls")
+            btn_diam.on_clicked(_vessel_callback)
 
-        return
+            plt.show()
+
+        return btn_diam
 	    
 
     def to_struct(self):
@@ -886,7 +880,7 @@ class Picker:
         self.min_length = 5
 	self.frame_index = 0
         self.shift_on = False
-        self.widgetcolor = 'lightyellow'
+        #self.widgetcolor = 'lightyellow'
         self.frame_slider = None
         return 
 
@@ -905,7 +899,7 @@ class Picker:
             plt.subplots_adjust(left=0.2, bottom=0.2)
             corners = self.ax1.get_position().get_points()
             #print corners
-            axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=self.widgetcolor)
+            axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=_widgetcolor)
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
