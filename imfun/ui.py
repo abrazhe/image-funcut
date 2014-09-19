@@ -507,6 +507,7 @@ class LineScan(DraggableObj):
 	tv = np.reshape(translate(*points),-1) # translation vector
 	timeview = lambda pts: np.array([line_reslice2(frame, *pts)
 					 for frame in frames()])
+        
 	if hwidth > 0:
 	    plist = [points]
 	    plist += [points + s*k*tv
@@ -514,7 +515,7 @@ class LineScan(DraggableObj):
 	    out = np.mean(map(timeview, plist), axis=0)
 	else:
 	    out = timeview(points)
-        return out,points
+        return np.rot90(out),points
 
     def get_full_projection(self, fn = np.mean,axis=1,
 			    mode='constant',
@@ -565,18 +566,19 @@ class LineScan(DraggableObj):
 	    f = plt.figure()
             ax = f.add_subplot(111)
             # TODO: work out if sx differs from sy
-            y_extent = (0,fseq.dt*timeview.shape[0])
+            x_extent = (0,fseq.dt*timeview.shape[0])
             if mpl.rcParams['image.origin'] == 'lower':
                 lowp = 1
             else:
                 lowp = -1
             ax.imshow(timeview,
-                      extent=(0, self.dx*timeview.shape[1]) +\
-                      y_extent[::lowp],
+                      extent=x_extent + (0, self.dx*timeview.shape[0]),
                       interpolation='nearest')
-            if self.scale_setp:
-                ax.set_xlabel('um')
-            ax.set_ylabel('time, sec')
+            ylabel = self.scale_setp and 'um' or 'pixels'
+            xlabel = (self.scale_setp or fseq.dt !=1 ) and 'sec' or 'frames'
+
+            ax.set_ylabel(ylabel)
+            ax.set_xlabel(xlabel)
             ax.set_title('Timeview for '+ self.tag)
 
             def _event_ok(event):
@@ -594,15 +596,13 @@ class LineScan(DraggableObj):
                         gw_meas[0] = None
                 elif event.key == 'd':
                     print 'Vessel wall tracking'
-                    print timeview.shape
-
-                    tv1 = timeview.T
-                    seeds = track.guess_seeds(timeview,-1)
+                    tv1 = timeview
+                    seeds = track.guess_seeds(tv1.T,-1)
                     margin = tv1.shape[0]/10.
                     lowc = np.ones(tv1.shape[1])*seeds[0] - margin
                     highc = np.ones(tv1.shape[1])*seeds[1] + margin
                     conts1 = track.LCV_Contours((lowc,highc),tv1,thresh=0)
-                    out = track.solve_contours_animated(conts1)
+                    out = track.solve_contours_animated(conts1,ax=ax,xscale=fseq.dt)
                     #a = _ax.axis()
                     #_ax.axis(a)
                     #_f.canvas.draw()

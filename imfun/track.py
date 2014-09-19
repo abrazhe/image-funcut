@@ -282,13 +282,20 @@ class LCV_Contours:
 
 def solve_contours_animated(lcvconts, niter=500,
                             tol=0.001,
+                            ax = None,
+                            xscale=1,
                             skipframes=5,
                             kstop = 15):
     import matplotlib.pyplot as plt
-    f,a = plt.subplots(1,1)
-    a.imshow(lcvconts.U, cmap='gray', interpolation='nearest', aspect='auto')
-    lh0 = [a.plot(lcvconts.xind, w, 'g-')[0] for w in lcvconts.conts.reshape(2,-1)] # starting points
-    lh = [a.plot(lcvconts.xind, w, color='orange')[0] for w in lcvconts.conts.reshape(2,-1)]
+    if ax is None:
+        f,a = plt.subplots(1,1)
+        a.imshow(lcvconts.U, cmap='gray', interpolation='nearest',
+                 aspect='auto')
+    else:
+        a = ax
+        f = ax.figure
+    lh0 = [a.plot(lcvconts.xind*xscale, w, 'g-')[0] for w in lcvconts.conts.reshape(2,-1)] # starting points
+    lh = [a.plot(lcvconts.xind*xscale, w, color='orange')[0] for w in lcvconts.conts.reshape(2,-1)]
     a.axis('tight')
     names = []
     acc = []
