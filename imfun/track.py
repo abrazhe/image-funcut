@@ -165,3 +165,162 @@ def track_walls(linescan,output = 'kalman',Nfirst=None,gain=0.25):
         return te1,te2
     elif output == 'all':
         return tk1,tk2, te1,te2
+
+### ------------------------------------------
+### --  Active contours  as particle system --
+### ------------------------------------------
+
+
+## [ ] TODO: use adaptive time-stepping scheme
+## [ ] TODO: update fast-changing equations with finer time-steps 
+
+class LCV_Contours:
+    """
+    Vertically-constrained Chan-Vese-ispired active contours as
+    Verlet-integrated connected-particle system
+    """
+    def __init__(self, (low_contour, upper_contour),
+                 U,
+                 stiffness=0.25,
+                 damping=0.25,
+                 lam = 1.0,
+                 thresh=0.,
+                 max_force=2.):
+    
+        L = np.min((U.shape[1],len(low_contour),len(upper_contour)))
+        self.L = L
+        self.U = U
+        self.upper_bound = U.shape[0]-1
+        self.thresh = thresh
+        self.set_weights()
+        
+        self.conts = np.concatenate((low_contour[:L], upper_contour[:L]))
+        self.check_conts()
+        self.contprev = self.conts.copy()     
+        self.acc = np.zeros(self.conts.shape)
+    
+        self.lam = lam
+        
+        self.damping = damping
+        self.hooke = stiffness
+        self.max_force = max_force
+        self.xind = np.arange(L)
+        self.yind = np.arange(self.U.shape[0])
+        self.dt = 1./self.max_force
+        self.niter = 0
+    
+    def set_weights(self):
+        snrv = lib.simple_snr2(self.U)
+        self.weights = np.float_(snrv > self.thresh)
+        #self.weights[:50] = 0
+    
+    def check_conts(self):
+        """ensure vessel conts are within boundaries and ordered as low,upper"""
+        w = self.conts.reshape(2,-1)
+        w = np.where(w < 0, 0, w)
+        w = np.where(w > self.upper_bound, self.upper_bound, w)
+        self.conts = np.sort(w, 0).reshape(-1)
+    
+    def get_diameter(self):
+        self.check_conts()
+        l,u = self.conts.reshape(2,-1)
+        return u-l
+    def get_lower(self):
+        return self.conts[:self.L]
+    def get_upper(self):
+        return self.conts[self.L:]
+        
+    def update_accelerations(self):
+        xind = self.xind
+        L = self.L
+        self.check_conts()
+        
+        lower, upper = self.conts.reshape(2,-1)
+
+        a = np.zeros_like(self.acc)
+        #a -= self.damping*(self.conts-self.contprev)  # friction
+        
+        a[1:L] -= self.hooke*(lower[1:]-lower[:-1]) # smoothing forces
+        a[:L-1] -= self.hooke*(lower[:-1]-lower[1:]) # fixme with signs
+        
+        a[L+1:] -= self.hooke*(upper[1:]-upper[:-1]) # smoothing terms
+        a[L:-1] -= self.hooke*(upper[:-1]-upper[1:]) # fixme with signs
+        
+        a[:L] -= self.hooke*(self.weights==0)*(lower-np.mean(lower)) # where weights are zero, 
+        a[L:] -= self.hooke*(self.weights==0)*(upper-np.mean(upper)) # push to the mean position
+        
+        rc = self.yind
+        
+        for j in xind[:]:
+            l,u = lower[j],upper[j]
+            inside = (rc > l) * (rc < u)
+            outside = -inside # outside is a negation of inside
+            c1 = np.sum(self.U[inside,j])/np.float(np.sum(inside+1e-12))
+            c2 = np.sum(self.U[outside,j])/np.float(np.sum(outside+1e-12))
+            v = np.abs(self.U[:,j]-c1) - np.abs(self.U[:,j]-c2)
+            vmax = abs(v).max()
+            a[j] += self.lam*v[l]*self.weights[j]/vmax
+            a[L+j] -= self.lam*v[u]*self.weights[j]/vmax
+        self.acc = a
+        self.acc = np.sign(a)*np.where(abs(a)>self.max_force, self.max_force, abs(a)) # acceleration limit
+        return a
+    
+    def verlet_step(self):
+        dt = 0.5  
+        ## use .update_accelerations before .verlet_step
+        ynext = (2-self.damping)*self.conts - \
+                (1-self.damping)*self.contprev +\
+                self.acc*dt**2
+        ynext = np.where(ynext < 0, 0, ynext)
+        ynext = np.where(ynext > self.upper_bound, self.upper_bound, ynext)
+        
+        self.contprev = self.conts
+        self.conts = ynext      
+        self.niter += 1
+        return self.conts
+
+
+def solve_contours_animated(lcvconts, niter=500,
+                            tol=0.001,
+                            skipframes=5,
+                            kstop = 15):
+    import matplotlib.pyplot as plt
+    f,a = plt.subplots(1,1)
+    a.imshow(lcvconts.U, cmap='gray', interpolation='nearest', aspect='auto')
+    lh0 = [a.plot(lcvconts.xind, w, 'g-')[0] for w in lcvconts.conts.reshape(2,-1)] # starting points
+    lh = [a.plot(lcvconts.xind, w, color='orange')[0] for w in lcvconts.conts.reshape(2,-1)]
+    a.axis('tight')
+    names = []
+    acc = []
+    whist = []
+    prevd = lcvconts.get_diameter()
+    k = 0
+    errchange = 1+tol
+    L = lcvconts.L
+    for i in xrange(niter):
+        lcvconts.update_accelerations()
+        lcvconts.verlet_step()
+        d = lcvconts.get_diameter()
+        err = np.mean(abs(d - prevd)) # todo: better stopping condition
+        prevd = d
+        acc.append(err)
+        f.canvas.draw()
+        if (i+1)%skipframes == 0:
+            lh[0].set_ydata(lcvconts.conts[:L])
+            lh[1].set_ydata(lcvconts.conts[L:])
+        if i>kstop:
+            errchange = np.polyfit(np.arange(kstop),acc[-kstop:],1)[0]
+        if i>kstop and (err < tol or (np.abs(errchange)<tol)):
+            if k >= kstop:
+                # make it be for k times that (e.g. k=10)
+                print 'Converged in %d iterations'%(i+1)
+                break
+            else:
+                k+=1
+
+    lh[0].set_ydata(lcvconts.conts[:L]) # last graph update
+    lh[1].set_ydata(lcvconts.conts[L:]) #
+    lh[0].set_color('r') # red is for final contour
+    lh[1].set_color('r')
+    plt.draw()
+    return lh

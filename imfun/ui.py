@@ -594,29 +594,18 @@ class LineScan(DraggableObj):
                         gw_meas[0] = None
                 elif event.key == 'd':
                     print 'Vessel wall tracking'
-                    lines1 = track.track_walls(timeview,output='kalman')
-                    lines1 = np.array(lines1)#*fseq.dx
-                    lset = self.segment_vessel_levelsets(timeview)
-                    #lines2 = track.track_walls(timeview[::-1],output='all')
-                    #lines2 = np.fliplr(np.array(lines2)*fseq.dx)
-                    _f, _ax = plt.subplots(1,1)
-                    _extent = (0, self.dx*timeview.shape[1]) +\
-                              y_extent[::lowp]
-                    _ax.imshow(timeview.T, cmap='gray',
-                               #extent=_extent,
-                               interpolation='nearest')
-                    print '3'
-                    a = _ax.axis()
-                    yv = np.arange(len(timeview))
-                    _ax.plot(lines1[0].T, 'r',
-                             lines1[1].T, 'r')
-                             #lines1[2], yv, 'y',
-                             #lines1[3], yv, 'y')
-                    _ax.contour(lset.T, levels=[0.5],
-                                colors='green')
+                    print timeview.shape
 
-                    _ax.axis(a)
-                    _f.canvas.draw()
+                    tv1 = timeview.T
+                    seeds = track.guess_seeds(timeview,-1)
+                    margin = tv1.shape[0]/10.
+                    lowc = np.ones(tv1.shape[1])*seeds[0] - margin
+                    highc = np.ones(tv1.shape[1])*seeds[1] + margin
+                    conts1 = track.LCV_Contours((lowc,highc),tv1,thresh=0)
+                    out = track.solve_contours_animated(conts1)
+                    #a = _ax.axis()
+                    #_ax.axis(a)
+                    #_f.canvas.draw()
                 return # _on_type
             
             f.canvas.mpl_connect('key_press_event', _on_type)
@@ -874,15 +863,15 @@ def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
     return drs
 
 
-def track_and_show_vessel_diameter(linescan):
-    t1,t2 = track.track_walls(linescan,output='mean')
-    d = np.abs(t1-t2)
-    fj, ax = plt.subplots(1,1)
-    ax.imshow(d.T, cmap='gray', interpolation='nearest')
-    axrange = ax.axis()
-    ax.plot(t1, 'r'), ax.plot(t2,  'r')
-    ax.axis(axrange)
-    return d
+# def track_and_show_vessel_diameter(linescan):
+#     t1,t2 = track.track_walls(linescan,output='mean')
+#     d = np.abs(t1-t2)
+#     fj, ax = plt.subplots(1,1)
+#     ax.imshow(d.T, cmap='gray', interpolation='nearest')
+#     axrange = ax.axis()
+#     ax.plot(t1, 'r'), ax.plot(t2,  'r')
+#     ax.axis(axrange)
+#     return d
 
 class Picker:
     verbose = True

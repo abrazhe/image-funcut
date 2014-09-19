@@ -5,11 +5,11 @@ from itertools import combinations
 
 
 #from pylab import mpl
-import pylab as pl
+#import pylab as pl
 import matplotlib as mpl
 import numpy as np
 
-from imfun import fnutils
+import fnutils
 
 ## these functions were in this file, but were moved to fnutils
 fnchain = fnutils.fnchain
@@ -280,8 +280,6 @@ def clip_and_rescale(arr,nout=100):
     cutoff = 100*(1-float(nout)/np.prod(arr.shape))
     m = np.percentile(arr, cutoff)
     return np.where(arr < m, arr, m)/m
-    
-
 
 def rescale(arr):
     "Rescales array to [0..1] interval"
@@ -384,6 +382,17 @@ def ainterpolate(arr, axis=0, n=3, smoothing=1):
         print "Can't work with these many dimensions yet"
     return out
 
+def simple_snr(v,plow=50,phigh=75):
+    ml,mu = np.percentile(v, (plow, phigh))
+    return np.mean(v[v>mu])/(np.std(v[v<=ml])+1.0)
+
+def simple_snr2(arr, plow=50,phigh=75):
+    nrows, ncols = arr.shape
+    out = np.zeros(ncols)
+    for j in xrange(ncols):
+        out[j] = simple_snr(arr[:,j],plow,phigh)
+    out /= out.mean()
+    return out
 
 def group_maps(maplist, ncols=None,
                titles=None,
