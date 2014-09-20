@@ -185,11 +185,18 @@ class LCV_Contours:
                  damping=0.25,
                  lam = 1.0,
                  thresh=0.,
-                 max_force=2.):
+                 tol = 0.01,
+                 max_force=2.,
+                 kstop=15,):
     
         L = np.min((U.shape[1],len(low_contour),len(upper_contour)))
         self.L = L
         self.U = U
+        self.tol = tol
+        self.kstop=kstop
+        self.errhist = []
+        self.nsteady = 0
+        self.issteady = False
         self.upper_bound = U.shape[0]-1
         self.thresh = thresh
         self.set_weights()
@@ -265,8 +272,10 @@ class LCV_Contours:
         self.acc = np.sign(a)*np.where(abs(a)>self.max_force, self.max_force, abs(a)) # acceleration limit
         return a
     
-    def verlet_step(self):
-        dt = 0.5  
+    def verlet_step(self, update_acc=True):
+        dt = 0.5
+        if update_acc:
+            self.update_accelerations()
         ## use .update_accelerations before .verlet_step
         ynext = (2-self.damping)*self.conts - \
                 (1-self.damping)*self.contprev +\
@@ -275,9 +284,25 @@ class LCV_Contours:
         ynext = np.where(ynext > self.upper_bound, self.upper_bound, ynext)
         
         self.contprev = self.conts
-        self.conts = ynext      
+        self.conts = ynext
+        self.check_steady()
         self.niter += 1
         return self.conts
+
+    def check_steady(self):
+        err = np.mean(np.abs(self.conts-self.contprev))
+        self.errhist.append(err)
+        kstop = self.kstop
+        x = np.arange(kstop)
+        if self.niter > self.kstop:
+            errchange = np.polyfit(x,self.errhist[-kstop:],1)[0]
+            if np.abs(errchange)<self.tol:
+                if self.nsteady > kstop:
+                    print 'LCV_Contours converged in %d iterations'%\
+                          (self.niter+1)
+                    self.issteady = True
+                self.nsteady += 1
+            
 
 
 def solve_contours_animated(lcvconts, niter=500,

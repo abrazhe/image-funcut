@@ -424,6 +424,8 @@ class Index:
         plt.draw()
     
 
+
+
 class LineScan(DraggableObj):
     def __init__(self, obj, parent):
         DraggableObj.__init__(self, obj, parent)
@@ -815,7 +817,92 @@ def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
         frames.append(((f.max()-f)/f.max())*255.0)
     return np.array(frames)
         
-    
+class VesselContours():
+    """
+    UI for finding vessel contours in cross-lines 
+    """
+    def __init__(self,data):
+        self.data = data
+        f, axs = plt.subplots(3,1,sharex=True)
+        self.f = f
+        self.axs = axs
+        self.th = 0.5
+        f.set_facecolor('white')
+        corners1 = [0.1, 1-0.4, 0.8,0.35]
+        corners2 = [0.1, 0.5-0.05, 0.8, 0.1]
+        corners3 = [0.1, 0.15, 0.8, 0.25]
+        for a, c in zip(axs, [corners1, corners2, corners3]):
+            a.set_position(c)
+        
+        axs[0].imshow(data, aspect='auto', interpolation='nearest',
+                      cmap='gray')
+        a = axs[0].axis()
+
+        self.start_seed = self.set_auto_seeds()
+        self.contlines = [axs[0].plot(s,'orange')[0]
+                       for s in self.start_seed]
+        axs[0].plot(self.start_seed[0], 'g')
+        axs[0].plot(self.start_seed[1], 'g')
+
+        self.snrv = lib.simple_snr2(data)
+        print len(self.snrv), data.shape
+        axs[1].plot(self.snrv, 'k',ls='steps')
+        self.th_line = axs[1].axhline(self.th, color='blue', ls='-')
+        axs[1].set_ylabel('relative SNR')
+        plt.setp(axs[1], yticks=[], frame_on=False)
+
+        d = self.start_seed[1]-self.start_seed[0]
+        self.diam_line = axs[2].plot(d,'k--')[0]
+        axs[2].set_ylim(0, d[0]*1.2)
+        plt.setp(axs[2], ylabel="diameter",frame_on=False)
+                
+        axs[0].axis(a)
+
+        axstart = f.add_axes([0.1, 0.02, 0.2, 0.05])
+        self.axref = f.add_axes([0.31, 0.02, 0.2, 0.05])
+        self.axsave = f.add_axes([0.52, 0.02, 0.2, 0.05])
+        self.btn_start = mw.Button(axstart,'Start')
+        self.btn_start.on_clicked(self.solve_contours)
+        self.btn_ref = mw.Button(self.axref,'Refine')        
+        self.btn_save = mw.Button(self.axsave,'Remember')
+        plt.setp(self.axsave, visible=False)
+        plt.setp(self.axref, visible=False)
+        
+        f.canvas.draw()
+
+    def solve_contours(self,event,nmax=500):
+        lcv = track.LCV_Contours(self.start_seed, self.data, thresh=self.th)
+        for i in xrange(nmax):
+            lcv.verlet_step()
+            lh = lcv.conts.reshape(2,-1)
+            for c,v in zip(self.contlines,lh):
+                c.set_ydata(v)
+            self.f.canvas.draw()
+            d = lcv.get_diameter()
+            self.diam_line.set_ydata(d)
+            if lcv.issteady:
+                for c in self.contlines:
+                    plt.setp(c, lw=1,color='r')
+                self.diam_line.set_linestyle('-')
+                self.axs[2].set_ylim(d.min(),d.max())
+                plt.setp(self.axsave,visible=True)
+                plt.setp(self.axref,visible=True)
+                break
+        self.f.canvas.draw()
+
+        
+    def set_auto_seeds(self):
+        d = self.data
+        seeds = track.guess_seeds(d.T,-1)
+        margin = d.shape[0]/10.
+        lowc = np.ones(d.shape[1])*seeds[0] - margin
+        highc = np.ones(d.shape[1])*seeds[1] + margin
+        self.auto_seeds =  (lowc, highc)
+        return (lowc, highc)
+
+        
+        
+        
 
 def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
     f = plt.figure()
