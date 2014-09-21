@@ -446,6 +446,9 @@ class LineScan(DraggableObj):
         
     def endpoints(self):
         return rezip(self.obj.get_data())
+    def centerpoint(self):
+        x, y = self.obj.get_xdata(), self.obj.get_ydata()
+        return [x.mean(), y.mean()]
     def length(self):
         return lib.eu_dist(*self.endpoints())
     def check_endpoints(self):
@@ -456,8 +459,18 @@ class LineScan(DraggableObj):
         else:
             return pts
     def move(self, p):
-        xp,yp   = self.pressed
+        ep = self.endpoints()
+        cp = self.centerpoint()
+        dists = [eu_dist(self.pressed, xp) for xp in [cp]+ep]
+        k = np.argmin(dists)
+        
         dx,dy = p[0] - xp, p[1] - yp
+        if k == 0: # closer to center point than to any end
+            #self.obj.set_data((x0 + dx,y0 + dy))
+        elif k == 1:
+            dx,dy = 
+                
+        
         x0, y0 = self.obj.get_xdata(), self.obj.get_ydata()
         dist1,dist2 = [lib.eu_dist(p,x) for x in self.endpoints()]
         if dist1/(dist1 + dist2) < 0.05:
@@ -465,7 +478,6 @@ class LineScan(DraggableObj):
         elif dist2/(dist1 + dist2) < 0.05:
             dx,dy = np.array([0, dx]), np.array([0, dy])
         self.obj.set_data((x0 + dx,y0 + dy))
-        self.pressed = p
         self.update_length_tag()
         self.update_name_tag()
 
@@ -484,8 +496,6 @@ class LineScan(DraggableObj):
             self.redraw()
         elif event.button == 1:
             x, y = self.obj.get_xdata(), self.obj.get_ydata()
-            x0 = x[1] - x[0]
-            y0 = y[1] - y[0]
             self.pressed = event.xdata, event.ydata
         elif event.button == 2:
             self.dm = self.show_timeview()
