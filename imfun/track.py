@@ -185,7 +185,7 @@ class LCV_Contours:
                  damping=0.25,
                  lam = 1.0,
                  thresh=0.,
-                 tol = 0.01,
+                 tol = 0.005,
                  max_force=2.,
                  kstop=15,):
     

@@ -61,6 +61,7 @@ def remove_plane(arr, pars):
 try:
     from scipy import optimize as opt
     from scipy.interpolate import splev, splrep
+    from scipy import interpolate as ip
     from scipy import stats
     def percentile(arr, p):
 	    return stats.scoreatpercentile(arr.flatten(), p)
@@ -364,10 +365,11 @@ def extrema2(v, *args, **kwargs):
    return (xfit, yfit), (maxima, minima), (gups, gdowns)
 
 def vinterpolate(v,n=3,smoothing=1):
+    from atrous import smooth
     L = len(v)
     if smoothing > 0:
-        v = atrous.smooth(v, smoothing)
-    sp2 = ip.UnivariateSpline(arange(L),v, s=0)
+        v = smooth(v, smoothing)
+    sp2 = ip.UnivariateSpline(np.arange(L),v, s=0)
     xfit = np.linspace(0,L-1,L*n)
     return sp2(xfit)
 

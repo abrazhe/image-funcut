@@ -351,8 +351,9 @@ class DraggableObj:
         self.connect()
         self.pressed = None
         self.tag = obj.get_label() # obj must support this
-        fseq = self.parent.fseq
-        self.dy,self.dx, self.scale_setp = fseq.get_scale()
+        if hasattr(parent, 'fseq'):
+            fseq = self.parent.fseq
+            self.dy,self.dx, self.scale_setp = fseq.get_scale()
         self.set_tagtext()
         return
 
@@ -385,9 +386,9 @@ class DraggableObj:
         self.redraw()
 
     def on_release(self, event):
+        self.pressed = None
         if not self.event_ok(event):
             return
-        self.pressed = None
         self.redraw()
     def set_tagtext(self):
         pass
@@ -400,35 +401,25 @@ class DraggableObj:
         map(self.obj.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
     def get_color(self):
-        return self.obj.get_facecolor()
+        return self.obj.get_facecolor()    
 
-def dummy_callback(event):
-    print "this is a dummy callback"
-    print 'event:', event
-
-
-class Index:
-    ind = 0
-    def next(self, event):
-        self.ind += 1
-        i = self.ind % len(freqs)
-        ydata = np.sin(2*np.pi*freqs[i]*t)
-        l.set_ydata(ydata)
-        plt.draw()
-
-    def prev(self, event):
-        self.ind -= 1
-        i = self.ind % len(freqs)
-        ydata = np.sin(2*np.pi*freqs[i]*t)
-        l.set_ydata(ydata)
-        plt.draw()
-    
-
-
+class ThresholdLine(DraggableObj):
+    def on_press(self,event):
+        if self.event_ok(event, False):
+            self.pressed = event.xdata,event.ydata
+    def move(self,p):
+        self.set_value(p[1])
+        return
+    def get_value(self):
+        return self.obj.get_ydata()[0]
+    def set_value(self,val):
+        self.obj.set_ydata([val,val])
+        
 
 class LineScan(DraggableObj):
     def __init__(self, obj, parent):
         DraggableObj.__init__(self, obj, parent)
+        self.vconts = None
         ep_start,ep_stop = self.endpoints()
         ax = self.obj.axes
         self.length_tag = ax.text(ep_stop[0],ep_stop[1], '%2.2f'%self.length(),
@@ -451,8 +442,7 @@ class LineScan(DraggableObj):
         "updates text with line length"
         nt = self.name_tag
         ep = self.endpoints()[0]
-        nt.set_position(ep)
-        
+        nt.set_position(ep)        
         
     def endpoints(self):
         return rezip(self.obj.get_data())
@@ -570,14 +560,7 @@ class LineScan(DraggableObj):
 
         def _vessel_callback(event):
             print 'Vessel wall tracking'
-            tv1 = timeview
-            seeds = track.guess_seeds(tv1.T,-1)
-            margin = tv1.shape[0]/10.
-            lowc = np.ones(tv1.shape[1])*seeds[0] - margin
-            highc = np.ones(tv1.shape[1])*seeds[1] + margin
-            conts1 = track.LCV_Contours((lowc,highc),tv1,thresh=0)
-            return track.solve_contours_animated(conts1)
-
+            self.vconts = VesselContours(timeview)
         
         if timeview is not None:
             fseq = self.parent.fseq
@@ -601,7 +584,7 @@ class LineScan(DraggableObj):
             ax.set_title('Timeview for '+ self.tag)
 
             ax_diam = plt.axes([0.1, 0.05, 0.2, 0.075])
-            btn_diam = mw.Button(ax_diam, "Trace vessel walls")
+            btn_diam = mw.Button(ax_diam, "Trace vessel")
             btn_diam.on_clicked(_vessel_callback)
 
             plt.show()
@@ -822,17 +805,13 @@ class VesselContours():
     UI for finding vessel contours in cross-lines 
     """
     def __init__(self,data):
+        self.upsampled=1
         self.data = data
+        self.lcv = None
         f, axs = plt.subplots(3,1,sharex=True)
-        self.f = f
+        self.fig = f
         self.axs = axs
-        self.th = 0.5
-        f.set_facecolor('white')
-        corners1 = [0.1, 1-0.4, 0.8,0.35]
-        corners2 = [0.1, 0.5-0.05, 0.8, 0.1]
-        corners3 = [0.1, 0.15, 0.8, 0.25]
-        for a, c in zip(axs, [corners1, corners2, corners3]):
-            a.set_position(c)
+        th = 0.5
         
         axs[0].imshow(data, aspect='auto', interpolation='nearest',
                       cmap='gray')
@@ -840,56 +819,98 @@ class VesselContours():
 
         self.start_seed = self.set_auto_seeds()
         self.contlines = [axs[0].plot(s,'orange')[0]
-                       for s in self.start_seed]
-        axs[0].plot(self.start_seed[0], 'g')
-        axs[0].plot(self.start_seed[1], 'g')
+                          for s in self.start_seed]
+        self.startlines = [axs[0].plot(s,'g')[0]
+                           for s in self.start_seed]
 
         self.snrv = lib.simple_snr2(data)
-        print len(self.snrv), data.shape
+
         axs[1].plot(self.snrv, 'k',ls='steps')
-        self.th_line = axs[1].axhline(self.th, color='blue', ls='-')
-        axs[1].set_ylabel('relative SNR')
-        plt.setp(axs[1], yticks=[], frame_on=False)
+        lh = axs[1].axhline(th, color='blue', ls='-')
+        self.th_line = ThresholdLine(lh,self)
 
         d = self.start_seed[1]-self.start_seed[0]
         self.diam_line = axs[2].plot(d,'k--')[0]
         axs[2].set_ylim(0, d[0]*1.2)
-        plt.setp(axs[2], ylabel="diameter",frame_on=False)
-                
-        axs[0].axis(a)
 
+        axs[0].axis(a)
+        self.config_axes()
+        self.set_buttons()
+        return
+
+    def config_axes(self):
+        self.fig.set_facecolor('white')
+        corners1 = [0.1, 1-0.4, 0.8,0.35]
+        corners2 = [0.1, 0.5-0.05, 0.8, 0.1]
+        corners3 = [0.1, 0.15, 0.8, 0.25]
+
+        for a, c in zip(self.axs, [corners1, corners2, corners3]):
+            a.set_position(c)
+
+        plt.setp(self.axs[1], yticks=[], frame_on=False,
+                 ylabel='rel. SNR')
+        plt.setp(self.axs[2], ylabel="diameter, px",
+                 xlabel='frame #',
+                 frame_on=False)
+        return
+
+    def set_buttons(self):
+        f = self.fig
         axstart = f.add_axes([0.1, 0.02, 0.2, 0.05])
         self.axref = f.add_axes([0.31, 0.02, 0.2, 0.05])
-        self.axsave = f.add_axes([0.52, 0.02, 0.2, 0.05])
         self.btn_start = mw.Button(axstart,'Start')
         self.btn_start.on_clicked(self.solve_contours)
         self.btn_ref = mw.Button(self.axref,'Refine')        
-        self.btn_save = mw.Button(self.axsave,'Remember')
-        plt.setp(self.axsave, visible=False)
+        self.btn_ref.on_clicked(self.refine_solution)
         plt.setp(self.axref, visible=False)
-        
         f.canvas.draw()
+        return
 
-    def solve_contours(self,event,nmax=500):
-        lcv = track.LCV_Contours(self.start_seed, self.data, thresh=self.th)
+    def refine_solution(self, event,upsample=3):
+        if not self.axref.get_visible():
+            return
+        data = lib.ainterpolate(self.data,n=upsample)
+        
+        start = self.lcv.conts.reshape(2,-1)
+        if  self.upsampled < upsample:
+            start *= upsample
+        self.solve_contours(None,start,data,upsample)
+        self.upsampled=upsample
+
+    def solve_contours(self,event,start=None,data = None,
+                       upsample=1.,
+                       nmax=500,skipdraw=3):
+        if data is None:
+            data = self.data
+        if start is None:
+            start = self.start_seed
+        self.startlines[0].set_ydata(start[0]/upsample)
+        self.startlines[1].set_ydata(start[1]/upsample)
+        th = self.th_line.get_value()
+        lcv = track.LCV_Contours(start, data, thresh=th)
         for i in xrange(nmax):
             lcv.verlet_step()
             lh = lcv.conts.reshape(2,-1)
             for c,v in zip(self.contlines,lh):
-                c.set_ydata(v)
-            self.f.canvas.draw()
-            d = lcv.get_diameter()
+                c.set_ydata(v/upsample)
+            d = lcv.get_diameter()/upsample
             self.diam_line.set_ydata(d)
+            if not i%skipdraw:
+                self.fig.canvas.draw()
             if lcv.issteady:
                 for c in self.contlines:
                     plt.setp(c, lw=1,color='r')
                 self.diam_line.set_linestyle('-')
-                self.axs[2].set_ylim(d.min(),d.max())
-                plt.setp(self.axsave,visible=True)
+                self.axs[2].set_ylim(d.min()*0.9, d.max()*1.1)
                 plt.setp(self.axref,visible=True)
                 break
-        self.f.canvas.draw()
+        self.lcv = lcv
+        self.fig.canvas.draw()
 
+    def get_diameter(self):
+        if self.lcv is None: return 
+        d = self.lcv.get_diameter()
+        return d/float(self.upsampled)
         
     def set_auto_seeds(self):
         d = self.data
