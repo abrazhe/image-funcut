@@ -405,6 +405,8 @@ class FrameSequence(object):
                           show_title=True, fig_size=(4,4),
                           bitrate=-1,
                           writer = 'mencoder',
+                          frame_on = False,
+                          marker_idx = None,
                           vmin=None, vmax=None,**kwargs):
         """
         Create an mpg  movie from the frame sequence using mencoder.
@@ -414,6 +416,8 @@ class FrameSequence(object):
 	  - `video_name`: (`str`) -- a name (without extension) for the movie to
 	    be created
 	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
+          - `marker_idx`: (`array_like`) -- indices when to show a marker
+            (e.g. for stimulation)
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
         from matplotlib import animation
@@ -433,25 +437,33 @@ class FrameSequence(object):
         kwargs.update({'vmin':vmin, 'vmax':vmax})
         L = min(stop-start, self.length())
 
-        fig = plt.figure(figsize=fig_size)
-        ax = fig.add_subplot(111)
+        fig,ax = plt.subplots(1,1,figsize=fig_size)
         plh = ax.imshow(self[start], 
                         aspect='equal', **kwargs)
+        if not frame_on:
+            plt.setp(ax, frame_on=False, xticks=[],yticks=[])
         mytitle = ax.set_title('')
-        def _init():
-            k = 0
-            if show_title:
-                mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
-            plh.set_data(self[k])
-            return plh, 
+        marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
+        ax.add_patch(marker)
+        ## def _init():
+        ##     k = 0
+        ##     if show_title:
+        ##         mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
+        ##     plh.set_data(self[k])
+        ##     return plh, 
         def _animate(framecount):
             k = framecount+start
             plh.set_data(self[k])
             if show_title:
                 mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
+            if k in marker_idx:
+                plt.setp(marker, visible=True)
+            else:
+                plt.setp(marker, visible=False)
             return plh,
         
-        anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
+        #anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
+        anim = animation.FuncAnimation(fig, _animate, frames=L, blit=True)
         mencoder_extra_args=['-ovc', 'lavc', '-lavcopts', 'vcodec=mpeg4']
         if writer in animation.writers.list():
             # Set up formatting for the movie files
@@ -611,7 +623,7 @@ class FSeq_imgleic(FSeq_img):
 
 
 #from imfun.MLFImage import MLF_Image
-from imfun import MLFImage
+import MLFImage
 
 class FSeq_mlf(FrameSequence):
     "FrameSequence class for MLF multi-frame images"
