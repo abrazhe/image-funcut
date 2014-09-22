@@ -890,11 +890,11 @@ class VesselContours():
         if  self.upsampled < upsample:
             start *= upsample
         self.solve_contours(None,start,data,upsample)
-        self.upsampled=upsample
 
     def solve_contours(self,event,start=None,data = None,
                        upsample=1.,
                        nmax=500,skipdraw=3):
+        self.upsampled=upsample
         if data is None:
             data = self.data
         if start is None:
