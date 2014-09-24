@@ -1,6 +1,8 @@
 # Routines to read MES files
 
+import numpy as np
 from scipy import io
+
 
 def load_meta(file_name):
     "Load meta information from a MES file"
@@ -8,6 +10,21 @@ def load_meta(file_name):
     var_names = ["Df%04d"%k for k in range(1,max_records+1)]
     meta = io.loadmat(file_name, variable_names=var_names,appendmat=False)
     return meta
+
+def describe_file(name):
+    meta = load_meta(name)
+    print "# File: %s"%name
+    print '-'*(len(name)+10)
+    keys = record_keys(meta)
+    print """## Data structures:"""
+    for key in keys:
+        print '###', key
+        timestamps = [x[0][0] for x in meta[key]['MeasurementDate']
+                      if np.prod(x[0].shape)>0 ]
+        context = set([c[0][0] for c in meta[key]["Context"]])
+        print 'Contexts:', context
+        print 'Timestamps (first,last):', \
+              timestamps[0], ', ', len(timestamps)>1 and timestamps[-1] or ''
 
 def record_keys(meta):
     return sorted(filter(lambda x: 'Df' in x, meta.keys()))
@@ -22,11 +39,13 @@ def is_xyt(entry):
 
 def only_measures(entry):
     return entry[entry['Context']=='Measure']
+
 def first_measure(entry):
     return entry[entry['Context']=='Measure'][0]
 
+# ! re-do
 def get_date(entry):
-    return first_measure(entry)['MeasurementDate'][0]
+    return entry['MeasurementDate'][0]
 
 def get_ffi(entry):
     return first_measure(entry)['FoldedFrameInfo'][0]
