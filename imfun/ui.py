@@ -405,15 +405,20 @@ class DraggableObj:
 
 class ThresholdLine(DraggableObj):
     def on_press(self,event):
-        if self.event_ok(event, False):
+        if self.event_ok(event, True):
             self.pressed = event.xdata,event.ydata
     def move(self,p):
         self.set_value(p[1])
         return
     def get_value(self):
         return self.obj.get_ydata()[0]
+    def set_ydata(self,data):
+        self.obj.set_ydata(data)
+    def get_ydata(self):
+        return self.obj.get_ydata()
     def set_value(self,val):
-        self.obj.set_ydata([val,val])
+        x = self.obj.get_xdata()
+        self.obj.set_ydata(np.ones(len(x))*val)
         
 
 class LineScan(DraggableObj):
@@ -573,11 +578,9 @@ class LineScan(DraggableObj):
         timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
         gw_meas = [None]
 
-        def _vessel_callback(event):
-            print 'Vessel wall tracking'
-            self.vconts = VesselContours(timeview)
-        
+                    
         if timeview is not None:
+            data = [timeview]
             fseq = self.parent.fseq
             fig, ax = plt.subplots()
             plt.subplots_adjust(bottom=0.2)
@@ -598,10 +601,29 @@ class LineScan(DraggableObj):
             ax.set_xlabel(xlabel)
             ax.set_title('Timeview for '+ self.tag)
 
+            def _inv_callback(event):
+                data[0] = -data[0]
+                plt.setp(ax.images[0],
+                         data=data[0],
+                         clim=(data[0].min(),data[0].max()))
+
+            def _vessel_callback(event):
+                print 'Vessel wall tracking'
+                self.vconts = VesselContours(data[0])
+
+
+
+            self.buttons = []
+                
             ax_diam = plt.axes([0.1, 0.05, 0.2, 0.075])
             btn_diam = mw.Button(ax_diam, "Trace vessel")
             btn_diam.on_clicked(_vessel_callback)
+            self.buttons.append(btn_diam)
 
+            ax_inv = plt.axes([0.32, 0.05, 0.2, 0.075])
+            btn_inv = mw.Button(ax_inv, "Invert data")
+            btn_inv.on_clicked(_inv_callback)
+            self.buttons.append(btn_inv)
             plt.show()
 
         return btn_diam
@@ -833,10 +855,10 @@ class VesselContours():
         a = axs[0].axis()
 
         self.start_seed = self.set_auto_seeds()
-        self.contlines = [axs[0].plot(s,'orange')[0]
-                          for s in self.start_seed]
+        self.contlines = None
         self.startlines = [axs[0].plot(s,'g')[0]
                            for s in self.start_seed]
+        self.startlines2 = [ThresholdLine(l,self) for l in self.startlines]
 
         self.snrv = lib.simple_snr2(data)
 
@@ -898,9 +920,18 @@ class VesselContours():
         if data is None:
             data = self.data
         if start is None:
-            start = self.start_seed
-        self.startlines[0].set_ydata(start[0]/upsample)
-        self.startlines[1].set_ydata(start[1]/upsample)
+            start = [l.get_ydata() for l in
+                     self.startlines2]
+
+        for k in range(2):
+            self.startlines2[k].set_ydata(start[k]/upsample)
+        if self.contlines is None:
+            self.contlines = [self.axs[0].plot(s,'orange')[0]
+                              for s in self.start_seed]
+        else:
+            for lhfrom,lhto in zip(self.startlines2, self.contlines):
+                lhto.set_ydata(lhfrom.get_ydata())
+        
         th = self.th_line.get_value()
         lcv = track.LCV_Contours(start, data, thresh=th)
         for i in xrange(nmax):
@@ -929,66 +960,19 @@ class VesselContours():
         
     def set_auto_seeds(self):
         d = self.data
-        seeds = track.guess_seeds(d.T,-1)
-        margin = d.shape[0]/10.
-        lowc = np.ones(d.shape[1])*seeds[0] - margin
-        highc = np.ones(d.shape[1])*seeds[1] + margin
+        ext = float(d.shape[0])
+        margin = ext*0.1
+        try:
+            seeds = track.guess_seeds(d.T,-1)
+            lowc = np.ones(d.shape[1])*seeds[0] - margin
+            highc = np.ones(d.shape[1])*seeds[1] + margin
+            if np.min(np.abs(lowc-highc)) < margin:
+                locw,highc = margin, ext-margin
+        except Exception as e:
+            print "couldn't automatically set starting seeds because of", e
+            lowc,highc = ext*0.1, ext*0.9
         self.auto_seeds =  (lowc, highc)
         return (lowc, highc)
-
-        
-        
-        
-
-def _track_vessels_old(frames, width=30, height=60, measure = sse_measure):
-    f = plt.figure()
-    axf = plt.axes()
-    frame_index = [0]
-    Nf = len(frames)
-
-    plf = axf.imshow(frames[0],
-                     interpolation = 'nearest',
-                     aspect = 'equal', cmap=mpl.cm.gray)
-    plt.colorbar(plf)
-    def skip(event,n=1):
-        fi = frame_index[0]
-        key = hasattr(event, 'button') and event.button or event.key
-        k = 1
-        s1,s2 = [r.toslice() for r in drs]
-        tmpl1,tmpl2 = [frames[fi][s] for s in s1,s2]
-
-        if key in (4,'4','down','left'):
-            k = -1
-        elif key in (5,'5','up','right'):
-            k = 1
-        fi += k*n
-        fi = fi%Nf
-        plf.set_data(frames[fi])
-        new_pos1 = drs[0].find_best_pos(frames[fi],tmpl1,measure)
-        new_pos2 = drs[1].find_best_pos(frames[fi],tmpl2,measure)
-        drs[0].jump(new_pos1)
-        drs[1].jump(new_pos2)
-        axf.set_title('frame %03d, p1 %f, p2 %f)'%(fi, drs[0].obj.get_x(), drs[1].obj.get_x()))
-        frame_index[0] = fi
-        f.canvas.draw()
-    f.canvas.mpl_connect('scroll_event',skip)
-    #f.canvas.mpl_connect('key_press_event', skip)
-    #f.canvas.mpl_connect('key_press_event',lambda e: skip(e,10))
-    rects = axf.bar([0, 60], [height, height], [width,width], alpha=0.2)
-    drs = [RectFollower(r,frames) for r in rects]
-    f.canvas.draw()
-    return drs
-
-
-# def track_and_show_vessel_diameter(linescan):
-#     t1,t2 = track.track_walls(linescan,output='mean')
-#     d = np.abs(t1-t2)
-#     fj, ax = plt.subplots(1,1)
-#     ax.imshow(d.T, cmap='gray', interpolation='nearest')
-#     axrange = ax.axis()
-#     ax.plot(t1, 'r'), ax.plot(t2,  'r')
-#     ax.axis(axrange)
-#     return d
 
 class Picker:
     verbose = True
