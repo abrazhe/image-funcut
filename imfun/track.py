@@ -94,7 +94,14 @@ def guess_seeds(seq, Nfirst=10,smoothing=4):
     relies on the fact that vessel is the largest bright stripe
     """
     Nfirst = min(len(seq), Nfirst)
-    y = atrous.smooth(np.mean(seq[:Nfirst],axis=0), smoothing)
+    d = seq[:Nfirst]
+    try:
+        from scipy.stats import skew
+        s = np.sign(skew(np.ravel(d)))
+        print 'Skewness sign:', s
+    except :
+        s = 1
+    y = atrous.smooth(np.mean(s*d,axis=0), smoothing)
     (xfit,yfit), (mx,mn), (gups,gdowns) = lib.extrema2(y, sort_values=True)
     # highest gradient up to the left of the highest max
     gu1 = (g for g in gups if g < mx[0]).next()

@@ -392,7 +392,9 @@ def simple_snr2(arr, plow=50,phigh=75):
     nrows, ncols = arr.shape
     out = np.zeros(ncols)
     for j in xrange(ncols):
-        out[j] = simple_snr(arr[:,j],plow,phigh)
+        c1 = np.abs(simple_snr(arr[:,j],plow,phigh))
+        c2 = np.abs(simple_snr(-arr[:,j],plow,phigh))
+        out[j] = max(c1,c2)
     out /= out.mean()
     return out
 
@@ -541,7 +543,7 @@ def read_lasaf_txt(fname):
         j = pl.find(dt>=max(dt))[0] + 1
         f_s = 1./np.mean(dt[dt<max(dt)])
         return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
-    except Exception, inst:
+    except Exception as inst:
         print "%s: Exception"%fname, type(inst)
         return None
 

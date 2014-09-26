@@ -615,12 +615,12 @@ class LineScan(DraggableObj):
 
             self.buttons = []
                 
-            ax_diam = plt.axes([0.1, 0.05, 0.2, 0.075])
+            ax_diam = plt.axes([0.1, 0.025, 0.2, 0.05])
             btn_diam = mw.Button(ax_diam, "Trace vessel")
             btn_diam.on_clicked(_vessel_callback)
             self.buttons.append(btn_diam)
 
-            ax_inv = plt.axes([0.32, 0.05, 0.2, 0.075])
+            ax_inv = plt.axes([0.32, 0.025, 0.2, 0.05])
             btn_inv = mw.Button(ax_inv, "Invert data")
             btn_inv.on_clicked(_inv_callback)
             self.buttons.append(btn_inv)
@@ -964,13 +964,15 @@ class VesselContours():
         margin = ext*0.1
         try:
             seeds = track.guess_seeds(d.T,-1)
-            lowc = np.ones(d.shape[1])*seeds[0] - margin
-            highc = np.ones(d.shape[1])*seeds[1] + margin
-            if np.min(np.abs(lowc-highc)) < margin:
-                locw,highc = margin, ext-margin
+            if np.abs(seeds[1]-seeds[0]) < margin:
+                locw,highc = 2*margin, ext-2*margin
         except Exception as e:
-            print "couldn't automatically set starting seeds because of", e
-            lowc,highc = ext*0.1, ext*0.9
+            print "couldn't automatically set starting seeds:", e
+            seeds = ext*0.1+margin, ext*0.9-margin
+        lowc = np.ones(d.shape[1])*seeds[0] - margin
+        lowc = np.where(lowc < 0, margin, lowc)
+        highc = np.ones(d.shape[1])*seeds[1] + margin
+        highc = np.where(highc>ext,  ext-margin, highc)
         self.auto_seeds =  (lowc, highc)
         return (lowc, highc)
 
@@ -1143,7 +1145,7 @@ class Picker:
         ind = p.contains_points(xys)
         for loc,i in zip(locs, ind):
             if i : out[loc[::-1]] = 1
-        self.ax1.figure.canvas.draw_idle()
+        self.ax1.figure.canvas.draw()
         self.ax1.figure.canvas.widgetlock.release(self.lasso)
         del self.lasso
         f = plt.figure()
@@ -1240,7 +1242,7 @@ class Picker:
             if self.frame_slider.val !=n:
                 #print 'updating frame slider'
                 self.frame_slider.set_val(n)
-        self.fig.canvas.draw_idle()
+        self.fig.canvas.draw()
 
         
     def frame_skip(self,event, n=1):
