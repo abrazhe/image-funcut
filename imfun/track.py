@@ -309,7 +309,11 @@ class LCV_Contours:
                           (self.niter+1)
                     self.issteady = True
                 self.nsteady += 1
-            
+    def to_csv(self):
+        out_str = '"wall1", "walls2", "distance"\n'
+        for l,u in zip(self.get_lower(), self.get_upper()):
+            out_str += "%f,%f,%f\n"%(l,u,np.abs(u-l))
+        return out_str
 
 
 def solve_contours_animated(lcvconts, niter=500,
