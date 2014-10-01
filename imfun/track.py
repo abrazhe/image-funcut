@@ -243,6 +243,9 @@ class LCV_Contours:
         return self.conts[:self.L]
     def get_upper(self):
         return self.conts[self.L:]
+    def get_walls_and_diameter(self):
+        l,u = self.conts.reshape(2,-1)
+        return np.array([l,u,u-l]).T
         
     def update_accelerations(self):
         xind = self.xind
@@ -297,6 +300,7 @@ class LCV_Contours:
         return self.conts
 
     def check_steady(self):
+        "Checks if the evolution has reached a steady state"
         err = np.mean(np.abs(self.conts-self.contprev))
         self.errhist.append(err)
         kstop = self.kstop
@@ -309,6 +313,7 @@ class LCV_Contours:
                           (self.niter+1)
                     self.issteady = True
                 self.nsteady += 1
+
     def to_csv(self):
         out_str = '"wall1", "walls2", "distance"\n'
         for l,u in zip(self.get_lower(), self.get_upper()):
@@ -330,8 +335,10 @@ def solve_contours_animated(lcvconts, niter=500,
     else:
         a = ax
         f = ax.figure
-    lh0 = [a.plot(lcvconts.xind*xscale, w, 'g-')[0] for w in lcvconts.conts.reshape(2,-1)] # starting points
-    lh = [a.plot(lcvconts.xind*xscale, w, color='orange')[0] for w in lcvconts.conts.reshape(2,-1)]
+    lh0 = [a.plot(lcvconts.xind*xscale, w, 'g-')[0]
+           for w in lcvconts.conts.reshape(2,-1)] # starting points
+    lh = [a.plot(lcvconts.xind*xscale, w, color='orange')[0]
+          for w in lcvconts.conts.reshape(2,-1)]
     a.axis('tight')
     names = []
     acc = []

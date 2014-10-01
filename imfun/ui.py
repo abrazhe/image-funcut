@@ -438,6 +438,11 @@ class LineScan(DraggableObj):
         self.update_tags()
         self.parent.legend()
         self.redraw()
+    def has_traced_vessels(self):
+        "Checks if LineScan instance has traced vessel data"
+        return self.vconts is not None \
+               and self.vconts.lcv is not None \
+               and self.vconts.lcv.issteady
     def update_length_tag(self):
         "updates text with line length"
         lt = self.length_tag
@@ -528,7 +533,7 @@ class LineScan(DraggableObj):
 		caller = self.parent.caller
 		hwidth = caller.fso.linescan_width # overrides argument
 		half_scope = caller.fso.linescan_scope
-		if half_scope == 0:
+		if half_scope <= 0:
 		    frames = lambda : self.parent.fseq.frames()
 		else:
 		    fi = caller.frame_index
@@ -609,9 +614,7 @@ class LineScan(DraggableObj):
 
             def _vessel_callback(event):
                 print 'Vessel wall tracking'
-                self.vconts = VesselContours(data[0])
-
-
+                self.vconts = VesselContours(data[0],self.tag)
 
             self.buttons = []
                 
@@ -841,7 +844,7 @@ class VesselContours():
     """
     UI for finding vessel contours in cross-lines 
     """
-    def __init__(self,data):
+    def __init__(self,data, title=''):
         self.upsampled=1
         self.data = data
         self.lcv = None
@@ -853,7 +856,7 @@ class VesselContours():
         axs[0].imshow(data, aspect='auto', interpolation='nearest',
                       cmap='gray')
         a = axs[0].axis()
-
+        
         self.start_seed = self.set_auto_seeds()
         self.contlines = None
         self.startlines = [axs[0].plot(s,'g')[0]
@@ -872,6 +875,7 @@ class VesselContours():
 
         axs[0].axis(a)
         self.config_axes()
+        axs[0].set_title(title)
         self.set_buttons()
         return
 
@@ -1076,7 +1080,9 @@ class Picker:
                     self.redraw()
             except Exception as e:
                     print "Picker: can't make legend because ", e
+
     def event_canvas_ok(self, event):
+        "check if event is correct axes and toolbar is not in use"
 	pred = event.inaxes !=self.ax1 or \
 		   self.any_roi_contains(event) or \
 		   self.fig.canvas.toolbar.mode !=''
@@ -1097,6 +1103,7 @@ class Picker:
                     spine.set_color('k')
         self.ax1.figure.canvas.draw()
         return
+
     def on_keyrelease(self, event):
         return 
 
@@ -1188,7 +1195,7 @@ class Picker:
 
 
     def any_roi_contains(self,event):
-        "Checks if event is contained by any ROI"
+        "Checks if event is contained in any ROI"
         if len(self.roi_objs) < 1 : return False
         return reduce(lambda x,y: x or y,
                       [roi.obj.contains(event)[0]
@@ -1206,7 +1213,6 @@ class Picker:
                         open(fname, 'w'), protocol=0)
             print "Saved ROIs to ", fname
         return out
-
 
     def load_rois(self, source):
         "Load stored ROIs from a file"
@@ -1229,6 +1235,18 @@ class Picker:
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
+
+    def export_vessel_diameters(self,fname=None):
+        objs = self.roi_objs
+        keys = [k for k in sorted(objs.keys())
+                if self.isLineROI(k) and objs[k].has_traced_vessels()]
+        if not len(keys):
+            if self._verbose:
+                print "No LineScane ROIs with traced vesels found"
+            return
+        diams = [objs[k].vconts.get_diameter() for k in keys]
+        if fname is None:
+            return dict(zip(keys, diams))
 
     def set_frame_index(self,n):
         Nf = self.fseq.length()
@@ -1292,6 +1310,9 @@ class Picker:
             
     def isCircleROI(self,tag):
         return isinstance(self.roi_objs[tag], CircleROI)
+
+    def isLineROI(self,tag):
+        return isinstance(self.roi_objs[tag], LineScan)
 
     def get_circle_roi_tags(self):
 	return sorted(filter(self.isCircleROI, self.roi_objs.keys()))
