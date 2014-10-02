@@ -616,3 +616,27 @@ def n_random_locs(n, shape):
     return a list of n random locations within shape
     """
     return zip(*[tuple(np.random.choice(dim, n)) for dim in shape])
+
+
+def write_table_csv(table, fname):
+    import csv
+    with open(fname, 'w') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        for row in table:
+            writer.writerow(row)
+
+def write_dict_csv(dict, fname):
+    import csv
+    with open(fname, 'w') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        keys = sorted(dict.keys())
+        # make all data entries one-dimensional (surprize!)
+        vals = [np.ravel(dict[k]) for k in keys]
+        Lmax = np.max([len(v) for v in vals])
+        writer.writerow([''] + keys)
+        for i in xrange(Lmax):
+            row = [i] + [v[i] if len(v) >i and v[i] is not None and not np.isnan(v[i]) else 'NA' for v in vals]
+            writer.writerow(row)
+        
+        
+        

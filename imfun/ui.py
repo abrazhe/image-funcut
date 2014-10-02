@@ -1,27 +1,11 @@
-#!/usr/bin/python
-
-import os
-import sys
-import glob
-import time
 import itertools as itt
 
 import numpy as np
 
-
-from scipy import signal
-from scipy.interpolate import splrep, splev, splprep
-
-#import pylab as pl
-import matplotlib.pyplot as plt
-
-from pylab import mpl
+from matplotlib import pyplot as plt
+from matplotlib import widgets as mw
 from matplotlib import path
-#from matplotlib.widgets import Lasso, Slider
-import matplotlib.widgets as mw
-
-
-
+import matplotlib as mpl
 
 try:
     from swan import pycwt, utils
@@ -30,7 +14,13 @@ try:
 except:
     "Can't load swan (not installed?)"
     _cmap = plt.cm.spectral
-    
+
+try:
+    import pandas as pd
+    _with_pandas = True
+except:
+    "Can't load pandas (not installed?)"
+    _with_pandas = False
 
 from imfun import lib, fnmap
 from imfun import track
@@ -39,14 +29,11 @@ ifnot = lib.ifnot
 in_circle = lib.in_circle
 
 
-
 #Just trust what the user sets in mpl.rcParams for image.aspect
 #mpl.rcParams['image.aspect'] = 'auto' #
 
 #let the user decide where image origin should be
 ##mpl.rcParams['image.origin'] = 'lower'
-
-import itertools
 
 def circle_from_struct(circ_props):
     cp = circ_props.copy()
@@ -65,15 +52,14 @@ def line_from_struct(line_props):
 import pickle
 import random
 
-_vowels = "aeiouy"
-_consonants = "qwrtpsdfghjklzxcvbnm"
 
 _widgetcolor = 'lightyellow'
 
-
 def rand_tag():
+    vowels = "aeiouy"
+    consonants = "qwrtpsdfghjklzxcvbnm"
     return ''.join(map(random.choice,
-                       (_consonants, _vowels, _consonants)))
+                       (consonants, vowels, consonants)))
 def tags_iter(tag_id =1):
     while True:
         yield 'r%02d'%tag_id
@@ -90,14 +76,6 @@ def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
         if not tag in tags:
             return tag
     return "Err"
-
-
-## def nearest_item_ind(items, xy, fn = lambda a: a):
-##     """
-##     Index of the nearest item from a collection.
-##     Arguments: collection, position, selector
-##     """
-##     return lib.min1(lambda p: lib.eu_dist(fn(p), xy), items)
 
 def line_from_points(p1,p2):
     p1 = map(float, p1)
@@ -135,52 +113,10 @@ def rezip(a):
     return zip(*a)
 
 
-def view_fseq_frames(fseq, vmin = None, vmax = None,cmap='gray'):
-    f = plt.figure()
-    axf = plt.axes()
-    frame_index = [0]
-    Nf = fseq.length()
-
-    if vmax is None:
-        vmax = fseq.data_range()[1]
-
-    if vmin is None:
-        vmin = fseq.data_range()[0]
-
-    sh = fseq.shape()
-    sy,sx = sh[:2]
-	
-    dy,dx, scale_setp = fseq.get_scale()
-
-    plf = axf.imshow(fseq[0],
-                     extent = (0, sx*dx, 0, sy*dy),
-                     interpolation = 'nearest',
-                     vmax = vmax, vmin = vmin,
-                     aspect = 'equal', cmap=cmap)
-    if scale_setp:
-        plt.ylabel('um')
-        plt.xlabel('um')
-    plt.colorbar(plf)
-    def skip(event,n=1):
-        fi = frame_index[0]
-        key = hasattr(event, 'button') and event.button or event.key
-        if key in (4,'4','down','left','p'):
-            fi -= n
-        elif key in (5,'5','up','right','n'):
-            fi += n
-        fi = fi%Nf
-        plf.set_data(fseq[fi])
-        axf.set_title('%03d (%3.3f sec)'%(fi, fi*fseq.dt))
-        frame_index[0] = fi
-        f.canvas.draw()
-    f.canvas.mpl_connect('scroll_event',skip)
-    f.canvas.mpl_connect('key_press_event',skip)
-
-
-def resample_velocity(rad, v,rstart=10.0):
-    rstop = rad[-1]
-    xnew = np.arange(rstart, rstop, 0.25)
-    return xnew, np.interp(xnew,rad,v)
+## def resample_velocity(rad, v,rstart=10.0):
+##     rstop = rad[-1]
+##     xnew = np.arange(rstart, rstop, 0.25)
+##     return xnew, np.interp(xnew,rad,v)
 
 
 _DM_help_msg =  """
@@ -214,6 +150,7 @@ class GWExpansionMeasurement1:
             }
 	plt.show()
 	print _DM_help_msg
+
     def disconnect(self):
         if self.line_par:
             self.line_par.remove()
@@ -223,7 +160,6 @@ class GWExpansionMeasurement1:
             self.line2.remove()
         map(self.canvas.mpl_disconnect, self.cid.values())
         self.canvas.draw()
-
 	
     def get_ind_closest(self,event):
 	xy = np.asarray(self.points)
@@ -237,6 +173,7 @@ class GWExpansionMeasurement1:
 		ind = None
 	else: ind = None
         return ind
+
     def add_point(self, event):
 	p = event.xdata, event.ydata
 	ind = self.get_ind_closest(event)
@@ -256,12 +193,15 @@ class GWExpansionMeasurement1:
 	    #print 'added line'
 	else:
 	    self.line.set_data([xd,yd])
+
     def remove_point(self, event):
 	ind = self.get_ind_closest(event)
 	if ind is not None:
 	    self.points = [pj for j,pj in enumerate(self.points) if j !=ind]
 	    self.line.set_data(rezip(self.points))
+
     def action(self,min_r = 5.):
+        from scipy.interpolate import splev, splprep
 	xd, yd = map(np.array, rezip(self.points))
 	par = np.polyfit(xd,yd,2)
 	xfit_par = np.linspace(xd[0], xd[-1], 256)
@@ -311,18 +251,12 @@ class GWExpansionMeasurement1:
 	self.velocities = [[lh_r[::-1], lh_v[::-1]],
 			   [rh_r, rh_v]]
 	return 
+
     def _on_button_press(self,event):
 	if not self.event_ok(event): return
 	x,y = event.xdata, event.ydata
 	if event.button == 1:
 	    self.add_point(event)
-	## elif event.button == 2:
-	##     if self.center is None:
-	## 	self.center = pl.Line2D([x],[y],marker='*',color='m',
-	## 				markersize=12)
-	## 	self.ax.add_line(self.center)
-	##     else:
-	## 	self.center.set_data([[x],[y]])
 	elif event.button == 3:
 	    self.remove_point(event)
 	self.canvas.draw()
@@ -339,8 +273,6 @@ class GWExpansionMeasurement1:
     def event_ok(self, event):
         return event.inaxes == self.ax and \
                self.canvas.toolbar.mode ==''
-
-
 
 class DraggableObj:
     """Basic class for objects that can be dragged on the screen"""
@@ -378,6 +310,7 @@ class DraggableObj:
             'scroll': cf('scroll_event', self.on_scroll),
             'type': cf('key_press_event', self.on_type)
             }
+
     def on_motion(self, event):
         if not (self.event_ok(event, False) and self.pressed):
             return
@@ -390,6 +323,7 @@ class DraggableObj:
         if not self.event_ok(event):
             return
         self.redraw()
+
     def set_tagtext(self):
         pass
 
@@ -400,6 +334,7 @@ class DraggableObj:
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
+
     def get_color(self):
         return self.obj.get_facecolor()    
 
@@ -1245,8 +1180,15 @@ class Picker:
                 print "No LineScane ROIs with traced vesels found"
             return
         diams = [objs[k].vconts.get_diameter() for k in keys]
-        if fname is None:
-            return dict(zip(keys, diams))
+        out =  dict(zip(keys, diams))
+        if _with_pandas:
+            out = pd.DataFrame(out)
+            writer = pd.DataFrame.to_csv
+        else:
+            writer = lib.write_dict_csv
+        if fname is not None:
+            writer(out, fname)
+        return out
 
     def set_frame_index(self,n):
         Nf = self.fseq.length()
