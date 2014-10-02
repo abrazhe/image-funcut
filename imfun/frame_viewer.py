@@ -173,10 +173,13 @@ class FrameSequenceOpts(HasTraits):
 
     _export_rois_dict = File()
     _load_rois_dict = File()
-
+    _export_timeseries_file = File()
+    _export_vessel_diameters_file = File()
+    
+    export_vessel_diameters_btn = Button("Export vessel diameters")
     export_rois_dict_btn = Button('Export current ROIs')
     load_rois_dict_btn = Button('Load ROIs from file')
-    _export_timeseries_file = File()
+    
     export_timeseries_btn = Button('Export timeseries from ROIs')
     show_all_timeseries_btn = Button('Show all timeseries')
     
@@ -207,6 +210,15 @@ class FrameSequenceOpts(HasTraits):
      	width = 600,
      	title = "Export timeseries from current ROIs",
      	resizable = True,)
+
+    export_vessel_diameters_view = View(
+     	Item('_export_vessel_diameters_file'), 
+     	buttons = OKCancelButtons,
+     	kind = 'livemodal',
+     	width = 600,
+     	title = "Export traced vessel diameters from LineScan ROIs",
+     	resizable = True,)
+
 
     def default_traits_view(self):
 	"""Default view for FrameSequenceOpts"""
@@ -272,6 +284,7 @@ class FrameSequenceOpts(HasTraits):
 			label='Movie'),
 		  Group('export_rois_dict_btn',
 			'export_timeseries_btn',
+                        'export_vessel_diameters_btn',
 			show_border=True,
 			show_labels=False,
 			label='ROIs'),
@@ -455,6 +468,15 @@ class FrameSequenceOpts(HasTraits):
 	    print self._export_timeseries_file
 	    picker = self.parent.picker
 	    picker.save_time_series_to_file(self._export_timeseries_file)
+
+    def _export_vessel_diameters_btn_fired(self):
+        print "_export_vessel_diameters_btn_fired"
+        ui = self.edit_traits(view='export_vessel_diameters_view')
+	if ui.result == True:
+            name = self._export_vessel_diameters_file
+            print 'Picked file name:', name
+            p = self.parent.picker
+            p.export_vessel_diameters(name)
 	
     def _load_btn_fired(self):
         

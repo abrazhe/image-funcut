@@ -916,7 +916,7 @@ class VesselContours():
         return (lowc, highc)
 
 class Picker:
-    verbose = True
+    _verbose = True
     def __init__(self, fseq):
         self._corrfn = 'pearson'
         self.cw = color_walker()
