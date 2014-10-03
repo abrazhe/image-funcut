@@ -246,7 +246,7 @@ def auto_threshold(arr, init_th = None, max_iter = 1e7):
     return thnext
 
 def DFoSD(vec, normL=None, th = 1e-6):
-    "Remove mean and normalize to S.D."
+    "Subtract mean value along first axis and normalize to S.D."
     normL = ifnot(normL, len(vec))
     m, x  = np.mean, vec[:normL]
     sdx = np.std(x,0)
@@ -261,9 +261,9 @@ def DFoSD(vec, normL=None, th = 1e-6):
     return out
 
 def DFoF(vec, normL=None, th = 1e-6):
-    "Remove mean and normalize to it"
+    "Subtract mean value along first axis and normalize to it"
     normL = ifnot(normL, len(vec))
-    m = np.mean(vec[:normL],0)
+    m = np.mean(vec[:normL], 0)
     out = np.zeros(vec.shape, vec.dtype)
     if m.shape is ():
 	if np.abs(m) > th:

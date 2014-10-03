@@ -14,48 +14,10 @@ _dtype_ = np.float64
 
 from matplotlib.pyplot import imread
 
+import quantities as pq
+
 from imfun import lib
 ifnot = lib.ifnot
-
-def sorted_file_names(pattern):
-    "Return a sorted list of file names matching a pattern"
-    x = glob.glob(pattern)
-    return sorted(x)
-
-def iter_files(pattern, loadfn):
-    """Return iterator over data frames, file names matching a pattern,
-    loaded by a user-provided function loadfn
-    """
-    return itt.imap(loadfn, sorted_file_names(pattern))
-
-
-def img_getter(frame, ch):
-    """A wrapper to extract color channel from image files.
-    :returns: 2D matrix with intensity values
-    """
-    if len(frame.shape) > 2:
-        out = frame[:,:,ch]
-    else:
-        out = frame
-    return out
-
-
-def fseq_from_glob(pattern, ch=None, loadfn=np.load):
-    """Return sequence of frames from filenames matching a glob.
-
-    Parameters:
-      - pattern : (`str`) -- glob-style pattern for file names. 
-      - ch: (`int` or `None`) -- color channel to extract if a number, all colors if `None`.
-      - loadfn: (`func`) -- a function to load data from a file by its name [`np.load`].
-
-    Returns:
-      - iterator over frames. `2D` if `ch` is `int`, `3D` if ch is `None`
-    """
-    if ch is not None:
-	return itt.imap(lambda frame: img_getter(frame, ch),
-			iter_files(pattern, loadfn))
-    else:
-	return iter_files(pattern, loadfn)
 
 class FrameSequence(object):
     "Base class for sequence of frames"
@@ -88,7 +50,7 @@ class FrameSequence(object):
 	"""Return the composite function to process frames based on self.fns"""
 	return lib.flcompose(identity, *self.fns)
 
-    def std(self):
+    def std(self, axis=None):
 	"""get standard deviation of the data"""
         a = self.as3darray()
         return float(a.std())
@@ -424,7 +386,9 @@ class FrameSequence(object):
         import matplotlib.pyplot as plt
 
         if fps is None:
-            fps = 0.5/self.dt
+            fps = max(1., 10./self.dt)
+        if marker_idx is None:
+            marker_idx = []
 
         if stop is None or stop == -1:
             stop = self.length()
@@ -445,12 +409,7 @@ class FrameSequence(object):
         mytitle = ax.set_title('')
         marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
         ax.add_patch(marker)
-        ## def _init():
-        ##     k = 0
-        ##     if show_title:
-        ##         mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
-        ##     plh.set_data(self[k])
-        ##     return plh, 
+
         def _animate(framecount):
             k = framecount+start
             plh.set_data(self[k])
@@ -477,16 +436,27 @@ class FrameSequence(object):
         plt.close(anim._fig)
         return 
 
+def empty_axes_meta(size=3):
+    names = ("scale", "unit")
+    formats = ('float', "S10")
+    x =  np.ones(size, dtype=dict(names=names,formats=formats))
+    x['unit'] = ['']*size
+    return x
+
 class FSeq_arr(FrameSequence):
-    """A FrameSequence class as a wrapper around a `3D` array
+    """A FrameSequence class as a wrapper around a `3D` Numpy array
     """
-    def __init__(self, arr, dt = 1.0, fns = [],
-                 dx = None, dy = None):
-        self.dt = dt
+    def __init__(self, arr, fns = [], meta=None, dx=None,dy=None,dz=None):
         self.data = arr
-        self.hooks = []
         self.fns = fns
-        self.set_scale(dx, dy)
+        if meta is None:
+            sh = arr.shape
+            self.meta = dict()
+            #self.meta['axes'] = [pq.UncertainQuantity(1) for k in
+            #xrange(np.ndim(arr))]
+            self.meta['axes'] = empty_axes_meta(np.ndim(arr))
+            
+        return
     def length(self):
         return self.data.shape[0]
     def __getitem__(self, val):
@@ -544,6 +514,47 @@ class FSeq_arr(FrameSequence):
 
 def identity(x):
     return x
+
+def sorted_file_names(pattern):
+    "Return a sorted list of file names matching a pattern"
+    x = glob.glob(pattern)
+    return sorted(x)
+
+def iter_files(pattern, loadfn):
+    """Return iterator over data frames, file names matching a pattern,
+    loaded by a user-provided function loadfn
+    """
+    return itt.imap(loadfn, sorted_file_names(pattern))
+
+
+def img_getter(frame, ch):
+    """A wrapper to extract color channel from image files.
+    :returns: 2D matrix with intensity values
+    """
+    if len(frame.shape) > 2:
+        out = frame[:,:,ch]
+    else:
+        out = frame
+    return out
+
+
+def fseq_from_glob(pattern, ch=None, loadfn=np.load):
+    """Return sequence of frames from filenames matching a glob.
+
+    Parameters:
+      - pattern: (`str`) -- glob-style pattern for file names. 
+      - ch: (`int` or `None`) -- color channel to extract if a number, all colors if `None`.
+      - loadfn: (`func`) -- a function to load data from a file by its name [`np.load`].
+
+    Returns:
+      - iterator over frames. `2D` if `ch` is `int`, `3D` if ch is `None`
+    """
+    if ch is not None:
+	return itt.imap(lambda frame: img_getter(frame, ch),
+			iter_files(pattern, loadfn))
+    else:
+	return iter_files(pattern, loadfn)
+
 
 class FSeq_glob(FrameSequence):
     """A FrameSequence class as a wrapper around a set of files matching a
@@ -704,7 +715,7 @@ try:
                 except EOFError:
                     break
 except ImportError:
-    print "Cant defince FSeq_multiff because can't import PIL"
+    print "Cant define FSeq_multiff because can't import PIL"
                     
 class FSeq_tiff_2(FSeq_arr):
     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
@@ -872,6 +883,7 @@ try:
         def __init__(self, fname, dataset=None,**kwargs):
             parent = super(FSeq_hdf5, self)
             f = h5py.File(fname, 'r')
+            print "The file %s has the following data sets:"%fname, f.keys()
 
             if dataset and dataset not in f:
                 print "Dataset name doesn't exist in file, setting to None "
