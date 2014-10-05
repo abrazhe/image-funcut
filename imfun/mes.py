@@ -1,5 +1,7 @@
 # Routines to read MES files
 
+from __future__ import division
+
 import numpy as np
 from scipy import io
 
@@ -41,14 +43,16 @@ def only_measures(entry):
     return entry[entry['Context']=='Measure']
 
 def first_measure(entry):
-    return entry[entry['Context']=='Measure'][0]
+    measures = only_measures(entry)
+    if len(measures):
+        return measures[0]
 
 # ! re-do
 def get_date(entry):
     return entry['MeasurementDate'][0]
 
-def get_ffi(entry):
-    return first_measure(entry)['FoldedFrameInfo'][0]
+def get_ffi(record):
+    return first_measure(record)['FoldedFrameInfo'][0]
 
 def get_sampling_interval(ffi):
     nframes = long(ffi['numFrames'])

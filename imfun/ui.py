@@ -285,7 +285,8 @@ class DraggableObj:
         self.tag = obj.get_label() # obj must support this
         if hasattr(parent, 'fseq'):
             fseq = self.parent.fseq
-            self.dy,self.dx, self.scale_setp = fseq.get_scale()
+            self.axes = fseq.meta['axes']
+            #self.dy,self.dx, self.scale_setp = fseq.get_scale()
         self.set_tagtext()
         return
 
@@ -448,7 +449,7 @@ class LineScan(DraggableObj):
             k = np.argmin([lib.eu_dist(xy, xp) for xp in candidates])
             self.pressed = event.xdata, event.ydata, k
         elif event.button == 2:
-            self.dm = self.show_timeview()
+            self.dm = self.show_zview()
 
     def on_type(self, event):
 	if not self.event_ok(event, True):
@@ -456,12 +457,13 @@ class LineScan(DraggableObj):
         # press "/" for reslice, as in imagej
         accepted_keys = ['/', '-', 'r']
 	if event.key in accepted_keys:
-	    self.diameter_manager = self.show_timeview()
+	    self.diameter_manager = self.show_zview()
 
     def transform_point(self, p):
-        return p[0]/self.dx, p[1]/self.dy
+        dx,dy = self.axes[1:3]['scale']
+        return p[0]/dx, p[1]/dy
 
-    def get_timeview(self,hwidth=2,frange=None):
+    def get_zview(self,hwidth=2,frange=None):
         points = map(self.transform_point, self.check_endpoints())
 	if frange is None:
 	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
@@ -514,8 +516,8 @@ class LineScan(DraggableObj):
 	elif output == 'function':
 	    return _
 	
-    def show_timeview(self,frange=None,hwidth=2):
-        timeview,points = self.get_timeview(frange=frange,hwidth=hwidth)
+    def show_zview(self,frange=None,hwidth=2):
+        timeview,points = self.get_zview(frange=frange,hwidth=hwidth)
         gw_meas = [None]
 
                     
@@ -526,16 +528,17 @@ class LineScan(DraggableObj):
             plt.subplots_adjust(bottom=0.2)
 
             # TODO: work out if sx differs from sy
-            x_extent = (0,fseq.dt*timeview.shape[0])
+            (dz,zunits), (dx,xunits) = fseq.meta['axes'][:2]
+            x_extent = (0,dz*timeview.shape[0])
             if mpl.rcParams['image.origin'] == 'lower':
                lowp = 1
             else:
                lowp = -1
             ax.imshow(timeview,
-                      extent=x_extent + (0, self.dx*timeview.shape[0]),
+                      extent=x_extent + (0, dx*timeview.shape[0]),
                       interpolation='nearest')
-            ylabel = self.scale_setp and 'um' or 'pixels'
-            xlabel = (self.scale_setp or fseq.dt !=1 ) and 'sec' or 'frames'
+            ylabel = (xunits !='') and xunits or 'pixels'
+            xlabel = (zunits !='')  and zunits or 'frames'
 
             ax.set_ylabel(ylabel)
             ax.set_xlabel(xlabel)
@@ -597,11 +600,11 @@ class CircleROI(DraggableObj):
             print event.key
         tags = [self.tag]
         if event.key in ['t', '1']:
-            self.parent.show_timeseries(tags)
+            self.parent.show_zview(tags)
         elif event.key in ['c']:
             self.parent.show_xcorrmap(self.tag)
         elif event.key in ['T', '!']:
-            self.parent.show_timeseries(tags, normp=True)
+            self.parent.show_zview(tags, normp=True)
         elif event.key in ['w', '2']:
             self.parent.show_spectrogram_with_ts(self.tag)
         elif event.key in ['W', '3']:
@@ -615,7 +618,7 @@ class CircleROI(DraggableObj):
         if event.button is 1:
             self.pressed = event.xdata, event.ydata, x0, y0
         elif event.button is 2:
-            self.parent.show_timeseries([self.tag])
+            self.parent.show_zview([self.tag])
         elif event.button is 3:
             self.destroy()
         
@@ -650,13 +653,14 @@ class CircleROI(DraggableObj):
 
     def in_circle(self, shape):
         roi = self.obj
-        c = roi.center[0]/self.dx, roi.center[1]/self.dy
-        fn = lib.in_circle(c, roi.radius/self.dx)
+        dx,dy = self.axes[1:3]['scale']
+        c = roi.center[0]/dx, roi.center[1]/dy
+        fn = lib.in_circle(c, roi.radius/dx)
         X,Y = np.meshgrid(*map(range, shape[::-1]))
         return fn(X,Y)
 
-    def get_timeview(self, normp=False):
-	"""return timeseries from roi
+    def get_zview(self, normp=False):
+	"""return z-series (for timelapse --- timeseries) from roi
 
 	Parameters:
 	  - if normp is False, returns raw timeseries v
@@ -922,7 +926,6 @@ class Picker:
         self.cw = color_walker()
         self._show_legend=False
         self.fseq = fseq
-        self.dt = fseq.dt
         self._Nf = None
         self.roi_objs = {}
         self.min_length = 5
@@ -957,7 +960,8 @@ class Picker:
         self.legtype = legend_type
         self.pressed = None
 
-        dx,dy, scale_setp = self.fseq.get_scale()
+        axes = self.fseq.meta['axes']
+        (dx,xunits),(dy,yunits) = axes[1:3]
 	sy,sx = self.fseq.shape()[:2]
         if len(self.fseq.shape()) ==2:
             if vmin is None or vmax is None:
@@ -985,9 +989,8 @@ class Picker:
                                   aspect='equal',
                                   vmax=vmax,  vmin=vmin,
                                   cmap=cmap)
-        if scale_setp:
-            self.ax1.set_xlabel('um')
-            self.ax1.set_ylabel('um')
+        self.ax1.set_xlabel(yunits)
+        self.ax1.set_ylabel(xunits)
 
         self.disconnect()
         self.connect()
@@ -1055,7 +1058,8 @@ class Picker:
            not self.any_roi_contains(event) and \
            not self.shift_on:
             label = unique_tag(self.roi_tags(), tagger=self.tagger)
-            c = plt.Circle((x,y), 5*self.fseq.dx, alpha = 0.5,
+            dx,xunits = self.fseq.meta['axes'][1]
+            c = plt.Circle((x,y), 5*dx, alpha = 0.5,
                        label = label,
                        color=self.cw.next())
             c.figure = self.fig
@@ -1078,7 +1082,7 @@ class Picker:
         p = path.Path(verts)
         sh = self.fseq.shape()
         locs = list(itt.product(*map(xrange, sh[::-1])))
-        dy,dx, scale_setp = self.fseq.get_scale()
+        dy,dx = self.fseq.meta['axes']['scale'][1:3]
         out = np.zeros(sh)
         self.pmask = out
         xys = np.array(locs, 'float')
@@ -1194,7 +1198,12 @@ class Picker:
         Nf = self.fseq.length()
 	fi = int(n)%Nf
         self.frame_index = fi
-        _title = '%03d (%3.3f sec)'%(fi, fi*self.fseq.dt)
+        dz,zunits = self.fseq.meta['axes'][0]
+        if zunits == '':
+            tstr = ''
+        else:
+            tstr='(%3.3f %s)'%(fi*dz,zunits)
+        _title = '%03d '%fi + tstr
         show_f = self.fseq[fi]
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
@@ -1261,12 +1270,12 @@ class Picker:
     def get_timeseries(self, rois=None, normp=False):
         rois = ifnot(rois,
                      sorted(filter(self.isCircleROI, self.roi_objs.keys())))
-        return [self.roi_objs[tag].get_timeview(normp)
+        return [self.roi_objs[tag].get_zview(normp)
                 for tag in  rois]
 
-    def timevec(self):
-        dt,Nf = self.dt, self.length()
-        return np.arange(0,Nf*dt, dt)[:Nf]
+    ## def timevec(self):
+    ##     dt,Nf = self.dt, self.length()
+    ##     return np.arange(0,Nf*dt, dt)[:Nf]
 
     def save_time_series_to_file(self, fname, normp = False):
         """If only have Point-type ROIs, export time series as text file, if also
@@ -1274,7 +1283,7 @@ class Picker:
         point_rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
         if len(point_rois) == len(self.roi_objs.keys()):
             ts = self.get_timeseries(normp=normp)
-            t = self.timevec()        
+            t = self.fseq.frame_idx()
             fd = file(fname, 'w')
             if hasattr(self.fseq, 'ch'):
                 out_string = "Channel %d\n" % self.fseq.ch
@@ -1288,7 +1297,7 @@ class Picker:
                 fd.write(out_string)
                 fd.close()
         else:
-            acc = [(tag,self.roi_objs[tag].get_timeview())
+            acc = [(tag,self.roi_objs[tag].get_zview())
                    for tag in sorted(self.roi_objs.keys())]
             if not '.pickle' in fname:
                 fname +='.pickle'
@@ -1296,9 +1305,9 @@ class Picker:
             print "Saved time-views for all rois to ", fname
 
 
-    def show_timeseries(self, rois = None, **keywords):
-	#print 'in Picker.show_timeseries()'
-        t = self.timevec()
+    def show_zview(self, rois = None, **keywords):
+	#print 'in Picker.show_zview()'
+        t = self.fseq.frame_idx()
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
 	    if self.isCircleROI(tag):
                 if np.ndim(x) == 1:
@@ -1311,14 +1320,15 @@ class Picker:
                             ax.plot(t, xe, color=color,label=tag+':'+color)
 	    else:
 		sh = x.shape
-		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*self.fseq.dx),
+                dx,xunits = self.fseq.meta['axes'][1]
+		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*dx),
 			  aspect='auto',cmap=_cmap)
             plt.xlim(0,t[-1])
 	ax.figure.show()
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
-        freqs = np.fft.fftfreq(int(L), self.dt)[1:L/2]
+        freqs = np.fft.fftfreq(int(L), self.fseq.meta['axes'][0][0])[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
             y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
@@ -1348,7 +1358,8 @@ class Picker:
                           normp= True,
                           **keywords):
         keywords.update({'rois':rois, 'normp':normp})
-        f_s = 1.0/self.dt
+        dt = self.fseq.meta['axes'][0][0]
+        f_s = 1.0/dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
@@ -1372,21 +1383,23 @@ class Picker:
             return
         signal = self.get_timeseries([roitag],normp=lib.DFoSD)[0]
         Ns = len(signal)
-        f_s = 1/self.dt
+        dz,zunits = self.fseq.meta['axes'][0]
+        f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roitag)
-        tvec = self.timevec()
+        tvec = self.fseq.frame_idx()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roitag].get_color()
         fig,axlist = swu.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
-        axlist[1].set_xlabel('time, s')
         utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
 			       wavelet=wavelet,
 			       cax = axlist[2])
         axlist[0].set_title(title_string)
-        axlist[0].set_ylabel('Frequency, Hz')
+        if zunits != '':
+            axlist[1].set_xlabel('time, %s'%zunits)
+            axlist[0].set_ylabel('Frequency, Hz')
         return fig
 
     def show_wmps(self, rois = None, freqs = None,
@@ -1396,17 +1409,19 @@ class Picker:
                   **keywords):
         "show mean wavelet power spectra"
         keywords.update({'rois':rois, 'normp':True})
-        fs = 1.0/self.dt
+        dz,zunits = self.fseq.meta['axes'][0]
+        fs = 1.0/dz
         freqs = ifnot(freqs, self.default_freqs())
         for x,tag,roi,ax in self.roi_show_iterator(**keywords):
-            cwt = pycwt.cwt_f(x, freqs, 1./self.dt, wavelet, 'zpd')
+            cwt = pycwt.cwt_f(x, freqs, fs, wavelet, 'zpd')
             eds = pycwt.eds(cwt, wavelet.f0)
             ax.plot(freqs, np.mean(eds, 1))
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        return np.linspace(4.0/(self.length()*self.dt),
-                           0.5/self.dt, num=nfreqs)
+        dz,zunits = self.fseq.meta['axes'][0]
+        return np.linspace(4.0/(self.length()*dz),
+                           0.5/dz, num=nfreqs)
 
     def roi_show_iterator(self, rois = None,
                               **kwargs):
@@ -1425,11 +1440,15 @@ class Picker:
 	    roi = self.roi_objs[roi_label]
             ax = axlist[i,0]
 	    if self.isCircleROI(roi_label):
-		x = roi.get_timeview(**kwargs)
+		x = roi.get_zview(**kwargs)
 	    else:
-		x,points = roi.get_timeview(**kwargs)
+		x,points = roi.get_zview(**kwargs)
 	    if i == L-1:
-		ax.set_xlabel("time, sec")
+                dz,zunits = self.fseq.meta['axes'][0]
+                if zunits != '':
+                    ax.set_xlabel("time, %s"%zunits)
+                else:
+                    ax.set_xlabel('frames')
             if L == 1:
                 ax.set_title(roi_label, color=roi.get_color(),
                              backgroundcolor='w', size='large')
@@ -1444,18 +1463,19 @@ class Picker:
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROIs"
         freqs = ifnot(freqs, self.default_freqs())
-        self.extent=[0,self.length()*self.dt, freqs[0], freqs[-1]]
+        dz,zunints = self.fseq.meta['axes'][0]
+        self.extent=[0,self.length()*dz, freqs[0], freqs[-1]]
 
         if not (self.isCircleROI(tag1) and self.isCircleROI(tag2)):
             print "Both tags should be for CircleROIs"
             return
 
-        s1 = self.roi_objs[tag1].get_timeview(True)
-        s2 = self.roi_objs[tag2].get_timeview(True)
+        s1 = self.roi_objs[tag1].get_zview(True)
+        s2 = self.roi_objs[tag2].get_zview(True)
 
-        res = func(s1,s2, freqs,1.0/self.dt,wavelet)
+        res = func(s1,s2, freqs,1.0/dz,wavelet)
 
-        t = self.timevec()
+        t = self.fseq.frame_idx()
 
         plt.figure();
         ax1= plt.subplot(211);
@@ -1475,7 +1495,7 @@ class Picker:
 	    corrfn = fnmap.stats.pearsonr
 	rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
 	ts = self.get_timeseries(normp=normp)
-        t = self.timevec()
+        t = self.fseq.frame_idx()
 	nrois = len(rois)
 	if nrois < 2:
 	    print "not enough rois, pick more"

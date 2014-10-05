@@ -14,15 +14,21 @@ _dtype_ = np.float64
 
 from matplotlib.pyplot import imread
 
-import quantities as pq
+#import quantities as pq
 
 from imfun import lib
 ifnot = lib.ifnot
 
 class FrameSequence(object):
     "Base class for sequence of frames"
-    def get_scale(self):
+    def set_default_meta(self,ndim=None):
+        self.meta = dict()
+        scales = lib.alist_to_scale([(1,'')])
+        self.meta['axes'] = scales
+
+    def _get_scale(self):
 	"""
+        DO NOT USE
 	Returns dx,dy and the flag whether the scale information has been set.
 	If scale info hasn't been set, dx=dy=1
 	"""
@@ -33,8 +39,8 @@ class FrameSequence(object):
             dx,dy,scale_flag = 1,1,None
         return dx, dy, scale_flag
 
-    def set_scale(self, dx=None, dy=None):
-	"""sets self.dx, self.dy scale information"""
+    def _set_scale(self, dx=None, dy=None):
+	"""DO NOT USE sets self.dx, self.dy scale information"""
         self._scale_set = True
         if (dx is None) and (dy is None):
             self.dx,self.dy = 1,1
@@ -53,7 +59,7 @@ class FrameSequence(object):
     def std(self, axis=None):
 	"""get standard deviation of the data"""
         a = self.as3darray()
-        return float(a.std())
+        return float(a.std(axis))
 
     def data_range(self):
         """Return global range (`min`, `max`) values for the sequence"""
@@ -79,10 +85,13 @@ class FrameSequence(object):
         else:
             return [np.percentile(arr[...,k],p) for k in range(sh[2])]
 
-    def timevec(self,):
-        """Return a vector of time stamps, calculated based on `self.dt`"""
+    def frame_idx(self,):
+        """Return a vector of time stamps, if frame sequence is timelapse and
+        dt is set, or just `arange(nframes)`"""
         L = self.length()
-        return np.arange(0, (L+2)*self.dt, self.dt)[:L]
+        scale, unit = self.meta['axes'][0]
+        if unit == '': scale=1
+        return np.arange(0, (L+2)*scale, scale)[:L]
 
     def mask_reduce(self, mask):
         """Return `1D` vector from a mask (or slice), taking average value within
@@ -264,18 +273,19 @@ class FrameSequence(object):
     def _norm_mavg(self, tau=90., **kwargs):
 	"Return normalized frame sequence"
 	from scipy import ndimage
-	if kwargs.has_key('dtype'):
+	if 'dtype' in kwargs:
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
-	dt = self.dt
+	dt = self.meta['axes'][0]['scale'] # todo: always convert to seconds
 	arr = self.as3darray(**kwargs)
 	sigma = tau/dt
 	smooth =  ndimage.gaussian_filter1d(arr, sigma, axis=0)
 	zi = np.where(np.abs(smooth) < 1e-6)
 	out  = arr/smooth - 1.0
 	out[zi] = 0
-	return FSeq_arr(out, dt = dt, dx=self.dx, dy = self.dy)
+        newmeta = self.meta.copy()
+	return FSeq_arr(out, meta=newmeta)
 	
 
     def pw_transform(self, pwfn, verbose=False, **kwargs):
@@ -289,7 +299,7 @@ class FrameSequence(object):
 	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
 	"""
 	#nrows, ncols = self.shape()[:2]
-	if kwargs.has_key('dtype'):
+        if 'dtype' in kwargs:
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
@@ -303,8 +313,14 @@ class FrameSequence(object):
             out[:,row,col] = pwfn(v)
 	    if hasattr(out, 'flush'):
 		out.flush()
-	dt = self.dt*self.length()/L
-        return FSeq_arr(out, dt = dt, dx=self.dx, dy = self.dy)
+
+        ## assuming the dz is not changed. if it *is*, provide new meta
+        ## in kwargs
+        if 'meta' in kwargs:
+            newmeta = meta.copy()
+        else:
+            newmeta = self.meta.copy() 
+        return FSeq_arr(out, meta=newmeta)
 
     def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
                    start = 0, stop = None, show_title = True,
@@ -357,7 +373,8 @@ class FrameSequence(object):
             fname =  path + base + '%06d.png'%i
 	    fnames.append(fname)
             if show_title:
-                ax.set_title('frame %06d (%3.3f s)'%(i, i*self.dt))
+                zscale = tuple(self.meta['axes'][0])
+                ax.set_title('frame %06d (%3.3f %s)'%zscale)
             fig.savefig(fname)
             sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
         plt.close()
@@ -377,16 +394,17 @@ class FrameSequence(object):
 	Parameters:
 	  - `video_name`: (`str`) -- a name (without extension) for the movie to
 	    be created
-	  - `fps`: (`number`) -- frames per second. If None, use 10/self.dt
+	  - `fps`: (`number`) -- frames per second.
+             If None, use 10/self.meta['axes'][0][0]
           - `marker_idx`: (`array_like`) -- indices when to show a marker
             (e.g. for stimulation)
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
         from matplotlib import animation
         import matplotlib.pyplot as plt
-
+        dz,zunits = tuple(self.meta['axes'][0])
         if fps is None:
-            fps = max(1., 10./self.dt)
+            fps = max(1., 10./dz)
         if marker_idx is None:
             marker_idx = []
 
@@ -409,12 +427,15 @@ class FrameSequence(object):
         mytitle = ax.set_title('')
         marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
         ax.add_patch(marker)
-
+        
         def _animate(framecount):
+            tstr = ''
             k = framecount+start
             plh.set_data(self[k])
             if show_title:
-                mytitle.set_text('frame: %04d, time: %0.3f s'%(k, k*self.dt))
+                if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
+                    tstr = 'time: %0.3f %s' %(k*dz,zunits)
+                mytitle.set_text('frame: %04d'%k +tstr)
             if k in marker_idx:
                 plt.setp(marker, visible=True)
             else:
@@ -436,27 +457,31 @@ class FrameSequence(object):
         plt.close(anim._fig)
         return 
 
-def empty_axes_meta(size=3):
-    names = ("scale", "unit")
+
+_x1=[(1,2,3), ('sec','um','um')] # two lists
+_x2=[(1,'sec'), (2,'um'), (3,'um')] # plist
+_x3=[1, 'sec', 2, 'um', 3, 'um'] # alist
+
+def _empty_axes_meta(size=3):
+    names = ("scale", "units")
     formats = ('float', "S10")
     x =  np.ones(size, dtype=dict(names=names,formats=formats))
     x['unit'] = ['']*size
     return x
 
+
+
+
 class FSeq_arr(FrameSequence):
     """A FrameSequence class as a wrapper around a `3D` Numpy array
     """
-    def __init__(self, arr, fns = [], meta=None, dx=None,dy=None,dz=None):
+    def __init__(self, arr, fns = [], meta=None):
         self.data = arr
         self.fns = fns
         if meta is None:
-            sh = arr.shape
-            self.meta = dict()
-            #self.meta['axes'] = [pq.UncertainQuantity(1) for k in
-            #xrange(np.ndim(arr))]
-            self.meta['axes'] = empty_axes_meta(np.ndim(arr))
-            
-        return
+            self.set_default_meta(self)
+        else:
+            self.meta = meta.copy()
     def length(self):
         return self.data.shape[0]
     def __getitem__(self, val):
@@ -484,7 +509,7 @@ class FSeq_arr(FrameSequence):
 	    if pmask == None:
                 pmask = np.ones(self.shape()[:2], np.bool)
 	    nrows, ncols = self.shape()[:2]
-	    if kwargs.has_key('dtype'):
+            if 'dtype' in kwargs:
 		dtype = kwargs['dtype']
 	    else: dtype=_dtype_
 	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
@@ -559,13 +584,11 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
 class FSeq_glob(FrameSequence):
     """A FrameSequence class as a wrapper around a set of files matching a
     glob-like pattern"""
-    def __init__(self, pattern, ch=0, dt = 1.0, fns = [],
-                 dx = None, dy = None):
+    def __init__(self, pattern, ch=0, fns=[],
+                 meta = None):
         self.pattern = pattern
         self.ch = ch
-        self.dt = dt
         self.fns = fns
-        self.set_scale(dx, dy)
 	self.file_names = sorted_file_names(pattern)
     def length(self):
 	return len(self.file_names)
@@ -615,21 +638,27 @@ class FSeq_imgleic(FSeq_img):
     file in Leica's format with the Job description
     """
     def __init__(self, pattern, ch=0, fns=[], xmlname = None,
-                 dt = 1.0, dx = None, dy = None):
-        FSeq_glob.__init__(self, pattern,ch=ch)
+                 meta=None):
+        FSeq_glob.__init__(self, pattern, ch=ch)
         if xmlname is None:
             xmlname = self.pattern.split('*')[0]
         self.fns = fns
+        if meta is None:
+            self.set_default_meta()
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(xmlname)
-            self.dt = self.lp.dt # sec
-            self.set_scale(self.lp.dx, self.lp.dy) # um/pix
+            self.meta['axes'][1:3] = [(self.lp.dx,'um'), (self.lp.dy,'um')]
+            if hasattr(self.lp, 'dt'):
+                zscale = (self.lp.dt, 's')
+            elif hasattr(self.lp, 'dz'):
+                zscale = (self.lp.dz, 'um')
+            else:
+                zscale = (1, '')
+            self.meta['axes'][0] = zscale
+
         except Exception as e:
             print "Got exception, ", e
-            # Set fallback options
-            self.dt = dt
-            self.set_scale(dx,dy) # um/pix
             pass
 
 
@@ -640,9 +669,10 @@ class FSeq_mlf(FrameSequence):
     "FrameSequence class for MLF multi-frame images"
     def __init__(self, fname, fns = []):
         self.mlfimg = MLFImage.MLF_Image(fname)
-        self.dt = self.mlfimg.dt/1000.0
+        self.set_default_meta()
+        dt = self.mlfimg.dt/1000.0
+        self.meta['axes'][0] = (dt, 'sec')
         self.fns = []
-        self.set_scale()
     def frames(self,):
 	"""
 	Return iterator over frames.
@@ -671,7 +701,7 @@ class FSeq_mlf(FrameSequence):
 	    if pmask == None:
 		pmask = np.ones(self.shape(), np.bool)
 	    nrows, ncols = self.shape()
-	    if kwargs.has_key('dtype'):
+            if 'dtype' in kwargs:
 		dtype = kwargs['dtype']
 	    else: dtype=_dtype_
 	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
@@ -693,11 +723,10 @@ try:
     import PIL.Image as Image
     class FSeq_multiff(FrameSequence):
         "Class for multi-frame tiff files"
-        def __init__(self, fname, dt=1.0):
-            self.dt = dt
+        def __init__(self, fname, meta=None):
+            self.set_default_meta()
             self.fns = []
             self.im = Image.open(fname)
-            self.set_scale()
         def frames(self, count=0):
             """
             Return iterator over frames.
@@ -764,17 +793,7 @@ class FSeq_mes(FSeq_arr):
 
         meta = mes.load_meta(fname)
         if verbose:
-            print "file %s has following records:"%fname
-            #print record_keys(meta)
-            for k in mes.record_keys(meta):
-                if mes.is_zstack(meta[k]):
-                    desc = 'z_stack'
-                elif mes.is_xyt(meta[k]):
-                    desc = 'XYT measure'
-                else:
-                    desc = 'unknown'
-                print k, 'is a', desc
-
+            mes.describe_file(fname)
         entry = meta[record]
         if not mes.is_xyt(entry):
             print "record %s is not an XYT measurement"%record
@@ -788,8 +807,12 @@ class FSeq_mes(FSeq_arr):
         self._nframes = nframes
         self._nlines = sh[1]
         self._shape = sh
-        self.dt = mes.get_sampling_interval(self.ffi)
-        self.dx = self.dy = 1 #TODO: fix this
+        
+        dt = mes.get_sampling_interval(self.ffi)
+        dx = dy = 1 #TODO: fix this
+        self.set_default_meta()
+        self.meta['axes'][0] = (dt, 'sec')
+        self.meta['axes'][1:] = (dx, '')
         streams = self.load_record(record)
         base_shape = (self._nframes-1, self._nlines, self._linesize)
         if ch is not None:
@@ -858,7 +881,7 @@ def open_seq(path, *args, **kwargs):
         if '*' in path: # many files
             from imfun import leica
             xml_try = leica.get_xmljob(path.split('*')[0])
-            if kwargs.has_key('xmlname') or xml_try:
+            if 'xmlname' in kwargs or xml_try:
                 handler =  FSeq_imgleic
             else:
                 handler =  FSeq_img
@@ -914,7 +937,9 @@ try:
             f = h5py.File(fname, 'r')
             t = f['tstamps']
             self.tv = (t-t[0])/1e6 # relative time, in s
-            self.dt = np.median(np.diff(self.tv))
+            dt = np.median(np.diff(self.tv))
+            self.set_default_meta()
+            self.meta['axes'][0] = (dt, 'sec')
             self.data = f['lsc']
             self.fns = []
         def length(self):

@@ -76,17 +76,17 @@ class FindVal(xml.sax.ContentHandler):
         if title == 'nDelayTime_ms':
             self.res['dt'] = float(value)/1e3
         elif name == 'DimensionDescription':
-            dimid = attrs.get('DimID')
+            dimid = int(attrs.get('DimID'))
             num_elem = float(attrs.get('NumberOfElements'))
             length = float(attrs.get('Length'))*1e6
             unit = attrs.get('Unit',None)
             if unit == 'm':
-                if dimid == '1':
-                    self.res['xdim'] = length
-                    self.res['dx'] = length/num_elem
-                elif dimid == '2':
-                    self.res['ydim'] = length
-                    self.res['dy'] = length/num_elem
+                suff = ['','x','y','z']
+                dimkey = '%sdim'%suff[dimid]
+                stepkey = 'd%s'%suff[dimid]
+                self.res[dimkey] = length
+                self.res[stepkey] = length/num_elem
+
         elif name == 'TimeStamp':
             high = long(attrs.get('HighInteger',None))
             low = long(attrs.get('LowInteger',None))

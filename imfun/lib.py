@@ -24,6 +24,16 @@ sys.setrecursionlimit(10000)
 _dtype_ = np.float64
 
 
+def rezip(a):
+    return zip(*a)
+
+def alist_to_scale(alist):
+    names = ("scale", "units")
+    formats = ('float', "S10")
+    while len(alist) < 3:
+        alist.append(alist[-1])
+    return np.array(alist, dtype=dict(names=names,formats=formats))
+
 
 def flatten(x,acc=None):
    acc = ifnot(acc,[])

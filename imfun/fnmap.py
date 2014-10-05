@@ -61,10 +61,11 @@ def cwt_iter(fseq,
     pixel_counter = 0
     npix = min(npix, max_pixels)
     cwtf = pycwt.cwt_f
+    dt, tunits = fseq.meta['axes'][0]
     for s,i,j in pixel_iter:
 	# todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
-        eds = pycwt.eds(cwtf(s, freqs, 1./fseq.dt, wavelet, 'zpd'))
+        eds = pycwt.eds(cwtf(s, freqs, 1./dt, wavelet, 'zpd'))
         pixel_counter+= 1
         if verbose:
             sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
@@ -96,8 +97,10 @@ def cwtmap(fseq,
     subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
 
-    tstarts = map(lambda x: int(x[0]/fseq.dt), tranges)
-    tstops = map(lambda x: int(x[1]/fseq.dt), tranges)
+    dt, tunits = fseq.meta['axes'][0]
+
+    tstarts = map(lambda x: int(x[0]/dt), tranges)
+    tstops = map(lambda x: int(x[1]/dt), tranges)
 
     out = np.zeros((len(tranges),)+shape, np.float64)
     for eds,i,j in cwt_iter(fseq,frange,**kwargs):
@@ -206,7 +209,7 @@ def meanactmap(fseq, (start,stop), normL=None):
     L = fseq.length()
     normL = ifnot(normL, L)
     out = np.zeros(fseq.shape())
-    tv = fseq.timevec()
+    tv = fseq.frame_idx()
     mrange = (tv > start)*(tv < stop)
     for s,j,k in fseq.pix_iter():
         sx = detrend(s,take=range(330))
@@ -218,7 +221,7 @@ def actcorrmap(fseq, (start, stop), normL=None,
                normfn = lib.DFoSD,
                sigfunc = tanh_step):
     "Activation correlation-based mapping"
-    comp_sig = sigfunc(start, stop)(fseq.timevec())
+    comp_sig = sigfunc(start, stop)(fseq.frame_idx())
     return xcorrmap(fseq, comp_sig, normL, normfn)
 
 from scipy import stats
@@ -296,7 +299,7 @@ def corrlag(timevec):
 
 def xcorr_lag(fseq, **kwargs):
     from imfun import atrous
-    tv = fseq.timevec()
+    tv = fseq.frame_idx()
     return xcorrmap(fseq, signal, corrfn=corrlag(tv),
 		    **kwargs)
 
@@ -361,7 +364,8 @@ def fftmap(fseq, frange, func=np.mean,
         total = shape[0]*shape[1]
         out = np.ones(shape, np.float64)
         k = 0
-        freqs = np.fft.fftfreq(L, fseq.dt)
+        dt,tunits = fseq.meta['axes'][0]
+        freqs = np.fft.fftfreq(L, dt)
         pix_iter = fseq.pix_iter(**kwargs)
         normL = ifnot(normL, L)
         fstart,fstop = frange

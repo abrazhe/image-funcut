@@ -133,7 +133,8 @@ class FrameSequenceOpts(HasTraits):
     inventory = Enum(inventory_dict.keys())
     add_to_pipeline_btn = Button(label='Add to pipeline')
 
-    dt = Float(0.2, label='sampling interval')
+    dt = Float(1, label='frame interval')
+    dtunits = Str("",label='units')
     fig_path = File("")
 
     record = Str('1')
@@ -231,7 +232,8 @@ class FrameSequenceOpts(HasTraits):
                            editor=EnumEditor(name='avail_records'),
                            enabled_when='record_enabled is True',
                            style='simple'),
-		      'ch', 'dt',
+		      'ch',
+                      HGroup('dt','dtunits'),
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
@@ -336,9 +338,16 @@ class FrameSequenceOpts(HasTraits):
 
     def _dt_changed(self):
         try:
-            self.fs.dt = dt
+            self.fs.meta['axes']['scale'][0] = self.dt
         except Exception as e:
-            "Can't reset sampling interval because", e
+            "Can't reset frame interval because", e
+
+    def _dtunits_changed(self):
+        try:
+            self.fs.meta['axes']['scale'][1] = self.dtunits
+        except Exception as e:
+            "Can't reset frame interval units because", e
+
 
     def _interpolation_changed(self):
         try:
@@ -386,16 +395,15 @@ class FrameSequenceOpts(HasTraits):
                     out = fseq.open_seq(f.apply(out.as3darray()))
                 else:
                     print 'unknown filter domain'
-            if hasattr(self.fs, 'dt'):
-                out.dt = self.fs.dt
-            out.dx, out.dy, out._scale_set = self.fs.get_scale()
+            if hasattr(self.fs, 'meta'):
+                out.meta['axes'] = self.fs.meta['axes'].copy()
             self.fs2 = out
             self._fs2_needs_reload = False
         return self.fs2
 
     def _show_all_timeseries_btn_fired(self):
 	print 'in show_all_timeseries_btn_fired'
-	self.parent.picker.show_timeseries()
+	self.parent.picker.show_zview()
 	pass
 
     def _reset_range_btn_fired(self):
@@ -488,8 +496,9 @@ class FrameSequenceOpts(HasTraits):
         if self._verbose:
             print 'reset_fs done'
 
-        self.dt = self.fs.dt
+        self.dt,self.dtunits = self.fs.meta['axes'][0]
         if self._verbose:
+            print self.fs.meta['axes']
             print 'dt done'
 
         self.parent._recalc_btn_fired()
@@ -549,8 +558,10 @@ class FrameViewer(HasTraits):
     
     def _frame_index_changed(self):
         if hasattr(self, 'picker') and self.fso.fs is not None:
-            t = self.frame_index * self.fso.fs.dt
-            self.time_stat = "time: %3.3f"%t
+            dz,zunits = self.fso.fs.meta['axes'][0]
+            t = self.frame_index * dz
+            print 'Zunits:', dz,zunits,self.fso.fs.meta['axes']
+            self.time_stat = "time: %3.2f, %s"%(t,zunits)
             self.picker.set_frame_index(self.frame_index)
 
     def redraw(self):
