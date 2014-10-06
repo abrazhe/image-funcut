@@ -306,7 +306,7 @@ class FrameSequenceOpts(HasTraits):
         if ext == 'mes':
             meta = mes.load_meta(self.fig_path)
             keys = mes.record_keys(meta)
-            valid_records = [k for k in keys if mes.is_xyt(meta[k])]
+            valid_records = [k for k in keys if mes.is_supported(meta[k])]
             self.avail_records = valid_records
             self.record = valid_records[0]
             self.record_enabled=True
@@ -314,7 +314,7 @@ class FrameSequenceOpts(HasTraits):
     def _record_changed(self):
         if self.fig_path.split('.')[-1].lower() == 'mes':
             meta = mes.load_meta(self.fig_path)
-            print "Measurement date and time: ", mes.get_date(meta[self.record])
+            print mes.describe_file(self.fig_path)
             
     def _glob_changed(self):
         if len(self.glob) > 5 and '*' in self.glob:
@@ -560,7 +560,6 @@ class FrameViewer(HasTraits):
         if hasattr(self, 'picker') and self.fso.fs is not None:
             dz,zunits = self.fso.fs.meta['axes'][0]
             t = self.frame_index * dz
-            print 'Zunits:', dz,zunits,self.fso.fs.meta['axes']
             self.time_stat = "time: %3.2f, %s"%(t,zunits)
             self.picker.set_frame_index(self.frame_index)
 

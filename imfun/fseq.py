@@ -777,10 +777,7 @@ class FSeq_mes(FSeq_arr):
         The images are stored as NXM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
-        self.ch = ch
         self.fns = fns
-        self.file_name = fname
-        self.record = record
         self._verbose=verbose
 
         if type(record) is int:
@@ -790,63 +787,15 @@ class FSeq_mes(FSeq_arr):
                 record = 'Df%04d'%int(record)
         else:
             print "Unknown record definition format"
-
-        meta = mes.load_meta(fname)
-        if verbose:
-            mes.describe_file(fname)
-        entry = meta[record]
-        if not mes.is_xyt(entry):
-            print "record %s is not an XYT measurement"%record
-            return
-
-        self._rec_meta = entry
-        self.date = mes.get_date(entry)
-        self.ffi = mes.get_ffi(entry)
-
-        nframes, sh = mes.get_xyt_shape(entry)
-        self._nframes = nframes
-        self._nlines = sh[1]
-        self._shape = sh
-        
-        dt = mes.get_sampling_interval(self.ffi)
-        dx = dy = 1 #TODO: fix this
-        self.set_default_meta()
-        self.meta['axes'][0] = (dt, 'sec')
-        self.meta['axes'][1:] = (dx, '')
-        streams = self.load_record(record)
-        base_shape = (self._nframes-1, self._nlines, self._linesize)
-        if ch is not None:
-            stream = streams[ch]
-            self.data = np.zeros(base_shape, dtype=stream.dtype)
-            for k,f in enumerate(self._reshape_frames(stream)):
-                self.data[k] = f
+        mes_meta = mes.load_meta(fname)
+        entry = mes_meta[record]
+        if mes.is_timelapse(entry):
+            self.data, self.meta = mes.load_timelapse_v7(fname, entry, ch)
+        elif mes.is_zstack(entry):
+            self.data,self.meta = mes.load_zstack_v7(fname, entry, ch)
         else:
-            streams = [lib.clip_and_rescale(s) for s in streams]
-            reshape_iter = itt.izip(*map(self._reshape_frames, streams))
-            sh = base_shape + (max(3, len(streams)),)
-            self.data = np.zeros(sh, dtype=streams[0].dtype)
-            for k, a in enumerate(reshape_iter):
-                for j, f in enumerate(a):
-                    self.data[k,...,j] = f
-    
-
-    def load_record(self, record):
-        meas_info = mes.only_measures(self._rec_meta)
-        var_names = [x[0] for x in meas_info['ImageName']]
-        var_names.sort()
-        recs = mes.io.loadmat(self.file_name, variable_names=var_names,appendmat=False)
-        streams = [recs[n] for n in var_names if n in recs]
-        if len(streams) == 0:
-            raise IndexError("can't load record %s"%str(record))
-        self._linesize = streams[0].shape[0]
-        if self._verbose:
-            print 'Number of working channels:', len(streams)
-        return streams
-
-    def _reshape_frames(self, stream):
-        side = self._nlines
-        return (stream[:,k*side:(k+1)*side].T for k in xrange(1,self._nframes))
-      
+            raise RuntimeError("FSeq_mes: don't know how to load this entry")
+            return None
 
 
 ## -- End of MES files --        
