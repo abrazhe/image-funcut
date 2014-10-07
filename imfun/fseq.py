@@ -383,7 +383,8 @@ class FrameSequence(object):
     def export_movie_anim(self, video_name, fps=None, start=0, stop=None,
                           show_title=True, fig_size=(4,4),
                           bitrate=-1,
-                          writer = 'mencoder',
+                          writer = 'avconv',
+                          codec = None,
                           frame_on = False,
                           marker_idx = None,
                           vmin=None, vmax=None,**kwargs):
@@ -491,7 +492,7 @@ class FSeq_arr(FrameSequence):
         if type(val) is slice or np.ndim(val) > 0:
             out = np.zeros(x.shape,x.dtype)
             for j,f in enumerate(x):
-                out[j] = self.pipeline()(x)
+                out[j] = self.pipeline()(f)
                 return out
         else: 
 	    return self.pipeline()(x)

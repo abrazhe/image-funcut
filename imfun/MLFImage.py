@@ -4,6 +4,7 @@
 ### Let's decide I used hexdump on a mlf file and figured out the formatq
 
 import numpy as np
+import numbers
 
 mlfdescr = {
     'date': 0x1800,
@@ -66,10 +67,21 @@ class MLF_Image:
 
     def __getitem__(self, val):
 	indices = range(self.nframes)
-	if type(val) is int:
-	    return self.read_frame(val)
-	else:
-	    return map(self.read_frame, indices[val])
+        try:
+            iterator = iter(indices[val])
+        except TypeError:
+            #print "MLF_Image: indices[val] doesn't support iteration?"
+            #print val, type(val), indices
+            if isinstance(val, numbers.Number):
+                return self.read_frame(val)
+            print """MLF_Image: indices[val] doesn't support iteration and is not
+	a number"""
+            print val, type(val), indices
+            return self.read_frame(0)
+        else:
+            return map(self.read_frame, indices[val])
+
+                
 
     def flux_frame_iter(self):
         frame_count = 0

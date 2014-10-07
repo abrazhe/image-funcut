@@ -919,6 +919,36 @@ class VesselContours():
         self.auto_seeds =  (lowc, highc)
         return (lowc, highc)
 
+_picker_help_msg="""
+Picker
+=======
+Simple interactive gui to operate frame sequence using matplotlib
+for vis, interaction and widgets.
+
+Usage:
+------
+
+Mouse:
+~~~~~~
+  - Left-click to create a Circle ROI (squares to be added)
+  - Right-click-and-drag to create a Line ROI
+  - Right-click on any ROI to remove it
+  - Middle-click on a ROI to get z-slice for Line ROIs and time series for
+    Circle ROIs
+  - Scroll while hovering mouse over any ROI to change its size
+  - Scroll while hovering mouse outside any ROI to go through frames
+
+Keyboard:
+~~~~~~~~~
+  - press `h` to show mean/starting frame
+  - press Shift to enable Lasso selector
+  - press `t` or `1` with mouse over Circle ROI to show corresponding time series
+  - press `w` or `2` over Circle ROI to show wavelet spectrogram
+  - press `3` over Circle ROI to show time-averaged wavelet power spectrum
+  - press `4` over Circle ROI to show FFT power spectrum
+  - press `/` or '-' or 'r' with mouse over Line ROI to get z-reslice
+"""
+
 class Picker:
     _verbose = True
     def __init__(self, fseq):
@@ -995,6 +1025,7 @@ class Picker:
         self.disconnect()
         self.connect()
 	self.fig.canvas.draw()
+        print _picker_help_msg
         return self.ax1, self.plh, self
 
 
