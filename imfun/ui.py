@@ -950,8 +950,8 @@ Keyboard:
 """
 
 class Picker:
-    _verbose = True
-    def __init__(self, fseq):
+    _verbose = False
+    def __init__(self, fseq,verbose=False):
         self._corrfn = 'pearson'
         self.cw = color_walker()
         self._show_legend=False
@@ -963,6 +963,7 @@ class Picker:
         self.shift_on = False
         #self.widgetcolor = 'lightyellow'
         self.frame_slider = None
+        self._verbose=verbose
         return 
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
@@ -991,7 +992,7 @@ class Picker:
         self.pressed = None
 
         axes = self.fseq.meta['axes']
-        (dx,xunits),(dy,yunits) = axes[1:3]
+        (dy,yunits), (dx,xunits) = axes[1:3]
 	sy,sx = self.fseq.shape()[:2]
         if len(self.fseq.shape()) ==2:
             if vmin is None or vmax is None:
@@ -1001,7 +1002,7 @@ class Picker:
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
 
-        if type(mean_frame) is np.ndarray:
+        if isinstance(mean_frame,  np.ndarray):
 	    f = mean_frame
 	elif mean_frame:
             dtype = self.fseq[0].dtype
@@ -1025,7 +1026,8 @@ class Picker:
         self.disconnect()
         self.connect()
 	self.fig.canvas.draw()
-        print _picker_help_msg
+        if self._verbose:
+            print _picker_help_msg
         return self.ax1, self.plh, self
 
 
@@ -1103,7 +1105,10 @@ class Picker:
             self.ax1.axis(axrange)
         elif self.shift_on:
             if not self.ax1.figure.canvas.widgetlock.locked():
-                self.lasso = mw.Lasso(event.inaxes, (x, y), self.lasso_callback)
+                #self.lasso = mw.Lasso(event.inaxes, (x, y), self.lasso_callback)
+                self.lasso = mw.LassoSelector(event.inaxes,
+                                              self.lasso_callback,
+                                              lineprops=dict(color='g',lw=2))
                 self.ax1.figure.canvas.widgetlock(self.lasso)
         self.legend()    
         self.ax1.figure.canvas.draw()
@@ -1115,19 +1120,21 @@ class Picker:
         locs = list(itt.product(*map(xrange, sh[::-1])))
         dy,dx = self.fseq.meta['axes']['scale'][1:3]
         out = np.zeros(sh)
-        self.pmask = out
         xys = np.array(locs, 'float')
         xys[:,0] *= dy
         xys[:,1] *= dx # coordinates with scale
         ind = p.contains_points(xys)
-        for loc,i in zip(locs, ind):
+        for loc,i in itt.izip(locs, ind):
             if i : out[loc[::-1]] = 1
         self.ax1.figure.canvas.draw()
         self.ax1.figure.canvas.widgetlock.release(self.lasso)
         del self.lasso
         f = plt.figure()
         ax = f.add_subplot(111)
-        ax.imshow(out)
+        vmin,vmax = self.plh.get_clim()
+        ax.imshow(self.mean_frame, cmap='gray',vmin=vmin,vmax=vmax)
+        ax.contour(out, levels=[0],colors=['g'])
+        self.pmask = out
         return 
 
     def on_motion(self, event):
