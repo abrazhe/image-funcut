@@ -148,7 +148,7 @@ class FrameSequence(object):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(frameit.next())
-        count = 0
+        count = 0.0
         for k,frame in enumerate(frameit):
             res += frame
 	    count += 1
@@ -487,13 +487,13 @@ class FSeq_arr(FrameSequence):
         return self.data.shape[0]
     def __getitem__(self, val):
 	x = self.data[val]
-	if self.fns == []:
+	if len(self.fns) == 0:
 	    return self.data[val]
-        if type(val) is slice or np.ndim(val) > 0:
-            out = np.zeros(x.shape,x.dtype)
+        if isinstance(val, slice) or np.ndim(val) > 0:
+            out = np.zeros(x.shape, self.pipeline()(x[0]).dtype)
             for j,f in enumerate(x):
                 out[j] = self.pipeline()(f)
-                return out
+            return out
         else: 
 	    return self.pipeline()(x)
     def data_percentile(self, p):
@@ -535,7 +535,7 @@ class FSeq_arr(FrameSequence):
 	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
-        return itt.imap(fn, (frame for frame in self.data))
+        return itt.imap(fn, self.data)
 
 
 def identity(x):
@@ -591,6 +591,10 @@ class FSeq_glob(FrameSequence):
         self.ch = ch
         self.fns = fns
 	self.file_names = sorted_file_names(pattern)
+        if meta is None:
+            self.set_default_meta()
+        else:
+            self.meta = meta.copy()
     def length(self):
 	return len(self.file_names)
             
@@ -827,6 +831,8 @@ def open_seq(path, *args, **kwargs):
         handler = FSeq_mlf
     elif ending == 'npy':
         handler =  FSeq_npy
+    elif ending == 'h5':
+        handler = FSeq_hdf5
     elif ending in images:  # A collection of images or a big tiff
         if '*' in path: # many files
             from imfun import leica
@@ -909,10 +915,11 @@ try:
             else:
                 return self.pipeline()(int(x))
 
-    def fseq2h5(seq, name,compress_level=-1):
+    def fseq2h5(seq, name,compress_level=-1,verbose=False):
         # todo: add metadata, such as time and spatial scales
         if os.path.exists(name):
-            sys.stderr.write("File exists, removing\n")
+            if verbose:
+                sys.stderr.write("File exists, removing\n")
             os.remove(name)
         fid = h5py.File(name, 'w')
         L = seq.length()
@@ -928,7 +935,8 @@ try:
                                   chunks = chunkshape, **kwargs)
         for k,f in enumerate(seq.frames()):
             dset[k,...] = f
-            sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
+            if verbose:
+                sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
         fid.close()
         return name
 
