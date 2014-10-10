@@ -2,9 +2,9 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.0.28',
+      version = '0.1.0',
       scripts = ['imfun/frame_viewer.py'],
-      requires = ['swan'],
+      requires = ['numpy','scipy','swan'],
       py_modules = ['imfun.atrous',
                     'imfun.bwmorph',
                     'imfun.cluster',
@@ -28,3 +28,12 @@ setup(name='image-funcut',
                     'imfun.track',
                     'imfun.ui',
                     'imfun.MLFImage'],)
+
+classifiers=[
+      'Development Status :: 4 - Beta',
+      "Intended Audience :: Science/Research",
+      'License :: OSI Approved :: GNU General Public License (GPL)',
+      'Operating System :: OS Independent :: Linux',
+      'Programming Language :: Python',
+      'Topic :: Scientific/Engineering',
+        ]
