@@ -10,6 +10,8 @@ import itertools as itt
 import numpy as np
 import tempfile as tmpf
 
+from __future__ import division # all / operations return floats
+
 _dtype_ = np.float64
 
 from matplotlib.pyplot import imread
@@ -119,12 +121,13 @@ class FrameSequence(object):
     def time_project(self,fslice=None,fn=np.mean,crop=None):
 	"""Apply an ``f(vector) -> scalar`` function for each pixel.
 
-	This is a more general (and often faster) function than
+	This is a more general (and sometimes faster) function than
 	`self.mean_frame` or `self.max_project`. However, it requires more
 	memory as it makes a call to self.as3darray, while the other two don't
 	
 	Parameters:
-	  - `fslice`: (`int`, `slice` or `None`) -- go throug these frames
+	  - `fslice`: (`int`, `tuple-like` or `None`) --
+          [start,] stop [, step] go through these frames
 	  - `fn` (`func`) -- function to apply (`np.mean` by default)
 
         Returns:
@@ -139,32 +142,32 @@ class FrameSequence(object):
 	return out
 
     def mean_frame(self, fslice=None):
-        """Return average image over N frames starting.
+        """Return average image over a number of frames (all by default).
 
-	Starts at `start`, stops at `stop`. A value of `None`
-	corresponds to 0 for `start` and last frame for `stop`
+	frame range is given as argument fslice. if it's int, use N first
+	frames, if it's tuple-like, it can be of the form [start,] stop [,step]
 	"""
         if fslice is None or type(fslice) is int:
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(frameit.next())
-        count = 0.0
+        count = 0
         for k,frame in enumerate(frameit):
             res += frame
 	    count += 1
         return res/(count)
     
-    def max_project(self, fslice):
-	"""Return max-projection image from start to stop frame
-	(all by	default)
+    def max_project(self, fslice=None):
+	"""Return max-projection image over a number of frames
+        (all by default).
+
+        see fseq.mean_frame docstring for details
 	"""
         if fslice is None or type(fslice) is int:
             fslice = (fslice, )
-	out = frameit.next()
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
+        out = frameit.next() # fix it, it fails here
         for k,frame in enumerate(frameit):
-	    if k <= start: continue
-	    elif k>stop: break
 	    out = np.max([out, frame], axis=0)
         return out
 
@@ -194,7 +197,8 @@ class FrameSequence(object):
 	
 
 	Parameters:
-	  - `fslice`: (`int`, `slice` or `None`) -- slice to go through frames
+	  - `fslice`: (`int`, `tuple-like` or `None`) --
+          [start,] stop [, step] to go through frames
 	  - `crop`: (`slice` or `None`) -- a crop (tuple of slices) to take from each frame
 	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
 
@@ -222,7 +226,8 @@ class FrameSequence(object):
 	Parameters:
 	  - `mask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
-          - `fslice`: (`int`, `slice` or `None`) -- slice to go through frames
+          - `fslice`: (`int`, `slice` or `None`) --
+          [start,] stop [, step]  to go through frames
 	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
 	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
 
