@@ -920,15 +920,15 @@ try:
             else:
                 return self.pipeline()(int(x))
 
-    def fseq2h5(seq, name,compress_level=-1,verbose=False):
+    def fseq2h5(seqlist, name,compress_level=-1,verbose=False):
         # todo: add metadata, such as time and spatial scales
         if os.path.exists(name):
             if verbose:
                 sys.stderr.write("File exists, removing\n")
             os.remove(name)
         fid = h5py.File(name, 'w')
-        L = seq.length()
-        sh = seq.shape()
+        L = np.sum([s.length() for s in seqlist])
+        sh = np.min([s.shape for s in seqlist])
         chunkshape = tuple([1] + list(sh))
         fullshape = tuple([L] + list(sh))
         kwargs = dict()
@@ -938,10 +938,11 @@ try:
 
         dset = fid.create_dataset('data', fullshape, dtype=seq[0].dtype,
                                   chunks = chunkshape, **kwargs)
-        for k,f in enumerate(seq.frames()):
-            dset[k,...] = f
-            if verbose:
-                sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
+        for seq in seqlist:
+            for k,f in enumerate(seq.frames()):
+                dset[k,...] = f
+                if verbose:
+                    sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
         fid.close()
         return name
 
