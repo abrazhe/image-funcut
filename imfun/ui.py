@@ -549,10 +549,14 @@ class LineScan(DraggableObj):
                 plt.setp(ax.images[0],
                          data=data[0],
                          clim=(data[0].min(),data[0].max()))
+                plt.show() #this should solve the issue with non-activated
+                           #VesselTracker window
 
             def _vessel_callback(event):
                 print 'Vessel wall tracking'
                 self.vconts = VesselContours(data[0],self.tag)
+                plt.show() #this should solve the issue with non-activated
+                           #VesselTracker window
 
             self.buttons = []
                 
@@ -764,7 +768,6 @@ class RectFollower(DragRect):
         
         
 def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
-    z = lambda : np.zeros(shape)
     left = 100
     right = left+width
     frames = []
