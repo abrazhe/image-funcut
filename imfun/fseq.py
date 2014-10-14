@@ -2,7 +2,7 @@
 ### Classes for sequences of frames ###
 ### -------------------------------- ###
 
-from future import __division__ # a/b will always return float
+from __future__ import division # a/b will always return float
 
 import sys
 import os
