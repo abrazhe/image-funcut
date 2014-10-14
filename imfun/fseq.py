@@ -10,7 +10,7 @@ import re
 import glob
 import itertools as itt
 import numpy as np
-import tempfile as tmpf
+#import tempfile as tmpf
 
 
 _dtype_ = np.float64
@@ -323,7 +323,7 @@ class FrameSequence(object):
         ## assuming the dz is not changed. if it *is*, provide new meta
         ## in kwargs
         if 'meta' in kwargs:
-            newmeta = meta.copy()
+            newmeta = kwargs['meta'].copy()
         else:
             newmeta = self.meta.copy() 
         return FSeq_arr(out, meta=newmeta)
@@ -697,7 +697,7 @@ class FSeq_mlf(FrameSequence):
         fn = lib.flcompose(identity, *self.fns)
         return itt.imap(fn,self.mlfimg.flux_frame_iter())
     def __getitem__(self, val):
-	L = self.length()
+	#L = self.length()
 	fn = self.pipeline()
         if type(val) is slice or np.ndim(val) > 0:
 	    indices = np.arange(self.mlfimg.nframes)
@@ -929,7 +929,8 @@ try:
             os.remove(name)
         fid = h5py.File(name, 'w')
         L = np.sum([s.length() for s in seqlist])
-        sh = np.min([s.shape for s in seqlist])
+        sh = np.min([s.shape() for s in seqlist], axis=0)
+        print 'shape:', sh
         chunkshape = tuple([1] + list(sh))
         fullshape = tuple([L] + list(sh))
         kwargs = dict()
@@ -937,13 +938,15 @@ try:
             kwargs['compression'] = 'gzip'
             kwargs['compression_opts'] = compress_level
 
-        dset = fid.create_dataset('data', fullshape, dtype=seq[0].dtype,
+        dset = fid.create_dataset('data', fullshape, dtype=seqlist[0][0].dtype,
                                   chunks = chunkshape, **kwargs)
+        k = 0
         for seq in seqlist:
-            for k,f in enumerate(seq.frames()):
+            for f in seq.frames():
                 dset[k,...] = f
                 if verbose:
                     sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
+                k += 1    
         fid.close()
         return name
 

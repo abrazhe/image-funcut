@@ -37,13 +37,13 @@ in_circle = lib.in_circle
 
 def circle_from_struct(circ_props):
     cp = circ_props.copy()
-    _  = cp.pop('func')
+    cp.pop('func')
     center = cp.pop('center')
     return plt.Circle(center, **cp)
 
 def line_from_struct(line_props):
     lp = line_props.copy()
-    _ = lp.pop('func')
+    lp.pop('func')
     xdata, ydata = lp.pop('xdata'), lp.pop('ydata')
     lh = plt.Line2D(xdata, ydata, **lp)
     return lh
