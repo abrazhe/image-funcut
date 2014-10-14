@@ -2,6 +2,8 @@
 ### Classes for sequences of frames ###
 ### -------------------------------- ###
 
+from future import __division__ # a/b will always return float
+
 import sys
 import os
 import re
@@ -10,7 +12,6 @@ import itertools as itt
 import numpy as np
 import tempfile as tmpf
 
-from __future__ import division # all / operations return floats
 
 _dtype_ = np.float64
 
