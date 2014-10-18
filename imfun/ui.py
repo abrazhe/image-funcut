@@ -1071,10 +1071,12 @@ class Picker:
                 self.shift_on = True
                 for spine in self.ax1.spines.values():
                     spine.set_color('r')
+                    spine.set_linewidth(4)
             else:
                 self.shift_on = False
                 for spine in self.ax1.spines.values():
                     spine.set_color('k')
+                    spine.set_linewidth(4)
         self.ax1.figure.canvas.draw()
         return
 
