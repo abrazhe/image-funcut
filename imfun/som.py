@@ -79,11 +79,13 @@ def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
  	 
     """
 
-    if (type(distance) is str) and distance_fns.has_key(distance):
+    if (type(distance) is str) and distance in distance_fns:
         distance = distance_fns[distance]
+    else:
+        distance = euclidean
 
     ### TODOs:
-    ### [ ] go through patterns in random order, return sorted affiliations
+    ### [X] go through patterns in random order, return sorted affiliations
     ### [X] use principal components as a start-off patterns
     ### [-] allow for sorting of at least 1D-grids
     niter = 0
@@ -96,8 +98,8 @@ def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
     if init_templates is None:
 	if init_pca:
 	    patt = np.array([x.ravel() for x in patterns])
-	    u,s,vh = np.linalg.svd(patt.T,full_matrices=False)
-	    init_templates = [c.reshape(sh) for c in u.T[:len(locs)]]
+	    u,s,vh = np.linalg.svd(patt, full_matrices=False)
+	    init_templates = [c.reshape(sh) for c in u[:len(locs)]]
 	    del u,s,vh,patt
 	else:
 	    init_ks = np.random.randint(Npts, size=len(locs))
@@ -125,6 +127,7 @@ def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
             perm = np.random.permutation(Npts)
         else:
             perm = np.arange(Npts)
+
         for k in perm:
             p = patterns[k]
             if (not k%100) and verbose:
