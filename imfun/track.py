@@ -297,7 +297,7 @@ class LCV_Contours:
         self.conts = ynext
         self.check_steady()
         self.niter += 1
-        return self.conts
+        return self.conts.reshape(2,-1)
 
     def check_steady(self):
         "Checks if the evolution has reached a steady state"
@@ -313,6 +313,7 @@ class LCV_Contours:
                           (self.niter+1)
                     self.issteady = True
                 self.nsteady += 1
+        return self.issteady
 
     def to_csv(self):
         out_str = '"wall1", "walls2", "distance"\n'
@@ -332,45 +333,30 @@ def solve_contours_animated(lcvconts, niter=500,
         f,a = plt.subplots(1,1)
         a.imshow(lcvconts.U, cmap='gray', interpolation='nearest',
                  aspect='auto')
+        plt.show()
     else:
         a = ax
-        f = ax.figure
+        #f = ax.figure
     lh0 = [a.plot(lcvconts.xind*xscale, w, 'g-')[0]
            for w in lcvconts.conts.reshape(2,-1)] # starting points
     lh = [a.plot(lcvconts.xind*xscale, w, color='orange')[0]
           for w in lcvconts.conts.reshape(2,-1)]
     a.axis('tight')
-    names = []
-    acc = []
-    whist = []
-    prevd = lcvconts.get_diameter()
-    k = 0
-    errchange = 1+tol
+    #names = []
+    #acc = []
+    #whist = []
+    #prevd = lcvconts.get_diameter()
+    #k = 0
+    #errchange = 1+tol
     L = lcvconts.L
     for i in xrange(niter):
-        lcvconts.update_accelerations()
         lcvconts.verlet_step()
-        d = lcvconts.get_diameter()
-        err = np.mean(abs(d - prevd)) # todo: better stopping condition
-        prevd = d
-        acc.append(err)
-        f.canvas.draw()
-        if (i+1)%skipframes == 0:
-            lh[0].set_ydata(lcvconts.conts[:L])
-            lh[1].set_ydata(lcvconts.conts[L:])
-        if i>kstop:
-            errchange = np.polyfit(np.arange(kstop),acc[-kstop:],1)[0]
-        if i>kstop and (err < tol or (np.abs(errchange)<tol)):
-            if k >= kstop:
-                # make it be for k times that (e.g. k=10)
-                print 'Converged in %d iterations'%(i+1)
-                break
-            else:
-                k+=1
-
-    lh[0].set_ydata(lcvconts.conts[:L]) # last graph update
-    lh[1].set_ydata(lcvconts.conts[L:]) #
-    lh[0].set_color('r') # red is for final contour
-    lh[1].set_color('r')
-    plt.draw()
+        #d = lcvconts.get_diameter()
+        lh[0].set_ydata(lcvconts.conts[:L]) # last graph update
+        lh[1].set_ydata(lcvconts.conts[L:]) #
+        lh[0].set_color('r') # red is for final contour
+        lh[1].set_color('r')
+        plt.draw()
+        if lcvconts.issteady:
+            break
     return lh

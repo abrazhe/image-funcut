@@ -881,8 +881,7 @@ class VesselContours():
         th = self.th_line.get_value()
         lcv = track.LCV_Contours(start, data, thresh=th)
         for i in xrange(nmax):
-            lcv.verlet_step()
-            lh = lcv.conts.reshape(2,-1)
+            lh = lcv.verlet_step()
             for c,v in zip(self.contlines,lh):
                 c.set_ydata(v/upsample)
             d = lcv.get_diameter()/upsample
