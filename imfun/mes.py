@@ -46,33 +46,35 @@ def describe_record(key, meta):
         return out_str
     
 
-def get_timestamps(entry):
-    timestamps = [get_field(x) for x in entry['MeasurementDate']
-                  if np.prod(x[0].shape)>0 ]
-    return timestamps
+#def get_timestamps(entry):
+#    timestamps = [get_field(x) for x in entry['MeasurementDate']
+#                  if np.prod(x[0].shape)>0 ]
+#    return timestamps
     
 
-def _get_timestamp(entry, context='Measure'):
-    elist =  entry[entry['Context']==context]['MeasurementDate']
-    filtered = [str(e[0]) for e in elist if len(e[0])]
-    if len(filtered) == 1:
-        return filtered[0]
-    else: return filtered
+## def _get_timestamp(entry, context='Measure'):
+##     elist =  entry[entry['Context']==context]['MeasurementDate']
+##     filtered = [str(e[0]) for e in elist if len(e[0])]
+##     if len(filtered) == 1:
+##         return filtered[0]
+##     else: return filtered
 
 
+## TODO use [()] together with squeeze_me argument for scipy.io.loadmat
 def get_field(entry):
     return entry[0][0]
 
 
 def record_keys(meta):
     return sorted(filter(lambda x: 'Df' in x, meta.keys()))
+
+def is_supported(entry):
+    return is_zstack(entry) or is_timelapse(entry)
     
 def is_zstack(entry):
     "Check if an entry is a z-stack"
     return 'Zstack' in entry['Context'] and 'Zlevel' in entry.dtype.names
 
-def is_supported(entry):
-    return is_zstack(entry) or is_timelapse(entry)
 def is_timelapse(entry):
     """Check if an entry is an XYT measurement.
     It must have a 'FoldedFrameInfo' propery"""
@@ -88,7 +90,6 @@ def first_measure(entry):
 
 def get_ffi(record):
     return first_measure(record)['FoldedFrameInfo'][0]
-
 
 def get_sampling_interval(ffi):
     nframes = long(ffi['numFrames'])
@@ -161,6 +162,7 @@ def load_timelapse_v7(file_name, record, ch=None):
                 data[k,...,j] = f
     return  data, outmeta
 
+
 def get_zstep(record):
     ch1 = get_field(record[0]['Channel'])
     levels = record[record['Channel']==ch1]['Zlevel']
@@ -198,7 +200,117 @@ def load_zstack_v7(file_name, record, ch=None):
         recs = io.loadmat(file_name, variable_names=var_names,appendmat=False)
         data = np.array([recs[n] for n in var_names])
     return data, outmeta
-            
-            
-    
-                 
+
+class MES_Record:
+    pass
+
+class MES_Timelapse(MES_Record):
+    def _reshape_frames(self, stream):
+        nlines,nframes = map(int, (self.nlines, self.nframes))
+        return (stream[k*nlines:(k+1)*nlines,:] for k in xrange(1,nframes))
+    def _load_streams(self,ch=None):
+        var_names = self.img_names
+        if ch is None:
+            ch = self.ch
+        if not (ch is None or ch=='all'):
+            if isinstance(ch, int):
+                var_names = [var_names[ch]]
+            elif isinstance(ch, str):
+                var_names = [n for n,c
+                             in zip(var_names, self.channels)
+                             if ch.lower() in c.lower()]
+        streams = [self.h5file[n] for n in var_names]
+        print var_names
+        if len(streams)==0:
+            raise IndexError("MES_Timelapse: can't load record%s"%self.recordName)
+        return streams
+    def load_data(self,ch=None):
+        self.ch = ch
+        outmeta = dict(ch=self.ch, timestamp=self.timestamps[0])
+        outmeta['axes'] = lib.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
+        nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
+        base_shape = (nframes-1, nlines, line_len)
+        streams = self._load_streams(ch=ch)
+        if len(streams) == 1:
+            data = np.zeros(base_shape, dtype=streams[0].dtype)
+            for k,f in enumerate(self._reshape_frames(streams[0])):
+                data[k] = f
+        else:
+            streams = [lib.clip_and_rescale(s) for s in streams]
+            reshape_iter = itt.izip(*map(self._reshape_frames, streams))
+            sh = base_shape + (max(3, len(streams)),)
+            data = np.zeros(sh, dtype=streams[0].dtype)
+            for k, a in enumerate(reshape_iter):
+                for j, f in enumerate(a):
+                    data[k,...,j] = f
+        self.data = data
+        self.outmeta = outmeta
+        return  data, outmeta
+
+class MES_Timelapse_h5(MES_Timelapse):
+    def __init__(self, h5file, recordName, ch=None):
+        tkeyf = lambda rec: \
+                read_txtentry_h5(h5file, '/'.join((recordName,rec)))
+        nkeyf = lambda rec: \
+                read_numentry_h5(h5file, '/'.join((recordName,rec)))
+        self.h5file = h5file
+        self.record = recordName
+        self.ch = ch
+        self.contexts = np.array(tkeyf('Context'))
+        self.channels = tkeyf('Channel')
+        self.img_names = np.array(tkeyf('ImageName'))[self.contexts=='Measure']
+        self.timestamps = [s for s in tkeyf('MeasurementDate')
+                           if s!='\x00\x00']
+        self.dims = nkeyf('DIMS')
+        #self.line_length = nkeyf('Linelength')
+        self.line_length = self.dims[0,0]
+        ffi = get_ffi_h5(h5file, recordName)
+        self.__dict__.update(ffi)
+        self.frame_2d_shape = (self.line_length, self.nlines)
+        self.dx = nkeyf('WidthStep')[0]
+        self.dt = (self.tstop-self.tstart)/self.nframes
+
+
+        
+        
+        
+
+# --- Routines for HDF5 Matlab files (to be refactored later) ----------
+
+import h5py
+
+def field_to_string_h5(h5file, objref):
+    return ''.join(unichr(c) for c in h5file[objref])
+
+def read_txtentry_h5(h5file, refstr):
+    refs = h5file[refstr]
+    return [field_to_string_h5(h5file, e) for e in refs[0,:]]
+
+def read_numentry_h5(h5file, refstr):
+    refs = h5file[refstr]
+    return np.squeeze(np.array([h5file[e] for e in refs[0,:]]))
+
+def get_ffi_h5(h5file, record):
+    ref =  h5file['/'+record+'/FoldedFrameInfo']
+    group = h5file[ref[0,0]]
+    keyf = lambda s: np.squeeze(np.array(group[s]))[()]
+    names = [('nframes', 'numFrames'),
+             ('tstart', 'firstFrameStartTime'),
+             ('tstop', 'frameTimeLength'),
+             ('nlines', 'numFrameLines'),
+             ('transverseStep', 'TransverseStep'),
+             ('firstFramePos', 'firstFramePos')]
+    return {n[0]:keyf(n[1]) for n in names}
+
+## TODO: make class with __repr__ instead
+def describe_file_h5(file_name):
+    with h5py.File(file_name) as f: 
+        record_keys = [k for k in f.keys() if 'Df' in k]
+        for key in record_keys:
+            print key, ':', describe_record_h5(f,key, f[key])
+
+def describe_record_h5(h5file, key, h5group):
+    contexts = read_txtentry_h5(h5file, key+'/Context')
+    context_unique = np.unique(contexts)
+    #timestamps 
+    return context_unique

@@ -774,9 +774,7 @@ class FSeq_tiff_2(FSeq_arr):
 
 
 ## -- MES files --
-## TODO: move to a separate file?
-    
-import mes                      
+import mes
 
 class FSeq_mes(FSeq_arr):
     def __init__(self, fname, record=1, ch=None, fns=[],verbose=False):
