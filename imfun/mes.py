@@ -14,57 +14,43 @@ def load_meta(file_name,max_records=1000):
     meta = io.loadmat(file_name, variable_names=var_names, appendmat=False)
     return meta
 
-def describe_file(name):
-    meta = load_meta(name)
-    out_str = "\n# File: %s\n"%name
-    out_str += '-'*(len(name)+10) + '\n'
-    keys = record_keys(meta)
-    out_str +=  "## Data structures:\n"
-    out_str += ', '.join(keys) + '\n'
-    for key in keys:
-        out_str += describe_record(key, meta)
-    return out_str
+## def describe_file(name):
+##     meta = load_meta(name)
+##     out_str = "\n# File: %s\n"%name
+##     out_str += '-'*(len(name)+10) + '\n'
+##     keys = record_keys(meta)
+##     out_str +=  "## Data structures:\n"
+##     out_str += ', '.join(keys) + '\n'
+##     for key in keys:
+##         out_str += describe_record(key, meta)
+##     return out_str
 
-def describe_record(key, meta):
-        out_str = '### ' +  key + '\n'
-        timestamps = [x[0][0] for x in meta[key]['MeasurementDate']
-                      if np.prod(x[0].shape)>0 ]
-        image_names = [map(get_field, (x['ImageName'], x['Context'], x['Channel'])) for x in meta[key]]
-        timestamps = sorted(timestamps)
-        context = [c[0][0] for c in meta[key]["Context"]]
-        #print 'Context types:', set(context)
-        out_str += '  + Total context entries: %d\n'%len(context)
-        out_str += '  + Number of context entries of each type: ' + \
-                   str([(x,sum(np.array(context)==x)) for x in set(context)])
-        out_str += '\n'
-        out_str += '  + Timestamps (first,last): '
-        out_str += timestamps[0] + ', ' +\
-                   (len(timestamps)>1 and timestamps[-1] or '') + '\n'
-        out_str += '  + Image names: \n' 
-        for x in image_names:
-            out_str += "    - " + str(tuple(x)) + "\n"
-        return out_str
+## def describe_record(key, meta):
+##         out_str = '### ' +  key + '\n'
+##         timestamps = [x[0][0] for x in meta[key]['MeasurementDate']
+##                       if np.prod(x[0].shape)>0 ]
+##         image_names = [map(get_field, (x['ImageName'], x['Context'], x['Channel'])) for x in meta[key]]
+##         timestamps = sorted(timestamps)
+##         context = [c[0][0] for c in meta[key]["Context"]]
+##         #print 'Context types:', set(context)
+##         out_str += '  + Total context entries: %d\n'%len(context)
+##         out_str += '  + Number of context entries of each type: ' + \
+##                    str([(x,sum(np.array(context)==x)) for x in set(context)])
+##         out_str += '\n'
+##         out_str += '  + Timestamps (first,last): '
+##         out_str += timestamps[0] + ', ' +\
+##                    (len(timestamps)>1 and timestamps[-1] or '') + '\n'
+##         out_str += '  + Image names: \n' 
+##         for x in image_names:
+##             out_str += "    - " + str(tuple(x)) + "\n"
+##         return out_str
     
 
 ## TODO use [()] together with squeeze_me argument for scipy.io.loadmat
-def get_field(entry):
-    return entry[0][0]
 
-def record_keys(meta):
-    return sorted(filter(lambda x: 'Df' in x, meta.keys()))
-
-def is_supported(entry):
-    return is_zstack(entry) or is_timelapse(entry)
+#def record_keys(meta):
+#    return sorted(filter(lambda x: 'Df' in x, meta.keys()))
     
-def is_zstack(entry):
-    "Check if an entry is a z-stack"
-    return 'Zstack' in entry['Context'] and 'Zlevel' in entry.dtype.names
-
-def is_timelapse(entry):
-    """Check if an entry is an XYT measurement.
-    It must have a 'FoldedFrameInfo' propery"""
-    return 'FoldedFrameInfo' in entry.dtype.names
-
 def only_measures(entry):
     return entry[entry['Context']=='Measure']
 
@@ -84,10 +70,69 @@ def check_record_type(record, file_name):
         record = meta[record]
     return record
 
+class MAT_Record:
+    """Base functions to read entries from MES-related MATv7 files"""
+    def __init__(self, file_name, recordName, ch=None):
+        self.ch = ch
+        self.record = check_record_type(recordName, file_name)
+        self.contexts = self.record["Context"]
+        self.file_name = file_name
+        self.dx = self.get_field(self.record['WidthStep'])
+        self.timestamps = [x[0][0] for x in self.record['MeasurementDate']
+                           if np.prod(x[0].shape)>0 ]
+        self.img_names = map(self.get_field, self.record['ImageName'])
+        self.channels = [self.get_field(x).lower() for x in self.record['Channel']]
+
+
+    def _get_stream(self, name):
+        rec = io.loadmat(self.file_name,variable_names=[name],appendmat=False)
+        return rec[name]    
+    def _get_recs(self, names):
+        return io.loadmat(self.file_name, variable_names=names,appendmat=False)
+    def is_zstack(self):
+        "Check if an entry is a z-stack"
+        entry = self.record
+        return 'Zstack' in entry['Context'] and 'Zlevel' in entry.dtype.names
+    def is_supported(self):
+        #entry = self.record
+        return self.is_zstack() or self.is_timelapse()
+    def is_timelapse(entry):
+        """Check if an entry is an XYT measurement. It must have a 'FoldedFrameInfo' propery"""
+        return 'FoldedFrameInfo' in entry.dtype.names
+    def get_field(self, entry):
+        return entry[0][0]
+
+class H5_Record:
+    "Base functions to read entries from MES-related HDF5 MAT files"
+    def __init__(self, file_name, recordName,ch=None):
+        self.ch = ch
+        self.h5file = h5py.File(file_name)
+        tkeyf = self._get_str_field
+        nkeyf = self._get_num_field
+        self.record = recordName
+        self.img_names = np.array(tkeyf('ImageName'))
+        self.contexts = np.array(tkeyf('Context'))
+        self.channels = tkeyf('Channel')
+        self.nchannels = len(np.unique(self.channels))
+        self.timestamps = [s for s in tkeyf('MeasurementDate')
+                           if s!='\x00\x00']
+        self.dims = nkeyf('DIMS')
+        self.dx = nkeyf('WidthStep')[0]
+
+
+    def _get_recs(self, names):
+        return {n:self.h5file[n] for n in names}
+    def _get_num_field(self, rec):
+        return read_numentry_h5(self.h5file, '/'.join((self.record,rec)))
+    def _get_str_field(self, rec):
+        return read_txtentry_h5(self.h5file, '/'.join((self.record,rec)))
+
+
 class MES_Record:
     pass
 
 class ZStack(MES_Record):
+    kind = 'Zstack'
     def load_data(self, ch=None):
         if ch is None: ch = self.ch
         #outmeta = {'ch':ch}
@@ -100,13 +145,18 @@ class ZStack(MES_Record):
         if ch is None or ch == 'all':
             ## TODO: use smth like np.concatenate(map(lambda m:\
             ## m.reshape(m.shape+(1,)), (x1,x2,x3)), 3)
-            sh = self.base_shape + (max(3, nchannels),)
+            sh = tuple(self.base_shape) + (max(3, nchannels),)
+            print 'Shape', sh, self.base_shape, nchannels
             recs = self._get_recs(var_names)
             stream = lib.clip_and_rescale(np.array([recs[n] for n in var_names]))
             data = np.zeros(sh)
-            for k in xrange(self.nframes//nchannels):
+            framecount = 0
+            print 'Shape2:', stream[0].shape
+            for k in xrange(0, self.nframes//nchannels,nchannels):
                 for j in xrange(nchannels):
-                    data[k,...,j] = stream[k+j]
+                    data[framecount,...,j] = stream[k+j]
+                framecount += 1
+                    
         else:
             if type(ch) is int :
                 var_names = var_names[ch::nchannels]
@@ -116,65 +166,35 @@ class ZStack(MES_Record):
             data = np.array([recs[n] for n in var_names])
         return data, outmeta
 
-class ZStack_mat(ZStack):
+class ZStack_mat(ZStack, MAT_Record):
     def __init__(self, file_name, recordName, ch=None):
-        record = check_record_type(recordName, file_name)
-        self.file_name = file_name
-        self.record = record
-        self.ch = ch
-        self.timestamps = [x[0][0] for x in self.record['MeasurementDate']
-                           if np.prod(x[0].shape)>0 ]
-        self.img_names = map(get_field, self.record['ImageName'])
-
-        self.dz = self._get_zstep(record)
-        self.dx = np.mean(map(get_field, record['WidthStep']))
-        self.nframes = len(record)
-        self.frame_shape = tuple(get_field(record[0]['DIMS']))
-        self.channels = [get_field(x).lower() for x in record['Channel']]
+        MAT_Record.__init__(self, file_name, recordName, ch)
+        self.dz = self._get_zstep()
+        self.nframes = len(self.record)
+        self.frame_shape = tuple(self.get_field(self.record[0]['DIMS']))
         self.nchannels = len(np.unique(self.channels))
         self.base_shape = (self.nframes//self.nchannels, ) + self.frame_shape
-    def _get_recs(self, names):
-        return io.loadmat(self.file_name, names=names,appendmat=False)
     def _get_zstep(self):
-        ch1 = get_field(self.record[0]['Channel'])
+        ch1 = self.get_field(self.record[0]['Channel'])
         levels = self.record[self.record['Channel']==ch1]['Zlevel']
-        return np.mean(np.diff(map(get_field, levels)))
+        return np.mean(np.diff(map(self.get_field, levels)))
 
 
-
-class ZStack_h5(ZStack):
+class ZStack_h5(ZStack, H5_Record):
     def __init__(self,file_name, recordName, ch=None):
-        h5file = h5py.File(file_name)
-        tkeyf = self._get_str_field
-        nkeyf = self._get_num_field
-        self.record = recordName
-        self.h5file = h5file
-        self.ch = ch
-        self.contexts = np.array(tkeyf('Context'))
-        self.channels = tkeyf('Channel')
+        H5_Record.__init__(self, file_name, recordName, ch)
         self.dz = self._get_zstep()
-        self.img_names = np.array(tkeyf('ImageName'))#[self.contexts=='Measure']
-        self.timestamps = [s for s in tkeyf('MeasurementDate')
-                           if s!='\x00\x00']
-        self.dims = nkeyf('DIMS')
-        self.dx = nkeyf('WidthStep')[0]
-        self.nchannels = len(np.unique(self.channels))
         self.nframes = len(self.img_names)
         self.frame_shape = self.dims[0]
-        self.base_shape = (self.nframes//self.nchannels, ) + self.frame_shape
+        self.base_shape = (self.nframes//self.nchannels, ) + tuple(self.frame_shape)
 
-    def _get_recs(self, names):
-        return {n:self.h5file[n] for n in names}
-    def _get_num_field(self, rec):
-        return read_numentry_h5(self.h5file, '/'.join((self.record,rec)))
-    def _get_str_field(self, rec):
-        return read_txtentry_h5(self.h5file, '/'.join((self.record,rec)))
     def _get_zstep(self):
         ch1 = self.channels[0]
         levels = self._get_num_field('Zlevel')
         return np.mean(np.diff(levels[self.channels==ch1]))
 
 class Timelapse(MES_Record):
+    kind='Timelapse'
     def load_data(self,ch=None):
         if ch == None: ch = self.ch
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
@@ -212,26 +232,19 @@ class Timelapse(MES_Record):
             raise IndexError("MES.Timelapse: can't load record%s"%self.recordName)
         return streams
 
-class  Timelapse_mat(Timelapse):
+class  Timelapse_mat(Timelapse, MAT_Record):
     def __init__(self, file_name, recordName, ch=None):
-        self.record = check_record_type(recordName, file_name)
-        self.file_name = file_name
+        MAT_Record.__init__(self, file_name, recordName, ch)
         self.measures = only_measures(self.record)
-        self.timestamps = [x[0][0] for x in self.record['MeasurementDate']
-                           if np.prod(x[0].shape)>0 ]
         self.dt = self.get_sampling_interval()
-        self.dx = get_field(self.measures[0]['WidthStep'])
         nframes, (line_len, nlines) = self.get_xyt_shape()
         self.img_names = [x[0] for x in self.measures['ImageName']]
         self.channels = [x[0] for x in self.measures['Channel']]
     def _reshape_frames(self, stream):
         nlines,nframes = map(int, (self.nlines, self.nframes))
         return (stream[:,k*nlines:(k+1)*nlines].T for k in xrange(1,nframes))
-    def _get_stream(self, name):
-        rec = io.loadmat(self.file_name,variable_names=[name],appendmat=False)
-        return rec[name]
     def get_xyt_shape(self,):
-        'return numFrames, (side1,side2)'
+        'return (numFrames, (side1,side2))'
         m = first_measure(self.record)
         self.nlines = int(m['FoldedFrameInfo']['numFrameLines'][0])
         self.nframes = int(m['FoldedFrameInfo']['numFrames'][0])
@@ -246,27 +259,14 @@ class  Timelapse_mat(Timelapse):
     def get_ffi(self): 
         return first_measure(self.record)['FoldedFrameInfo'][0]
 
-class Timelapse_h5(Timelapse):
+class Timelapse_h5(Timelapse, H5_Record):
     def __init__(self, file_name, recordName, ch=None):
-        h5file = h5py.File(file_name)
-        self.h5file = h5file
-        tkeyf = lambda rec: \
-                read_txtentry_h5(h5file, '/'.join((recordName,rec)))
-        nkeyf = lambda rec: \
-                read_numentry_h5(h5file, '/'.join((recordName,rec)))
-        self.record = recordName
-        self.ch = ch
-        self.contexts = np.array(tkeyf('Context'))
-        self.channels = tkeyf('Channel')
-        self.img_names = np.array(tkeyf('ImageName'))[self.contexts=='Measure']
-        self.timestamps = [s for s in tkeyf('MeasurementDate')
-                           if s!='\x00\x00']
-        self.dims = nkeyf('DIMS')
+        H5_Record.__init__(self, file_name, recordName, ch)
+        self.img_names = self.img_names[[self.contexts=='Measure']]
         self.line_length = self.dims[0,0]
         ffi = get_ffi_h5(self.h5file, recordName)
         self.__dict__.update(ffi)
         self.frame_2d_shape = (self.line_length, self.nlines)
-        self.dx = nkeyf('WidthStep')[0]
         self.dt = (self.tstop-self.tstart)/self.nframes
     def _reshape_frames(self, stream):
         nlines,nframes = map(int, (self.nlines, self.nframes))
