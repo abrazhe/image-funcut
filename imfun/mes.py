@@ -7,82 +7,101 @@ import numpy as np
 from scipy import io
 
 import lib
+import imfun.fnutils as fu
 
-def load_meta(file_name,max_records=1000):
-    "Load meta information from a MES file"
-    var_names = ["Df%04d"%k for k in range(1,max_records+1)]
-    meta = io.loadmat(file_name, variable_names=var_names, appendmat=False)
-    return meta
 
-## def describe_file(name):
-##     meta = load_meta(name)
-##     out_str = "\n# File: %s\n"%name
-##     out_str += '-'*(len(name)+10) + '\n'
-##     keys = record_keys(meta)
-##     out_str +=  "## Data structures:\n"
-##     out_str += ', '.join(keys) + '\n'
-##     for key in keys:
-##         out_str += describe_record(key, meta)
-##     return out_str
+def guess_format(file_name):
+    result = None
+    with open(file_name, 'r') as fid:
+        magic = fid.read(19)
+        if 'MATLAB' in magic and '5.' in magic:
+            result = 'mat'
+        elif 'MATLAB' in magic and '7.' in magic:
+            result = 'h5'
+        else:
+            print "Unknown MES file format"
+    return result
 
-## def describe_record(key, meta):
-##         out_str = '### ' +  key + '\n'
-##         timestamps = [x[0][0] for x in meta[key]['MeasurementDate']
-##                       if np.prod(x[0].shape)>0 ]
-##         image_names = [map(get_field, (x['ImageName'], x['Context'], x['Channel'])) for x in meta[key]]
-##         timestamps = sorted(timestamps)
-##         context = [c[0][0] for c in meta[key]["Context"]]
-##         #print 'Context types:', set(context)
-##         out_str += '  + Total context entries: %d\n'%len(context)
-##         out_str += '  + Number of context entries of each type: ' + \
-##                    str([(x,sum(np.array(context)==x)) for x in set(context)])
-##         out_str += '\n'
-##         out_str += '  + Timestamps (first,last): '
-##         out_str += timestamps[0] + ', ' +\
-##                    (len(timestamps)>1 and timestamps[-1] or '') + '\n'
-##         out_str += '  + Image names: \n' 
-##         for x in image_names:
-##             out_str += "    - " + str(tuple(x)) + "\n"
-##         return out_str
+def load_file_info(file_name):
+    variant = guess_format(file_name)
+
+    if variant == 'mat':
+        vars = [x[0] for x in io.whosmat(file_name)
+                     if 'Df' in x[0]]
+        handler = MAT_Record
+    elif variant == 'h5':
+        with h5py.File(file_name) as f:
+            vars = [k for k in f.keys() if 'Df' in k]
+        handler = H5_Record
+    else:
+        print "Can't load description"
+        vars = None
+    records = [handler(file_name, v) for v in vars]
+    return records
+
+def load_record(file_name, recordName, ch=None):
+    valid_records = load_file_info(file_name)
+    #valid_names = [r.record for r in valid_records]
+    r = filter(lambda r: recordName == r.record, valid_records)
+    if len(r) == 0:
+        print "Can't find record %s in file %s"(recordName, file_name)
+    handlers = {'matZ':ZStack_mat,
+                'matT':Timelapse_mat,
+                'h5Z':ZStack_h5,
+                'h5T':Timelapse_h5}
+    r = r[0]
+    key = r.variant+r.get_kind()
+    if not 'U' in key:
+        obj = handlers[key](file_name, recordName, ch)
+    else:
+        print "Unknown type of file or record"
+        obj = None
+    return obj
+    
+
     
 
 ## TODO use [()] together with squeeze_me argument for scipy.io.loadmat
 
-#def record_keys(meta):
-#    return sorted(filter(lambda x: 'Df' in x, meta.keys()))
-    
-def only_measures(entry):
+def only_measures_mat(entry):
     return entry[entry['Context']=='Measure']
 
-def first_measure(entry):
-    measures = only_measures(entry)
+def first_measure_mat(entry):
+    measures = only_measures_mat(entry)
     if len(measures):
         return measures[0]
 
-def check_record_type(record, file_name):
-    if type(record) is int:
-        record = 'Df%04d'%record
-    elif type(record) is str:
-        if not ('Df' in record):
-            record = 'Df%04d'%int(record)
-    if type(record) is str:
-        meta = load_meta(file_name)
-        record = meta[record]
-    return record
+class MES_Record:
+    def __repr__(self):
+        tstamp = self.timestamps[0].replace(' ','.')
+        tstamp = ':'.join(tstamp.split(':')[:-1])
+        kind = self.get_kind()
+        return '<%s '%self.record + ' '.join((kind,tstamp))+'>'
+    def is_supported(self):
+        return self.is_zstack() or self.is_timelapse()
+    def get_kind(self):
+        kind = 'U'
+        if self.is_zstack():
+            kind = 'Z'
+        elif self.is_timelapse():
+            kind = 'T'
+        #self.kind = kind
+        return kind
 
-class MAT_Record:
+class MAT_Record(MES_Record):
     """Base functions to read entries from MES-related MATv7 files"""
     def __init__(self, file_name, recordName, ch=None):
+        self.variant = 'mat'
         self.ch = ch
-        self.record = check_record_type(recordName, file_name)
-        self.contexts = self.record["Context"]
+        self.record = recordName
+        self.entry = io.loadmat(file_name, variable_names=[recordName])[recordName]
+        self.contexts = self.entry["Context"]
         self.file_name = file_name
-        self.dx = self.get_field(self.record['WidthStep'])
-        self.timestamps = [x[0][0] for x in self.record['MeasurementDate']
+        self.dx = self.get_field(self.entry['WidthStep'])
+        self.timestamps = [x[0][0] for x in self.entry['MeasurementDate']
                            if np.prod(x[0].shape)>0 ]
-        self.img_names = map(self.get_field, self.record['ImageName'])
-        self.channels = [self.get_field(x).lower() for x in self.record['Channel']]
-
+        self.img_names = map(self.get_field, self.entry['ImageName'])
+        self.channels = [self.get_field(x).lower() for x in self.entry['Channel']]
 
     def _get_stream(self, name):
         rec = io.loadmat(self.file_name,variable_names=[name],appendmat=False)
@@ -91,20 +110,20 @@ class MAT_Record:
         return io.loadmat(self.file_name, variable_names=names,appendmat=False)
     def is_zstack(self):
         "Check if an entry is a z-stack"
-        entry = self.record
+        entry = self.entry
         return 'Zstack' in entry['Context'] and 'Zlevel' in entry.dtype.names
-    def is_supported(self):
-        #entry = self.record
-        return self.is_zstack() or self.is_timelapse()
-    def is_timelapse(entry):
+    def is_timelapse(self):
         """Check if an entry is an XYT measurement. It must have a 'FoldedFrameInfo' propery"""
-        return 'FoldedFrameInfo' in entry.dtype.names
-    def get_field(self, entry):
-        return entry[0][0]
+        return 'FoldedFrameInfo' in self.entry.dtype.names
+    def get_field(self, field):
+        return field[0][0]
+        
+        
 
-class H5_Record:
+class H5_Record(MES_Record):
     "Base functions to read entries from MES-related HDF5 MAT files"
     def __init__(self, file_name, recordName,ch=None):
+        self.variant = 'h5'
         self.ch = ch
         self.h5file = h5py.File(file_name)
         tkeyf = self._get_str_field
@@ -112,14 +131,19 @@ class H5_Record:
         self.record = recordName
         self.img_names = np.array(tkeyf('ImageName'))
         self.contexts = np.array(tkeyf('Context'))
-        self.channels = tkeyf('Channel')
+        self.channels = np.array([s.lower() for s in tkeyf('Channel')])
         self.nchannels = len(np.unique(self.channels))
         self.timestamps = [s for s in tkeyf('MeasurementDate')
                            if s!='\x00\x00']
         self.dims = nkeyf('DIMS')
         self.dx = nkeyf('WidthStep')[0]
-
-
+    def is_zstack(self):
+        return 'Zstack' in self.contexts and\
+               'Zlevel' in self.h5file[self.record]
+    def is_timelapse(self):
+        return 'FoldedFrameInfo' in self.h5file[self.record]
+    def _get_stream(self, name):
+        return self.h5file[name]
     def _get_recs(self, names):
         return {n:self.h5file[n] for n in names}
     def _get_num_field(self, rec):
@@ -128,11 +152,33 @@ class H5_Record:
         return read_txtentry_h5(self.h5file, '/'.join((self.record,rec)))
 
 
-class MES_Record:
-    pass
-
-class ZStack(MES_Record):
+class ZStack:
     kind = 'Zstack'
+    def _read_frame(self, num, ch=None):
+        if ch is None: ch = self.ch
+        k =  num*self.nchannels
+        pipeline = fu.flcompose(self._get_stream, lambda a: 1.0*np.array(a),
+                                lib.rescale)
+        names = self.img_names[k:k+self.nchannels][self._ch2ind(self.ch)]
+
+        cstack = np.array(map(pipeline, names))
+        return np.squeeze(np.dstack(cstack))
+    def __getitem__(self, val):
+        indices = np.arange(self.base_shape[0])[val]
+        print indices, np.ndim(indices)
+        if np.ndim(indices) < 1:
+            return self._read_frame(indices)
+        return np.array(map(self._read_frame, indices))
+        
+    def _ch2ind(self, ch):
+        if ch is None or ch == 'all':
+            out = slice(0,self.nchannels)
+        elif type(ch) is int:
+            out = [ch]
+        elif type(ch) is str:
+            out = np.where([ch in s for s in 'rgb'])[0][()]
+        return out
+                          
     def load_data(self, ch=None):
         if ch is None: ch = self.ch
         #outmeta = {'ch':ch}
@@ -140,8 +186,8 @@ class ZStack(MES_Record):
         outmeta['axes'] = lib.alist_to_scale([(self.dz, 'um'),
                                               (self.dx, 'um')])
         var_names = self.img_names
-
         nchannels = self.nchannels
+
         if ch is None or ch == 'all':
             ## TODO: use smth like np.concatenate(map(lambda m:\
             ## m.reshape(m.shape+(1,)), (x1,x2,x3)), 3)
@@ -156,7 +202,6 @@ class ZStack(MES_Record):
                 for j in xrange(nchannels):
                     data[framecount,...,j] = stream[k+j]
                 framecount += 1
-                    
         else:
             if type(ch) is int :
                 var_names = var_names[ch::nchannels]
@@ -193,7 +238,7 @@ class ZStack_h5(ZStack, H5_Record):
         levels = self._get_num_field('Zlevel')
         return np.mean(np.diff(levels[self.channels==ch1]))
 
-class Timelapse(MES_Record):
+class Timelapse:
     kind='Timelapse'
     def load_data(self,ch=None):
         if ch == None: ch = self.ch
@@ -235,7 +280,7 @@ class Timelapse(MES_Record):
 class  Timelapse_mat(Timelapse, MAT_Record):
     def __init__(self, file_name, recordName, ch=None):
         MAT_Record.__init__(self, file_name, recordName, ch)
-        self.measures = only_measures(self.record)
+        self.measures = only_measures_mat(self.record)
         self.dt = self.get_sampling_interval()
         nframes, (line_len, nlines) = self.get_xyt_shape()
         self.img_names = [x[0] for x in self.measures['ImageName']]
@@ -245,7 +290,7 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         return (stream[:,k*nlines:(k+1)*nlines].T for k in xrange(1,nframes))
     def get_xyt_shape(self,):
         'return (numFrames, (side1,side2))'
-        m = first_measure(self.record)
+        m = first_measure_mat(self.record)
         self.nlines = int(m['FoldedFrameInfo']['numFrameLines'][0])
         self.nframes = int(m['FoldedFrameInfo']['numFrames'][0])
         self.line_length = m['DIMS'][0][0]
@@ -257,7 +302,7 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         tstop = float(ffi['frameTimeLength'])
         return (tstop-tstart)/nframes
     def get_ffi(self): 
-        return first_measure(self.record)['FoldedFrameInfo'][0]
+        return first_measure_mat(self.record)['FoldedFrameInfo'][0]
 
 class Timelapse_h5(Timelapse, H5_Record):
     def __init__(self, file_name, recordName, ch=None):
