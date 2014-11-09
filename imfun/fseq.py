@@ -777,13 +777,13 @@ class FSeq_tiff_2(FSeq_arr):
 import mes
 
 class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record=1, ch=None, fns=[],verbose=False):
+    def __init__(self, fname, record, ch=None, fns=[],verbose=False):
         """
         The following format is assumed:
-        the matlab (.mes) file contains description in a field like "Df0001",
-        and actual data records in fields like 'If0001_001', 'If0001_002'.
+        the mes file contains descriptions in fields like "Df0001",
+        and actual images in fields like 'If0001_001', 'If0001_002'.
         These fields contain data for the red and green channel, accordingly
-        The images are stored as NXM arrays, where N is one side of an image,
+        The timelapse images are stored as NXM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
         self.fns = fns
@@ -796,15 +796,10 @@ class FSeq_mes(FSeq_arr):
                 record = 'Df%04d'%int(record)
         else:
             print "Unknown record definition format"
-        mes_meta = mes.load_meta(fname)
-        entry = mes_meta[record]
-        if mes.is_timelapse(entry):
-            self.data, self.meta = mes.load_timelapse_v7(fname, entry, ch)
-        elif mes.is_zstack(entry):
-            self.data,self.meta = mes.load_zstack_v7(fname, entry, ch)
-        else:
-            raise RuntimeError("FSeq_mes: don't know how to load this entry")
-            return None
+
+        self.mesrec = mes.load_record(fname, record, ch)
+        self.data, self.meta = self.mesrec.load_data()
+        
 
 
 ## -- End of MES files --        

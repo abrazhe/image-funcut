@@ -1,23 +1,20 @@
 #!/usr/bin/which python 
 
-import gc # trying to make it work on windows
+#import gc # trying to make it work on windows
 
 import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-from functools import partial
-
-
-from scipy import stats, signal, ndimage
-from functools import partial # curry-like function
+#from scipy import stats, signal, ndimage
+#from functools import partial # curry-like function
 import numpy as np
 
-from imfun import fseq, fnmap, lib, atrous
+from imfun import fseq, lib, atrous
 from imfun import filt
 from imfun import ui as ifui
 from imfun import mes
-import glob as Glob
+#import glob as Glob
 
 
 #from matplotlib.backends.backend_agg import FigureCanvasAgg #canvas
@@ -34,7 +31,7 @@ from traitsui.menu \
      import Action, CloseAction, Menu, MenuBar, OKCancelButtons, Separator
 
 from traitsui.wx.editor import Editor
-from traitsui.wx.themed_vertical_notebook_editor import ThemedVerticalNotebookEditor
+#from traitsui.wx.themed_vertical_notebook_editor import ThemedVerticalNotebookEditor
 from traitsui.basic_editor_factory import BasicEditorFactory
 
 
@@ -304,21 +301,19 @@ class FrameSequenceOpts(HasTraits):
             self.glob = ''
             self.glob_enabled=False
         if ext == 'mes':
-            meta = mes.load_meta(self.fig_path)
-            keys = mes.record_keys(meta)
-            valid_records = [k for k in keys if mes.is_supported(meta[k])]
-            self.avail_records = valid_records
-            self.record = valid_records[0]
+            vars = mes.load_file_info(self.fig_path)
+            vars = [v for v in vars if v.is_supported()]
+            self.avail_records = map(repr, vars)
+            self.record = self.avail_records[0]
             self.record_enabled=True
             
-    def _record_changed(self):
-        if self.fig_path.split('.')[-1].lower() == 'mes':
-            meta = mes.load_meta(self.fig_path)
-            print mes.describe_file(self.fig_path)
+    ## def _record_changed(self):
+    ##     if self.fig_path.split('.')[-1].lower() == 'mes':
+    ##         print self.record
             
-    def _glob_changed(self):
-        if len(self.glob) > 5 and '*' in self.glob:
-            gl = self.glob.split('*')[0]
+    ## def _glob_changed(self):
+    ##     if len(self.glob) > 5 and '*' in self.glob:
+    ##         gl = self.glob.split('*')[0]
             
     def _vmax_changed(self):
         print "setting levels"
@@ -430,7 +425,12 @@ class FrameSequenceOpts(HasTraits):
             path = str(self.fig_path)
         if self._verbose:
             print path
-        self.fs = fseq.open_seq(path, record = self.record, ch=color_channels[self.ch])
+        ext = self.fig_path.split('.')[-1].lower()
+        if ext == 'mes': # in case of mes, self.record is repr, not record name
+            record = self.record.split(' ')[0][1:]
+        else:
+            record = self.record
+        self.fs = fseq.open_seq(path, record=record, ch=color_channels[self.ch])
         if self._verbose:
             print "new fs created"
         #self.fs.fns = self.fw_presets[self.fw_trans1]

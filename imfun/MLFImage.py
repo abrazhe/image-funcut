@@ -6,6 +6,7 @@
 import numpy as np
 import numbers
 
+# This is valid for v2.0 files
 mlfdescr = {
     'date': 0x1800,
     'time': 0x1c00,

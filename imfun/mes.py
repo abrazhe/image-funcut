@@ -51,6 +51,7 @@ def load_record(file_name, recordName, ch=None):
                 'h5T':Timelapse_h5}
     r = r[0]
     key = r.variant+r.get_kind()
+    print key
     if not 'U' in key:
         obj = handlers[key](file_name, recordName, ch)
     else:
@@ -215,13 +216,13 @@ class ZStack_mat(ZStack, MAT_Record):
     def __init__(self, file_name, recordName, ch=None):
         MAT_Record.__init__(self, file_name, recordName, ch)
         self.dz = self._get_zstep()
-        self.nframes = len(self.record)
-        self.frame_shape = tuple(self.get_field(self.record[0]['DIMS']))
+        self.nframes = len(self.entry)
+        self.frame_shape = tuple(self.get_field(self.entry[0]['DIMS']))
         self.nchannels = len(np.unique(self.channels))
         self.base_shape = (self.nframes//self.nchannels, ) + self.frame_shape
     def _get_zstep(self):
-        ch1 = self.get_field(self.record[0]['Channel'])
-        levels = self.record[self.record['Channel']==ch1]['Zlevel']
+        ch1 = self.get_field(self.entry[0]['Channel'])
+        levels = self.entry[self.entry['Channel']==ch1]['Zlevel']
         return np.mean(np.diff(map(self.get_field, levels)))
 
 
@@ -280,7 +281,7 @@ class Timelapse:
 class  Timelapse_mat(Timelapse, MAT_Record):
     def __init__(self, file_name, recordName, ch=None):
         MAT_Record.__init__(self, file_name, recordName, ch)
-        self.measures = only_measures_mat(self.record)
+        self.measures = only_measures_mat(self.entry)
         self.dt = self.get_sampling_interval()
         nframes, (line_len, nlines) = self.get_xyt_shape()
         self.img_names = [x[0] for x in self.measures['ImageName']]
@@ -290,19 +291,19 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         return (stream[:,k*nlines:(k+1)*nlines].T for k in xrange(1,nframes))
     def get_xyt_shape(self,):
         'return (numFrames, (side1,side2))'
-        m = first_measure_mat(self.record)
+        m = first_measure_mat(self.entry)
         self.nlines = int(m['FoldedFrameInfo']['numFrameLines'][0])
         self.nframes = int(m['FoldedFrameInfo']['numFrames'][0])
         self.line_length = m['DIMS'][0][0]
         return self.nframes, (self.line_length, self.nlines)
-    def get_sampling_interval(self,ffi):
-        ffi = self.get_ffi(self.record)
+    def get_sampling_interval(self):
+        ffi = self.get_ffi()
         nframes = long(ffi['numFrames'])
         tstart = float(ffi['firstFrameStartTime'])
         tstop = float(ffi['frameTimeLength'])
         return (tstop-tstart)/nframes
     def get_ffi(self): 
-        return first_measure_mat(self.record)['FoldedFrameInfo'][0]
+        return first_measure_mat(self.entry)['FoldedFrameInfo'][0]
 
 class Timelapse_h5(Timelapse, H5_Record):
     def __init__(self, file_name, recordName, ch=None):
