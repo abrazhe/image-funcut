@@ -7,7 +7,7 @@ import numpy as np
 import numbers
 
 # This is valid for v2.0 files
-mlfdescr = {
+mlfdescr_v2 = {
     'date': 0x1800,
     'time': 0x1c00,
     'nframes': 0x8000,
@@ -21,6 +21,22 @@ mlfdescr = {
     'data_start': 0x10000
     }
 
+mlfdescr_v3 = {
+    'version': (0x0100, 0x08, np.int64),
+    'nsections': (0x108, 0x08, np.int64),
+    'date': (0x0900, 0x080, np.str_),
+    'time': (0x0980, 0x080, np.str_),
+    'nframes': (0x1000, 0x08,np.int64),
+    'xdim': (0x1008, 0x08, np.int64),
+    'ydim': (0x1010, 0x08, np.int64),
+    'dt' : (0x1018, 0x08, np.int64), # in us
+    'exposure': (0x1028, 0x08, np.int64),
+    'gain': (0x1030, 0x08, np.int64),
+    'sfilter': (0x1038, 0x08, np.int64),
+    'mode': (0x1048, 0x08, np.int64),
+    'data_start': (0x10000, None, np.uint16)
+    }
+
 def read_at(fid, pos, Nelem, dtype=np.uint16, seek_opt=0):
     fid.seek(pos, seek_opt)
     return np.fromfile(fid, dtype, Nelem)
@@ -29,6 +45,7 @@ class MLF_Image:
     def __init__(self, fname):
         self.fname = fname
         self.fid = open(fname, 'rb')
+        mlfdescr = mlfdescr_v2
         self.xdim  = self.read_value(mlfdescr['xdim'])
         self.ydim  = self.read_value(mlfdescr['ydim'])
         self.dt = self.read_value(mlfdescr['dt'])
