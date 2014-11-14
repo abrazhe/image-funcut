@@ -1,12 +1,14 @@
 ### For speckle imaging data
 ### MLF is for Moor Instruments data
 
-### Let's decide I used hexdump on a mlf file and figured out the formatq
+### Let's decide I used hexdump on a mlf file and figured out the format
 
 import numpy as np
 import numbers
 
-# This is valid for v2.0 files
+
+# table for v2.0 files
+# format: label: (address, numElements, typeOfElement)
 mlfdescr_v2 = {
     'date':      (0x1800, 1, '|S10'),
     'time':      (0x1c00, 1, 'S9'),
@@ -21,6 +23,8 @@ mlfdescr_v2 = {
     'data_start':(0x10000, None, np.uint16)
     }
 
+# table for v3.0 files
+# format: label: (address, numElements, typeOfElement)
 mlfdescr_v3 = {
     'version':   (0x0100, 1, np.int64),
     'nsections': (0x108, 1, np.int64),
@@ -42,12 +46,15 @@ def read_at(fid, pos, Nelem=1, dtype=np.uint16, seek_opt=0):
     fid.seek(pos, seek_opt)
     return np.fromfile(fid, dtype, Nelem)
 
+# this needed to guess file type from file header
 known_headers = {
     "Moor FLPI Live Image Data file V2.0":mlfdescr_v2,
     "moorFLPI Live Image Data File V3.0": mlfdescr_v3
     }
 
 def read_header(name):
+    """Read file header and return the correct address table
+    """
     with open(name, 'rb') as fid:
         magic = fid.read(64)
         tables = [(k,v) for k,v in known_headers.items() if k in magic]
@@ -116,8 +123,6 @@ class MLF_Image:
         else:
             return map(self.read_frame, indices[val])
 
-                
-
     def flux_frame_iter(self):
         frame_count = 0
         self.fid.seek(self.data_start)
@@ -131,7 +136,6 @@ class MLF_Image:
                 yield flux_frame
             except:
                 break
-
 
     def frame_iter(self):
         frame_count = 0

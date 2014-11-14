@@ -1,16 +1,18 @@
-# Routines to read MES files
+# Routines and classes to read MES files (as produced by Femtonics microscopes)
 
 from __future__ import division
 
 import itertools as itt
 import numpy as np
 from scipy import io
-
 import lib
 import imfun.fnutils as fu
 
 
 def guess_format(file_name):
+    """given file name, return either 'mat' or 'h5' depending on whether the
+    file format is Matlab v5 or Matlab > v7, which is HDF5
+    """
     result = None
     with open(file_name, 'r') as fid:
         magic = fid.read(19)
@@ -23,8 +25,10 @@ def guess_format(file_name):
     return result
 
 def load_file_info(file_name):
+    """Load basic information about a file returns a list of MES_Record
+    instances (subclassed as MAT_Record or H5_Record depending on file format
+    """
     variant = guess_format(file_name)
-
     if variant == 'mat':
         vars = [x[0] for x in io.whosmat(file_name)
                      if 'Df' in x[0]]
@@ -40,6 +44,11 @@ def load_file_info(file_name):
     return records
 
 def load_record(file_name, recordName, ch=None):
+    """Given file name and a record name, load the record data dispatching on
+    the correct file format and record type, i.e. Zstack or Timelapse
+
+    returns one of {ZStack_mat, ZStack_h5, Timelapse_mat or Timelapse_h5}
+    """
     valid_records = load_file_info(file_name)
     #valid_names = [r.record for r in valid_records]
     r = filter(lambda r: recordName == r.record, valid_records)
@@ -73,6 +82,7 @@ def first_measure_mat(entry):
         return measures[0]
 
 class MES_Record:
+    "Base class for a MES Record. Format-specific details are in daughter classes"
     def __repr__(self):
         tstamp = self.timestamps[0].replace(' ','.')
         tstamp = ':'.join(tstamp.split(':')[:-1])
@@ -154,6 +164,7 @@ class H5_Record(MES_Record):
 
 
 class ZStack:
+    "Common class to deal with Zstack data"
     kind = 'Zstack'
     def _read_frame(self, num, ch=None):
         if ch is None: ch = self.ch
@@ -240,6 +251,7 @@ class ZStack_h5(ZStack, H5_Record):
         return np.mean(np.diff(levels[self.channels==ch1]))
 
 class Timelapse:
+    "Common class to deal with timelapse images"
     kind='Timelapse'
     def load_data(self,ch=None):
         if ch == None: ch = self.ch
