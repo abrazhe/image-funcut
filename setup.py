@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.1-git',
+      version = '0.1.2',
       description = "",
       scripts = ['imfun/frame_viewer.py'],
       requires = ['numpy','scipy','swan'],
