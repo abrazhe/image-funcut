@@ -19,7 +19,7 @@ import mock
 MOCK_MODULES = ['matplotlib', 'scipy','numpy', 'swan', 'scipy.sparse.linalg',
                 'matplotlib.pyplot', 'matplotlib.image', 'scipy.interpolate',
                 'numpy.linalg', 'interpolate', 'scipy.stats', 'numpy.random',
-                'scipy.ndimage', 'scipy.linalg']
+                'scipy.ndimage', 'scipy.linalg', 'h5py']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
