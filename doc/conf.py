@@ -15,6 +15,12 @@ import sys, os
 
 from pkg_resources import get_distribution, DistributionNotFound
 
+import mock
+MOCK_MODULES = ['matplotlib', 'scipy','numpy', 'swan']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
+
+sys.path.append(os.path.abspath('../imfun'))
 
 __project__ = 'image-funcut'
 __version__ = None  # required for initial installation
@@ -54,7 +60,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Image Funcut'
+project = __project__
 copyright = u'2012--2014, Alexey Brazhe'
 
 # The version info for the project you're documenting, acts as replacement for
