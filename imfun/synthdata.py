@@ -51,11 +51,11 @@ def regular_spikes(tvec, stim_freq, (stim_start, stim_stop), amp=10, tau=0.15, r
     out = np.add.reduce([spike(tvec, loc, amp, tau,rise) for loc in locations])
     return out
 
-
+_pi = 3.14159265359
 
 def synth_movie(tvec, size, nobjs=42, snr=0.5,
                 spike_pars = {},
-                dendr_length =64, angle=pi/5):
+                dendr_length =64, angle=_pi/5):
     L = len(tvec)
     spike_pars_use = {'isi':1.2, 'amp':200, 'snr':100}
     spike_pars_use.update(spike_pars)
