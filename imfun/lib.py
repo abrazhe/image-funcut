@@ -354,7 +354,8 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
 
 
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
+#from scipy.sparse.linalg import spsolve
+spsolve = sparse.linalg.spsolve
 def baseline_als(y, lam=None, p=0.1, niter=10):
     """Implements an Asymmetric Least Squares Smoothing
     baseline correction algorithm
