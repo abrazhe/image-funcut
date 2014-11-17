@@ -17,8 +17,9 @@ from pkg_resources import get_distribution, DistributionNotFound
 
 import mock
 MOCK_MODULES = ['matplotlib', 'scipy','numpy', 'swan', 'scipy.sparse.linalg',
-                'matplotlib.pyplot', 'image', 'pylab', 'linalg', 'interpolate', 'stats',
-                'ndimage']
+                'matplotlib.pyplot', 'matplotlib.image', 'scipy.interpolate',
+                'numpy.linalg', 'interpolate', 'scipy.stats', 'numpy.random',
+                'scipy.ndimage', 'scipy.linalg']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
