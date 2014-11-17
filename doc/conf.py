@@ -16,7 +16,7 @@ import sys, os
 from pkg_resources import get_distribution, DistributionNotFound
 
 import mock
-MOCK_MODULES = ['matplotlib', 'scipy','numpy', 'swan']
+MOCK_MODULES = ['matplotlib', 'scipy','numpy', 'swan', 'scipy.linalg']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
