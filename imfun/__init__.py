@@ -21,3 +21,4 @@ import atrous
 import mmt
 import multiscale
 import mvm
+import fnutils
