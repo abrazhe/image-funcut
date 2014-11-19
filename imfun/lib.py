@@ -354,7 +354,6 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
 
 
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
 #spsolve = sparse.linalg.spsolve
 def baseline_als(y, lam=None, p=0.1, niter=10):
     """Implements an Asymmetric Least Squares Smoothing
@@ -369,7 +368,7 @@ def baseline_als(y, lam=None, p=0.1, niter=10):
     for i in xrange(niter):
 	W = sparse.spdiags(w, 0, L, L)
 	Z = W + lam*np.dot(D,D.T)
-	z = spsolve(Z,w*y)
+	z = sparse.linalg.spsolve(Z,w*y)
 	w = p*(y>z) + (1-p)*(y<z)
     return z
 
