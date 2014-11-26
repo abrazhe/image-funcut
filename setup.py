@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(name='image-funcut',
       version = '0.1.2',
-      description = "",
+      description = "View, analyse and transform dynamic imaging data",
       scripts = ['imfun/frame_viewer.py'],
       requires = ['numpy','scipy','swan'],
       py_modules = ['imfun.atrous',
