@@ -1331,7 +1331,7 @@ class Picker:
                 out_string = "Channel %d\n" % self.fseq.ch
             else:
                 out_string = ""
-            out_string += "Time\t" + '\t'.join(rois) + '\n'
+            out_string += "Time\t" + '\t'.join(point_rois) + '\n'
             for k in xrange(self.length()):
                 out_string += "%e\t"%t[k]
                 out_string += '\t'.join(["%e"%a[k] for a in ts])
