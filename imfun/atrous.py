@@ -190,7 +190,7 @@ def decompose1d_numpy(sig, level, phi=_phi_, boundary='symm'):
 
 decompose1d = decompose1d_weave
 
-def decompose2d_numpy(arr2d, level, phi=None, boundary='symm'):
+def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
     """
     2D stationary wavelet transform with B3-spline scaling function
 
@@ -229,7 +229,7 @@ def decompose2d_numpy(arr2d, level, phi=None, boundary='symm'):
         print "Maximum allowed decomposition level reached, not advancing any more"
         return [w, approx]
     else:
-        return [w] + decompose2d(approx,level-1,upphi,boundary) 
+        return [w] + decompose2d_numpy(approx,level-1,upphi,boundary=boundary) 
 
 
 def decompose3d_numpy(arr, level=1,
