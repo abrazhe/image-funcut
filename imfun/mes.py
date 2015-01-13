@@ -6,7 +6,7 @@ import itertools as itt
 import numpy as np
 from scipy import io
 import lib
-import imfun.fnutils as fu
+import fnutils as fu
 
 
 def guess_format(file_name):

@@ -186,9 +186,9 @@ def decompose1d_numpy(sig, level, phi=_phi_, boundary='symm'):
     L = len(sig)
     if level <= 0: return sig
     elif level == 1 or L < len(zupsample(phi)): return [w, apprx]
-    else: return [w] + decompose1d(apprx, level-1, zupsample(phi))
+    else: return [w] + decompose1d_numpy(apprx, level-1, zupsample(phi))
 
-decompose1d = decompose1d_weave
+#decompose1d = decompose1d_weave
 
 def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
     """
