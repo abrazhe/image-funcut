@@ -132,7 +132,7 @@ class FrameSequenceOpts(HasTraits):
 
     dt = Float(1, label='frame interval')
     dtunits = Str("",label='units')
-    fig_path = File("")
+    fig_path = File()
 
     record = Str('1')
     avail_records = List(['1'])
@@ -173,6 +173,8 @@ class FrameSequenceOpts(HasTraits):
     _load_rois_dict = File()
     _export_timeseries_file = File()
     _export_vessel_diameters_file = File()
+
+    also_save_figures = Bool(False)
     
     export_vessel_diameters_btn = Button("Export vessel diameters")
     export_rois_dict_btn = Button('Export current ROIs')
@@ -283,7 +285,10 @@ class FrameSequenceOpts(HasTraits):
 			label='Movie'),
 		  Group('export_rois_dict_btn',
 			'export_timeseries_btn',
-                        'export_vessel_diameters_btn',
+                        Group(
+                            Item('export_vessel_diameters_btn',show_label=False),
+                            'also_save_figures',
+                            show_border=True),
 			show_border=True,
 			show_labels=False,
 			label='ROIs'),
@@ -306,6 +311,14 @@ class FrameSequenceOpts(HasTraits):
             self.avail_records = map(repr, vars)
             self.record = self.avail_records[0]
             self.record_enabled=True
+        dummy_path = os.path.join(os.path.dirname(self.fig_path), u' ')
+        print dummy_path
+        
+        self._export_vessel_diameters_file = dummy_path
+        self._export_timeseries_file = dummy_path
+        self._export_rois_dict = dummy_path
+        self._load_rois_dict = dummy_path
+        
             
     ## def _record_changed(self):
     ##     if self.fig_path.split('.')[-1].lower() == 'mes':
@@ -479,12 +492,19 @@ class FrameSequenceOpts(HasTraits):
 
     def _export_vessel_diameters_btn_fired(self):
         print "_export_vessel_diameters_btn_fired"
+        print 
         ui = self.edit_traits(view='export_vessel_diameters_view')
 	if ui.result == True:
             name = self._export_vessel_diameters_file
             print 'Picked file name:', name
             p = self.parent.picker
-            p.export_vessel_diameters(name)
+            cwd = None
+            if self.also_save_figures:
+                cwd = os.path.dirname(self.fig_path)
+                self.parent.picker.fig.savefig(os.path.join(cwd,'lines.png'))
+            p.export_vessel_diameters(name,save_figs_to=cwd)
+                
+                
 	
     def _load_btn_fired(self):
         

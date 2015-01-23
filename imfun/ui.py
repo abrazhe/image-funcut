@@ -1,5 +1,5 @@
 import itertools as itt
-
+import os
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -1217,7 +1217,7 @@ class Picker:
         self.ax1.figure.canvas.draw() # redraw the axes
         return
 
-    def export_vessel_diameters(self,fname=None):
+    def export_vessel_diameters(self,fname=None,save_figs_to=None):
         objs = self.roi_objs
         keys = [k for k in sorted(objs.keys())
                 if self.isLineROI(k) and objs[k].has_traced_vessels()]
@@ -1225,6 +1225,17 @@ class Picker:
             if self._verbose:
                 print "No LineScane ROIs with traced vesels found"
             return
+        if save_figs_to is not None:
+            for k in keys:
+                vcont_obj = objs[k].vconts
+                fig,ax = plt.subplots(1,1)
+                ax.imshow(vcont_obj.data, cmap='gray')
+                ax_lim = ax.axis()
+                ax.plot(vcont_obj.contlines[0].get_ydata(),'r')
+                ax.plot(vcont_obj.contlines[1].get_ydata(),'r')
+                ax.axis(ax_lim)
+                fig.savefig(os.path.join(save_figs_to, k+'.png'))
+                
         diams = [objs[k].vconts.get_diameter() for k in keys]
         out =  dict(zip(keys, diams))
         if _with_pandas:
