@@ -182,6 +182,7 @@ class FrameSequenceOpts(HasTraits):
     
     export_timeseries_btn = Button('Export timeseries from ROIs')
     show_all_timeseries_btn = Button('Show all timeseries')
+    drop_all_rois_btn = Button("Drop all ROIs")
     
     reset_range_btn = Button("Reset")
     load_btn = Button("Load images")
@@ -240,6 +241,7 @@ class FrameSequenceOpts(HasTraits):
 		      Item('linescan_scope'),
 		      Item('show_all_timeseries_btn',show_label=False),
 		      Item('load_rois_dict_btn',show_label=False),
+                      Item('drop_all_rois_btn',show_label=False),
 		      label = 'ROIs',
 		      show_border=True),
 		label='Open'),
@@ -388,6 +390,12 @@ class FrameSequenceOpts(HasTraits):
     def _apply_percentile_fired(self):
         fn = lambda s : self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
+    
+    def _drop_all_rois_btn_fired(self):
+        print "in drop_all_rois"
+        if hasattr(self.parent, 'picker'):
+            print "Dropping all rois..."
+            self.parent.picker.drop_all_rois()
 
     def _pipeline_items_changed(self):
         self._fs2_needs_reload=True
