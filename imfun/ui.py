@@ -434,15 +434,7 @@ class LineScan(DraggableObj):
         if not self.event_ok(event, True):
             return
         if event.button == 3:
-            self.disconnect()
-            self.length_tag.set_alpha(0)
-            self.length_tag.remove()
-            self.name_tag.set_alpha(0)
-            self.name_tag.remove()
-            self.obj.remove()
-            self.parent.roi_objs.pop(self.tag)
-            self.parent.legend()
-            self.redraw()
+            self.destroy()
         elif event.button == 1:
             xy = event.xdata,event.ydata
             candidates = [self.centerpoint()] + self.endpoints()
@@ -458,6 +450,17 @@ class LineScan(DraggableObj):
         accepted_keys = ['/', '-', 'r']
 	if event.key in accepted_keys:
 	    self.diameter_manager = self.show_zview()
+
+    def destroy(self):
+        self.parent.roi_objs.pop(self.tag)
+        self.disconnect()
+        self.length_tag.set_alpha(0)
+        self.length_tag.remove()
+        self.name_tag.set_alpha(0)
+        self.name_tag.remove()
+        self.obj.remove()
+        self.parent.legend()
+        self.redraw()
 
     def transform_point(self, p):
         dx,dy = self.axes[1:3]['scale']
@@ -1216,6 +1219,10 @@ class Picker:
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
+    def drop_all_rois(self):
+        for roi in self.roi_objs.values():
+            roi.destroy()
+            
 
     def export_vessel_diameters(self,fname=None,save_figs_to=None):
         objs = self.roi_objs
