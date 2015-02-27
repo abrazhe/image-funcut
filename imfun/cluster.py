@@ -426,7 +426,7 @@ def csq_find_rois(m, threshold = None,
         threshold = np.std(m)
     cs = lambda s: converge_square(m,s,reduct_step,efunc,min_size)
     rois = []
-    for square in make_grid(m.shape, stride):
+    for square in make_grid(m.shape, stride,stride):
         if efunc(m[square]) > threshold:
             rois.append(cs(square))
     return rois
@@ -453,12 +453,12 @@ def csqroi2point(roi):
     return [s.start for s in roi[::-1]] # axes are reverse to indices
     
 
-def make_grid(shape,stride):
+def make_grid(shape,size,stride):
     """Make a generator over sets of slices which go through the provided shape
        by a stride
     """
     origins =  itt.product(*[range(0,dim,stride) for dim in shape])
-    squares = ([slice(a,a+stride) for a in o] for o in origins)
+    squares = ([slice(a,a+size) for a in o] for o in origins)
     return squares
 
 ###---------------------------------------------------------
