@@ -128,10 +128,10 @@ def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
         else:
             perm = np.arange(Npts)
 
-        for k in perm:
+        for i,k in enumerate(perm):
             p = patterns[k]
             if (not k%100) and verbose:
-                sys.stderr.write("\r %04d %06d, %06d"%(niter, reassigned, Npts-k))
+                sys.stderr.write("\r %04d %06d, %06d"%(niter, reassigned, Npts-i))
             dists = distance(grid.reshape(flatgrid_sh), p)
             winner_ind = np.argmin(dists)
             affiliations[k] = winner_ind
