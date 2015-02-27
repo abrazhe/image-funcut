@@ -1200,9 +1200,9 @@ class Picker:
 
     def load_rois(self, source):
         "Load stored ROIs from a file"
-        if type(source) is str or unicode :
+        if isinstance(source, (str,unicode)):
             data = pickle.load(file(source))
-        elif type(source) is file:
+        elif isinstance(source, file):
             data = pickle.load(source)
         else:
             data = source

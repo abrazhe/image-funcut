@@ -88,7 +88,7 @@ def synth_movie_from_seq(seq, baseL, type=1):
     return out
 
 def ellipse(xc, yc, a, b, phi):
-    t = arange(0, 2*pi, 0.01)
+    t = np.arange(0, 2*pi, 0.01)
     X = xc + a* cos(t) * cos(phi) + b *sin(t) * sin(phi)
     Y = yc - a* cos(t) * cos(phi) + b *sin(t) * sin(phi)
     return X, Y
