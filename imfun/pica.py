@@ -25,25 +25,25 @@ def pca(X, ncomp=None):
     """PCA decomposition via SVD
 
     Input:
-      - X -- an array where each column contains observations from one measurement
-          and each row is a different probe  (dimension)
+      - X -- an array (Nsamples x Kfeatures)
+        this arrangement is faster if there are many samples with low number of features
 
     Output:
-      - Z -- whitened matrix
-      - K -- PC matrix
+      - Z -- whitened data (Nsamples x Kfeatures), projection on PC components
+      - W -- whitening matrix, such as dot(Y-Yc,W) will whiten Y
       - s -- eigenvalues
       - X_mean -- sample mean
     """
     ndata, ndim = X.shape
-    X_mean = X.mean(axis=-1)[:,np.newaxis]    
-    Xc = X - X_mean # remove mean
+    X_mean = X.mean(0).reshape(1,-1)
+    Xc = X - X_mean # remove mean (center data)
     U,s,Vh = svd(Xc, full_matrices=False)
     ## U is eigenvectors of ``Xc Xc.H`` in columns
     ## Vh is eigenvectors of ``Xc.H Xc`` in rows
-    Z = Vh[:ncomp] # whitened data
-    ## equivalently,
+    Z = U[:,:ncomp] # whitened data
+    ## equivalently (?)
     ## Z = dot((U/s).T[:ncomp], Xc)
-    K = U.T[:ncomp]
+    K = Vh[:ncomp].T/s
     return Z, K, s[:ncomp], X_mean
 
 def pca_points(X):
@@ -72,7 +72,7 @@ def pca_points(X):
 def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)
     X1 = (X - c0)
-    return array([dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
+    return np.array([np.dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
     
 def _whitenmat(X, ncomp=None):
     "Assumes data are nframes x npixels"
@@ -231,7 +231,7 @@ def fastica(X, ncomp=None, whiten = True,
     """Fast ICA algorithm realisation.
 
     Input:
-     - X -- data matrix with observations in rows
+     - X -- data matrix with observations in rows (Nsamples x Nfeatures)
      - ncomp -- number of components to resolve  [all possible]
      - whiten -- whether to whiten the input data
      - nonlinfn -- nonlinearity function [pow3nonlin]
