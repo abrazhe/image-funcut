@@ -943,9 +943,46 @@ try:
         fid.close()
         return name
 
+    def mp4_to_hdf5(name, framerate=25.):
+        try :
+            import cv2
+        except ImportError as e:
+            print "Can't load OpenCV python bindings", e
+            return
+        fid = h5py.File(name+'.h5', 'w')
+        dset = fid.create_dataset('data', fullshape, dtype=seqlist[0][0].dtype,
+                                  chunks = chunkshape, **kwargs)
+        
+
 except ImportError as e:
     print "Import Error", e
         
         
         
             
+## -- Load video from mp4 -- 
+## requires cv2
+
+try:
+    import cv2
+    def load_mp4(name, framerate=25., start_frame = None, end_frame=None, **kwargs):
+        vidcap = cv2.VideoCapture(name)
+        out = []
+        count = 0
+        if start_frame is None:
+            start_frame = 0
+        if end_frame is None:
+            end_frame = 1e9
+        while True:
+            success, image = vidcap.read()
+            if (not success) or (count > end_frame) :
+                break
+            count +=1
+            if count < start_frame:
+                continue
+            out.append(image)
+        fs = open_seq(np.array(out), **kwargs)
+        fs.meta['axes'][0] = (1./framerate, 's')
+        return fs
+except ImportError as e:
+    print "Can't load OpenCV python bindings", e
