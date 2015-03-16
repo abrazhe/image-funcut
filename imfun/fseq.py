@@ -965,10 +965,14 @@ except ImportError as e:
 
 try:
     import cv2
-    def load_mp4(name, framerate=25., start_frame = None, end_frame=None, **kwargs):
+    def load_mp4(name, framerate=25., start_frame = None, end_frame=None, 
+                 frame_fn = None,
+                 **kwargs):
         vidcap = cv2.VideoCapture(name)
         out = []
         count = 0
+        if frame_fn is None:
+            frame_fn = lambda f:f
         if start_frame is None:
             start_frame = 0
         if end_frame is None:
@@ -980,7 +984,7 @@ try:
             count +=1
             if count < start_frame:
                 continue
-            out.append(image)
+            out.append(frame_fn(image))
         fs = open_seq(np.array(out), **kwargs)
         fs.meta['axes'][0] = (1./framerate, 's')
         return fs
