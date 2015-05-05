@@ -896,6 +896,7 @@ try:
             self.set_default_meta()
             self.meta['axes'][0] = (dt, 'sec')
             self.data = f['lsc']
+            self.h5file = f # just in case we need it
             self.fns = []
         def length(self):
             return self.data.shape[0]

@@ -53,10 +53,10 @@ def half_rise_mmenten(p):
     return p[1]**(1/p[2])
 
 def half_rise_rising_exp(p):
-    return p[2]*log(2*p[1]/p[0])
+    return p[2]*np.log(2*p[1]/p[0])
 
 def half_rise_rising_pow(p):
-    return p[2]*log(2*p[1]/p[0])
+    return p[2]*np.log(2*p[1]/p[0])
 
 
 

@@ -29,6 +29,8 @@ ifnot = lib.ifnot
 in_circle = lib.in_circle
 
 
+
+
 #Just trust what the user sets in mpl.rcParams for image.aspect
 #mpl.rcParams['image.aspect'] = 'auto' #
 
