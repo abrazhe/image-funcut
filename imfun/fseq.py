@@ -950,6 +950,7 @@ try:
             print "Can't load OpenCV python bindings", e
             return
         fid = h5py.File(name+'.h5', 'w')
+        fullshape = tuple([L] + list(sh))
         dset = fid.create_dataset('data', fullshape, dtype=seqlist[0][0].dtype,
                                   chunks = chunkshape, **kwargs)
         
