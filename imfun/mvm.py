@@ -1,6 +1,6 @@
 """ Functions for Multiscale vision model implementation """
 
-import itertools as itt
+#import itertools as itt
 
 import numpy as np
 from scipy import ndimage
@@ -382,7 +382,7 @@ def just_denoise(arr, k=3, level=5, noise_std=None,
                                   modulus=False)  
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures, min_nscales)
-    labels = reduce(lambda a,b:a+b, (n.labels for n in lib.flatten(g)))
+    #labels = reduce(lambda a,b:a+b, (n.labels for n in lib.flatten(g)))
     new_supp = supp_from_connectivity(g,level)
     return atrous.rec_with_support(coefs, new_supp)
     
