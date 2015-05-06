@@ -367,7 +367,7 @@ def baseline_als(y, lam=None, p=0.1, niter=10):
     w = np.ones(L)
     for i in xrange(niter):
 	W = sparse.spdiags(w, 0, L, L)
-	Z = W + lam*np.dot(D,D.T)
+	Z = W + lam*D.dot(D.T)
 	z = sparse.linalg.spsolve(Z,w*y)
 	w = p*(y>z) + (1-p)*(y<z)
     return z

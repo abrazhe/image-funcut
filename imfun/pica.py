@@ -1,20 +1,25 @@
+## Principal and independent components 
+
 import numpy as np
-from numpy import dot,argsort,diag,where,dstack,zeros, sqrt,float,real,linalg
+from numpy import dot,argsort,diag,where, zeros, sqrt,float,linalg
+from numpy import sign, ndim, array
+from numpy import mgrid
 #from numpy import *
-from numpy.linalg import eigh, inv, eig, norm, svd
-from numpy.random import randn, rand
-import time
+from numpy.linalg import eig, eigh, inv, norm, svd
+from numpy.random import randn
+
 try:
     from scipy.stats import skew
     _skew_loaded = True
     from scipy.linalg import orth
     _orth_loaded = True
+    from scipy import signal
 except:
     _orth_loaded = False
     _skew_loaded = False
 
 ## TODOs:
-## [ ] show how much variance is accounted for by pcs
+## [X] show how much variance is accounted for by pcs
 ## [X] function to reshape back to movie
 ## [X] behave nicely if no scipy available (can't sort by skewness then)
 ## [ ] simple GUI (traits?)
@@ -26,13 +31,14 @@ def pca(X, ncomp=None):
 
     Input:
       - X -- an array (Nsamples x Kfeatures)
-        this arrangement is faster if there are many samples with low number of features
-
+        this arrangement is faster if there are many samples with low number of feature
+        it is also more 'pythonic', as X[n] would be n-th data point
     Output:
-      - Z -- whitened data (Nsamples x Kfeatures), projection on PC components
-      - W -- whitening matrix, such as dot(Y-Yc,W) will whiten Y
+      - Z -- whitened data (Nsamples x ncomp), projection on first ncomp PC components
+      - Vh -- (ncomp, Kfeatures) ncomp principal vectors (right eigenvectors of XX.T
       - s -- eigenvalues
       - X_mean -- sample mean
+      Note that whitening matrix should be calculated as Vh^T \cdot diag(1/s)
     """
     ndata, ndim = X.shape
     X_mean = X.mean(0).reshape(1,-1)
@@ -43,8 +49,8 @@ def pca(X, ncomp=None):
     Z = U[:,:ncomp] # whitened data
     ## equivalently (?)
     ## Z = dot((U/s).T[:ncomp], Xc)
-    K = Vh[:ncomp].T/s
-    return Z, K, s[:ncomp], X_mean
+    #K = Vh[:ncomp].T/s
+    return Z[:,:ncomp], Vh[:ncomp], s[:ncomp], X_mean
 
 def pca_points(X):
     """Variant for ellipse fitting
@@ -67,19 +73,19 @@ def pca_points(X):
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
     phi = np.rad2deg(np.arctan2(Vh[0,1],Vh[0,0])) # rotation of main axis (for Ellipse)
-    return Vh, phi, ranges, c0, np.array(Y)
+    return Vh, phi, ranges, c0, array(Y)
 
 def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)
     X1 = (X - c0)
-    return np.array([np.dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
+    return array([np.dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
     
 def _whitenmat(X, ncomp=None):
     "Assumes data are nframes x npixels"
     n,p = map(float, X.shape)
     Xc = X - X.mean(axis=-1)[:, np.newaxis]
     U, s, Vh = svd(Xc, full_matrices=False)
-    K = (U/s).T[:ncomp] # fixme: do I really have to scale by s?
+    #K = (U/s).T[:ncomp] # fixme: do I really have to scale by s?
     #Z  = np.dot(K,Xc)
     Z = Vh[:ncomp]  # (the upper variant is equivalent
     return Z, U.T[:ncomp], s[:ncomp]
@@ -147,7 +153,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     ica_filters = dot(W, pc_f)
 
     if _skew_loaded:
-	skews = np.array([skew(f.ravel()) for f in ica_filters])
+	skews = array([skew(f.ravel()) for f in ica_filters])
 	skew_signs = np.sign(skews)
         skewsorted = argsort(np.abs(skews))[::-1]
 	for fnumber,s in enumerate(skew_signs):
@@ -162,9 +168,6 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     return ica_filters, ica_signals[skewsorted]
 
  
-
-
-
 def transp(m):
     "conjugate transpose"
     return m.conjugate().transpose()
@@ -220,7 +223,7 @@ def _ica_symm(X, nIC=None, guess=None,
         if iters < max_iter:
             print "Success: ICA Converged in %d tries" %iters
         else:
-            print "Fail: reached maximum number of iterations %d reached"%maxiters
+            print "Fail: reached maximum number of iterations %d reached"%max_iter
     return B.real
 
 
@@ -245,7 +248,7 @@ def fastica(X, ncomp=None, whiten = True,
     """
     n,p = map(float, X.shape)
     if whiten:
-        XW, Uh, s, _= pca(X, ncomp) # whitened data and projection matrix
+        XW, Uh, s, _ = pca(X, ncomp) # whitened data and projection matrix
         #XW, Uh, _ = whitenmat(X, ncomp) # whitened data and projection matrix
     else:
         XW = X.copy()
@@ -265,7 +268,6 @@ def fastica(X, ncomp=None, whiten = True,
 def fastica_defl(X, nIC=None, guess=None,
              nonlinfn = pow3nonlin,
              termtol = 5e-7, maxiters = 2e3):
-    tick = time.clock()
     nPC, siglen = X.shape
     nIC = nIC or nPC-1
     guess = guess or randn(nPC,nIC)
@@ -273,9 +275,7 @@ def fastica_defl(X, nIC=None, guess=None,
     if _orth_loaded:
         guess = orth(guess)
 
-    B, Bprev = zeros(guess.shape, np.float64), zeros(guess.shape, np.float64)
-
-    iters, minAbsCos  = 0,0
+    B = zeros(guess.shape, np.float64)
 
     errvec = []
     icc = 0
@@ -296,10 +296,123 @@ def fastica_defl(X, nIC=None, guess=None,
             wprev = w.copy()
     return B.real, errvec
 
+#### --- jPCA ------------------------------
+#### See Churchland, Cunningham, Kaufman, Foster, Nuyujukian, Ryu, Shenoy. 
+#### Neural population dynamics during reaching Nature. 2012 Jul 5;487(7405):51-6. 
+#### doi: 10.1038/nature11129
 
+from scipy import optimize as opt
+
+## TODOs:
+## [ ] Normalize vectors in jPCs
+## [ ] Allow for sorting according to most variance explained, not frequency
+## [ ] Better documentation
+## [ ] Examples
+## [ ] Note usage in Kalman filtering
+
+def jpca(X, npc=12, symm=-1,verbose=False):
+    """
+    Find jPCA vector pairs
+    Input:
+    ------
+        - X -- array of shape (Nsamplex x Kfeatures) 
+        - npcs -- number of principal components to use [12]
+        - symm -- search for skew-symmetric solution if symm-1 or 
+          for symmetric solution if symm=1
+    Output:
+    -------
+        - jPCs : array of jPCA vector pairs sorted from highest frequency 
+                 rotations (oscillations) to lower frequency oscillations 
+        - Vh : PC vectors 
+        - s : PC singular values
+        - Xc: data center, which was substracted prior to PCA
+
+    """
+    U, Vh, s, Xc = pca(X, npc)
+    dU = np.diff(U, axis=0)
+    Mskew = skew_symm_solve(dU, U[:-1], symm=symm,verbose=verbose)
+    evals, evecs = eig(Mskew)
+    jPCs = [make_eigv_real(evecs[:,p]) for p in 
+            by_chunks(xrange(len(evals)))]
+    return array(jPCs), Vh, s, Xc
+
+def make_eigv_real(p_vec, p_vals=None):
+    "given a pair of complex conjugate eigenvectors, return two orthogonal vectors t "
+    return array([p_vec[:,0]+p_vec[:,1], 1j*(p_vec[:,0]-p_vec[:,1])]).T.real
+
+def skew_symm_solve(dX, X, symm=-1, sp_lambda = 0,verbose=False):
+    """
+    Find jPCA solution 1st pass 
+    dX,X : (nt, ncomp) matrices (FIXME)"""
+    M0 = linalg.lstsq(X,dX)[0] # general unconstrained L2-good solution
+    #M0 = np.random.randn(X.shape[1],X.shape[1])
+    M0k = 0.5 *(M0 + symm*M0.T) # skew/symm component
+    m0 = reshape_skew(M0k, symm)
+    #sp_lambda = 0.1
+    def skew_objective_fn(x):
+        M = reshape_skew(x, symm)
+        DXM = dX - X.dot(M)
+        f = norm(DXM)**2 + sp_lambda*np.sum(np.abs(x))
+        D = (DXM).T.dot(X)
+        df = 2*reshape_skew(D-D.T)
+        return f, df
+    res = opt.minimize(skew_objective_fn, m0, method='L-BFGS-B', jac=True, 
+                             options = {'maxiter':500})
+    #####res = opt.fmin_l_bfgs_b(skew_objective_fn, m0, approx_grad=True,)
+    #res = opt.minimize(skew_objective_fn, m0)
+    if verbose:
+        print 'Optimization', res.success and 'success' or 'failure'
+    return reshape_skew(res.x,symm)
+
+
+_small_number = 1e-8
+def reshape_skew(m, s=-1):
+    """reshape n(n-1)/2 vector into nxn skew symm matrix or vice versa
+    indices in m are in row-major order (it's Python, babe)
+    when s == -1, returns skew-symmetric matrix 
+        M = -M.T
+    when s == 1, returns symmetric matrix
+        M = M.T
+    """
+    s = sign(s)
+    if ndim(m) == 1: # m is a vector, we need a matrix
+        n = 0.5*(1 + np.sqrt(1 + 8*len(m)))
+        if not (n==round(n)):
+            print "length of m doesn't lead to a square-sized matrix of size n(n-1)/2"
+            return
+        n = int(n)
+        out = zeros((n,n))
+        ind_start = 0
+        for i in xrange(n):
+            out[i,i+1:] = m[ind_start:ind_start+n-i-1]
+            ind_start += n-i-1
+        out += s*out.T
+    elif ndim(m) == 2: # m is a matrix, we need a vector
+        if not np.equal(*m.shape):
+            print "matrix m is not square"
+            return
+        if (norm(m - s*m.T)) > _small_number:
+            print "matrix m is not skew-symmetric or symmetric"
+            return
+        n = m.shape[0]
+        out = np.zeros(n*(n-1)/2)
+        ind_start = 0
+        for i in range(n):
+            out[ind_start:ind_start+n-i-1] = m[i,i+1:]
+            ind_start += n-i-1
+    return out
+
+def by_chunks(seq, n=2):
+    count, acc = 0, []
+    for s in seq:
+        count +=1
+        acc.append(s)
+        if not (count%n):
+            yield acc
+            count, acc = 0, []
 
 ### Some general utility functions:
-### --------------------------------
+### --------------------------------------------------------------------------------------
 
 def gauss_kern(xsize, ysize=None):
     """ Returns a normalized 2D gauss kernel for convolutions """
@@ -352,15 +465,6 @@ def DFoSD(X, tslice = None):
     xmean = X[:,tslice].mean(axis=1).reshape(-1,1)
     return (X-xmean)/xsd
 
-def demean(X):
-    """
-    Remove mean over time from each pixel
-    Frames are flattened and are in columns
-    """
-    xmean = X.mean(axis=0).reshape(1,-1)
-    return X - xmean
-
-
 def winvhalf(X):
     "raise matrix to power -1/2"
     e, V = eigh(X)
@@ -379,29 +483,7 @@ def mpower(M, p):
                dot(diag((e+0j)**p), EV))
 
 
-def mask4overlay(mask,colorind=0):
-    """
-    Put a binary mask in some color channel
-    and make regions where the mask is False transparent
-    """
-    sh = mask.shape
-    z = np.zeros(sh)
-    stack = dstack((z,z,z,np.ones(sh)*mask))
-    stack[:,:,colorind] = mask
-    return stack
-
-
-def flcompose2(f1,f2):
-    "Compose two functions from left to right"
-    def _(*args,**kwargs):
-        return f2(f1(*args,**kwargs))
-    return _
-                  
-def flcompose(*funcs):
-    "Compose a list of functions from left to right"
-    return reduce(flcompose2, funcs)
-
-#### Old stuff
+#### Old stuff -------------------------------------------------------------------------------------------------------
 
 def _pca_trick(X):
     """PCA with transformation trick"""
@@ -430,7 +512,6 @@ def _pca1 (X, verbose=False):
     """
     print "Please don't use this, it's not ready"
     #return
-    tick = time.clock()
     n_data, n_dimension = X.shape # (m x n)
     Y = X - X.mean(axis=0)[np.newaxis,:] # remove mean
     #C = dot(Y, Y.T) # (n x n)  covariance matrix

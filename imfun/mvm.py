@@ -397,7 +397,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
                  dec_fn = atrous.decompose,
 		 retraw=False, # return raw, only used for testing
 		 start_scale=0,
-		 weights=[1., 1., 1., 1., 1.],
+		 weights=None,
                  deblendp=True,
                  min_px_size=200,
                  min_nscales=2,
@@ -446,7 +446,9 @@ def find_objects(arr, k=3, level=5, noise_std=None,
         sigmaej = mmt.sigmaej_mwts2
     if supp is None:
         supp = multiscale.threshold_w(coefs, np.array(k,_dtype_)*noise_std,
-                                      modulus=modulus, sigmaej=sigmaej)  
+                                      modulus=modulus, sigmaej=sigmaej)
+    if weights is None:
+        weights  = np.ones(level)
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures)
     if deblendp:
