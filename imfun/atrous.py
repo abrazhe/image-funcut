@@ -100,7 +100,7 @@ def weave_conv2d_wholes(uout,u,phi,ind):
 
 def decompose1d_weave(sig, level,
 		      phi=_phi_,
-		      dtype= 'float64'):
+		      dtype= _dtype_):
     """
     1D stationary wavelet transform with B3-spline scaling function
 
@@ -126,6 +126,25 @@ def decompose1d_weave(sig, level,
     return coefs
 
 
+def decompose1d_direct(sig, level, phi=_phi_, dtype=_dtype_):
+    cprev = sig.copy()
+    L, lphi = len(sig), len(phi)
+    phirange = np.arange(lphi)-int(lphi/2.)
+    coefs = np.zeros((level+1, L), dtype=dtype)
+    mirrorpd = lambda n: n < 0 and -n%L or n >=L and L-2-n%L or n
+    for j in range(level):
+        approx = np.zeros(sig.shape, dtype=dtype)
+        phiind = (2**j)*phirange
+        for l in range(L):
+            #approx[l] = np.sum(phi*cprev[(l+phiind)%L])
+            for k in range(lphi):
+                approx[l] += phi[k]*cprev[mirrorpd(l+phiind[k])]
+        coefs[j] = cprev-approx
+        cprev = approx
+    coefs[j+1] = approx
+    return coefs
+
+_has_numba_ = False
 
 def make_phi2d(phi):
     x = phi.reshape(1,-1)
