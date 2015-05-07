@@ -73,6 +73,16 @@ def weave_conv1d_wholes(vout,v,phi,ind):
     """
     weave.inline(code, ['vout','v','phi', 'ind'])
 
+def conv1d_wholes(vout, v, phi, ind):
+    L,lphi = len(v),len(phi)
+    for l in range(L):
+        vout[l] = 0
+        for k in range(lphi):
+            ki = l + ind[k]
+            if ki < 0 : ki = -ki%L
+            elif ki >= L: ki = L-2-ki%L
+            vout[l] += phi[k]*v[ki]
+
 def weave_conv2d_wholes(uout,u,phi,ind):
     code = """
     long Nr,Nc,i,j,k,ki,l,li;
@@ -97,6 +107,32 @@ def weave_conv2d_wholes(uout,u,phi,ind):
     """
     weave.inline(code, ['uout','u','phi', 'ind'])
 
+def conv2d_wholes(uout, u, phi, ind):
+    (Nr,Nc),lphi = u.shape,len(phi)
+    for i in range(Nr):
+        for j in range(Nc):
+            uout[i,j] = 0
+            for k in range(lphi):
+                ki = i + ind[k]
+                if ki < 0 : ki = -ki%Nr
+                elif ki >= Nr: ki = Nr-2-ki%Nr
+                for l in range(lphi):
+                    li = j + ind[l]
+                    if li < 0: li = -li%Nc
+                    elif li >=Nc: li = Nc-2-li%Nc
+                    uout[i,j] += phi[k,l]*u[ki,li]
+
+    
+    
+try:
+    from numba import jit
+    _has_numba_ = True
+    numba_conv1d_wholes = jit(conv1d_wholes)
+    numba_conv2d_wholes = jit(conv2d_wholes)
+except ImportError as ex:
+    print ex
+    _has_numba_ = False
+        
 
 def decompose1d_weave(sig, level,
 		      phi=_phi_,
@@ -119,34 +155,20 @@ def decompose1d_weave(sig, level,
     for j in xrange(level):
         phiind = (2**j)*phirange
 	approx = np.zeros(sig.shape, dtype=dtype)
-	weave_conv1d_wholes(approx, cprev, phi, phiind)
+        if _has_numba_:
+            numba_conv1d_wholes(approx, cprev, phi, phiind)
+        else:
+            try:
+                weave_conv1d_wholes(approx, cprev, phi, phiind)
+            except Exception as ex:
+                print ex
+                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                conv1d_wholes(approx, cprev, phi, phiind)
         coefs[j] = cprev - approx
         cprev = approx
     coefs[j+1] = approx
     return coefs
 
-
-def decompose1d_direct(sig, level, phi=_phi_, dtype=_dtype_):
-    cprev = sig.copy()
-    L, lphi = len(sig), len(phi)
-    phirange = np.arange(lphi)-int(lphi/2.)
-    coefs = np.zeros((level+1, L), dtype=dtype)
-    #mirrorpd = lambda n: n < 0 and -n%L or n >=L and L-2-n%L or n
-    for j in range(level):
-        approx = np.zeros(sig.shape, dtype=dtype)
-        phiind = (2**j)*phirange
-        for l in range(L):
-            #approx[l] = np.sum(phi*cprev[(l+phiind)%L])
-            for k in range(lphi):
-                n = l + phiind[k]
-                n = n < 0 and -n%L or n >=L and L-2-n%L or n
-                approx[l] += phi[k]*cprev[n]
-        coefs[j] = cprev-approx
-        cprev = approx
-    coefs[j+1] = approx
-    return coefs
-
-_has_numba_ = False
 
 def make_phi2d(phi):
     x = phi.reshape(1,-1)
@@ -177,7 +199,15 @@ def decompose2d_weave(arr2d, level,
     for j in xrange(level):
         phiind = (2**j)*phirange
 	approx = np.zeros(sh, dtype=dtype)
-	weave_conv2d_wholes(approx, cprev, phi2d, phiind)
+        if _has_numba_:
+            numba_conv2d_wholes(approx, cprev, phi2d, phiind)
+        else:
+            try:
+                weave_conv2d_wholes(approx, cprev, phi2d, phiind)
+            except Exception as ex:
+                print ex
+                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                conv2d_wholes(approx, cprev,phi2d, phiind)
         coefs[j] = cprev - approx
         cprev = approx
     coefs[j+1] = approx
@@ -366,14 +396,20 @@ def decompose3d_weave(arr, level=1,
     if level <= 0: return [arr]
     arr = arr.astype(_dtype_)
     tapprox = np.zeros(arr.shape,_dtype_)
+    if _has_numba_:
+        f1d = numba_conv1d_wholes
+        f2d = numba_conv2d_wholes
+    else:
+        f1d = weave_conv1d_wholes
+        f2d = weave_conv2d_wholes
     for loc in locations(arr.shape[1:]):
         v = arr[:,loc[0], loc[1]]
-	vo = np.zeros(v.shape, _dtype_)
-        weave_conv1d_wholes(tapprox[:,loc[0], loc[1]], v, phi, phiind)
+	#vo = np.zeros(v.shape, _dtype_)
+        f1d(tapprox[:,loc[0], loc[1]], v, phi, phiind)
     if axis is None:
         approx = np.zeros(arr.shape,_dtype_)
         for k in xrange(arr.shape[0]):
-            weave_conv2d_wholes(approx[k],tapprox[k], phi2d, phiind)
+            f2d(approx[k],tapprox[k], phi2d, phiind)
     else:
         approx = tapprox
     details = arr - approx
