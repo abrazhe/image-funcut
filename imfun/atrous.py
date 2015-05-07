@@ -54,7 +54,10 @@ def locations(shape):
 ##     coefs[j+1] = approx
 ##     return coefs
 
+
+## *** Weave support will be dropped in future versions. We switch to Numba ***
 from scipy import weave
+
 def weave_conv1d_wholes(vout,v,phi,ind):
     if vout.shape != v.shape:
 	raise ValueError("Input and output arrays must have the same shape")
