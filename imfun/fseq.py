@@ -777,7 +777,8 @@ class FSeq_tiff_2(FSeq_arr):
 import mes
 
 class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record=None, ch=None, fns=[],verbose=False):
+    def __init__(self, fname, record=None, ch=None, fns=[], verbose=False,
+                 autocrop = True):
         """
         The following format is assumed:
         the mes file contains descriptions in fields like "Df0001",
@@ -805,6 +806,10 @@ class FSeq_mes(FSeq_arr):
 
         self.mesrec = mes.load_record(fname, record, ch)
         self.data, self.meta = self.mesrec.load_data()
+        if autocrop :
+            nrows = self.data.shape[1]
+            self.data = self.data[:,:,:nrows,...]
+
         
 
 
