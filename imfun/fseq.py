@@ -777,7 +777,7 @@ class FSeq_tiff_2(FSeq_arr):
 import mes
 
 class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record, ch=None, fns=[],verbose=False):
+    def __init__(self, fname, record=None, ch=None, fns=[],verbose=False):
         """
         The following format is assumed:
         the mes file contains descriptions in fields like "Df0001",
@@ -789,13 +789,19 @@ class FSeq_mes(FSeq_arr):
         self.fns = fns
         self._verbose=verbose
 
-        if type(record) is int:
+        if record is None:
+            vars = filter(lambda v: v.is_supported, mes.load_file_info(fname))
+            if len(vars):
+                record = vars[0].record
+            else:
+                print "FSeq_mes: Can't find loadable records"
+        elif type(record) is int:
             record = 'Df%04d'%record
         elif type(record) is str:
             if not ('Df' in record):
                 record = 'Df%04d'%int(record)
         else:
-            print "Unknown record definition format"
+            print "FSeq_mes: Unknown record definition format"
 
         self.mesrec = mes.load_record(fname, record, ch)
         self.data, self.meta = self.mesrec.load_data()
