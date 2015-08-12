@@ -103,7 +103,7 @@ def eu_dist(p1,p2):
     return np.sqrt(np.sum([(x-y)**2 for x,y in zip(p1,p2)]))
 
 def eu_dist2d(p1,p2):
-    "Euler distance between two points"
+    "Euclidean distance between two points"
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def square_distance(p1,p2):

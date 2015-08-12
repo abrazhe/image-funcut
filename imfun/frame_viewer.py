@@ -1,4 +1,4 @@
-#!/usr/bin/which python 
+#!python
 
 #import gc # trying to make it work on windows
 
@@ -133,6 +133,7 @@ class FrameSequenceOpts(HasTraits):
     dt = Float(1, label='frame interval')
     dtunits = Str("",label='units')
     fig_path = File()
+    fig_full_path = ""
 
     record = Str('1')
     avail_records = List(['1'])
@@ -314,6 +315,8 @@ class FrameSequenceOpts(HasTraits):
             self.record = self.avail_records[0]
             self.record_enabled=True
         dummy_path = os.path.join(os.path.dirname(self.fig_path), u' ')
+        self.fig_full_path = self.fig_path
+        self.fig_path = os.path.split(self.fig_path)[1]
         print dummy_path
         
         self._export_vessel_diameters_file = dummy_path
@@ -439,14 +442,15 @@ class FrameSequenceOpts(HasTraits):
             self.glob = ""
 
         if len(self.glob) > 0:
-            path = os.sep.join(self.fig_path.split(os.sep)[:-1])
+            path = os.sep.join(self.fig_full_path.split(os.sep)[:-1])
+            #path = self.fig_path
             print path
             path = str(path + os.sep + self.glob)
         else:
-            path = str(self.fig_path)
+            path = str(self.fig_full_path)
         if self._verbose:
             print path
-        ext = self.fig_path.split('.')[-1].lower()
+        ext = self.fig_full_path.split('.')[-1].lower()
         if ext == 'mes': # in case of mes, self.record is repr, not record name
             record = self.record.split(' ')[0][1:]
         else:
@@ -508,7 +512,7 @@ class FrameSequenceOpts(HasTraits):
             p = self.parent.picker
             cwd = None
             if self.also_save_figures:
-                cwd = os.path.dirname(self.fig_path)
+                cwd = os.path.dirname(self.fig_full_path)
                 self.parent.picker.fig.savefig(os.path.join(cwd,'lines.png'))
             p.export_vessel_diameters(name,save_figs_to=cwd)
                 
