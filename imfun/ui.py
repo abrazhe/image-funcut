@@ -280,7 +280,7 @@ class DraggableObj:
     """Basic class for objects that can be dragged on the screen"""
     verbose = True
     def __init__(self, obj, parent,):
-        self.obj = obj
+        self.obj = obj # matplotlib object
         self.parent = parent
         self.connect()
         self.pressed = None
@@ -534,7 +534,7 @@ class LineScan(DraggableObj):
 
             # TODO: work out if sx differs from sy
             (dz,zunits), (dx,xunits) = fseq.meta['axes'][:2]
-            x_extent = (0,dz*timeview.shape[0])
+            x_extent = (0,dz*timeview.shape[1])
             if mpl.rcParams['image.origin'] == 'lower':
                lowp = 1
             else:
@@ -706,13 +706,6 @@ class CircleROI(DraggableObj):
 
 
 class DragRect(DraggableObj):
-    def __init__(self, obj):
-        self.obj = obj
-        self.connect()
-        self.pressed = None
-        self.tag = obj.get_label() # obj must support this
-        pass
-
     "Draggable Rectangular ROI"
     def on_press(self, event):
         if not self.event_ok(event, True): return
@@ -741,11 +734,10 @@ def corr_measure(arr1,arr2):
 
 
 class RectFollower(DragRect):
-    def __init__(self, obj, arr):
-        DragRect.__init__(self, obj)
+    def __init__(self, obj, *args, **kwargs):
+        DragRect.__init__(self, obj, *args, **kwargs)
         self.search_width = 1.5*obj.get_width()
         self.search_height = obj.get_width()
-        self.arr = arr
     def on_type(self, event):
         if not self.event_ok(event, True): return
     def xy(self):
@@ -759,11 +751,11 @@ class RectFollower(DragRect):
     def find_best_pos(self, frame, template, measure=sse_measure):
         acc = {}
         sw, sh = self.search_width, self.search_height
-        _,limh, limw = self.arr.shape
+        limh, limw = frame.shape
         for w in np.arange(max(0,-sw/2), min(sw/2,limw)):
             for h in np.arange(max(0,-sh/2), min(limh,sh/2)):
                 s = self.toslice(h,w)
-                d = measure(frame[s], template)
+                d = measure(lib.rescale(frame[s]), template)
                 acc[(w,h)] = d
         pos = sorted(acc.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
         pos = pos[0][0]
