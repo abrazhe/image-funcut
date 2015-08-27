@@ -152,7 +152,7 @@ class FrameSequence(object):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(frameit.next())
-        count = 0
+        count = 0.0
         for k,frame in enumerate(frameit):
             res += frame
 	    count += 1
