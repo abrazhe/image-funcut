@@ -454,7 +454,8 @@ class LineScan(DraggableObj):
 	    self.diameter_manager = self.show_zview()
 
     def destroy(self):
-        self.parent.roi_objs.pop(self.tag)
+        if self.tag in self.parent.roi_objs:
+            self.parent.roi_objs.pop(self.tag)
         self.disconnect()
         self.length_tag.set_alpha(0)
         self.length_tag.remove()
@@ -646,6 +647,9 @@ class CircleROI(DraggableObj):
         self.obj.center = (x+dx, y+dy)
         self.set_tagtext()
         self.redraw()
+
+    center = property(lambda self: self.obj.center,
+                      move)
 
     def set_tagtext(self):
         ax = self.obj.axes
@@ -1159,8 +1163,11 @@ class Picker:
                 self.roi_objs[tag] = newline
             else:
                 try:
+                    newline.destroy()
                     self.curr_line_handle.remove()
-                except: pass
+                except Exception as e:
+                    #print "Can't remove line handle because", e
+                    pass
         else:
             try:
                 self.curr_line_handle.remove()
