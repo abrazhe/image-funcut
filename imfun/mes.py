@@ -310,10 +310,11 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         return self.nframes, (self.line_length, self.nlines)
     def get_sampling_interval(self):
         ffi = self.get_ffi()
-        nframes = long(ffi['numFrames'])
-        tstart = float(ffi['firstFrameStartTime'])
-        tstop = float(ffi['frameTimeLength'])
-        return (tstop-tstart)/nframes
+        #nframes = long(ffi['numFrames'])
+        #tstart = float(ffi['firstFrameStartTime'])
+        #tstop = float(ffi['frameTimeLength'])
+        #return (tstop-tstart)/nframes
+        return float(ffi['frameTimeLength'])/1000.
     def get_ffi(self): 
         return first_measure_mat(self.entry)['FoldedFrameInfo'][0]
 
@@ -325,7 +326,8 @@ class Timelapse_h5(Timelapse, H5_Record):
         ffi = get_ffi_h5(self.h5file, recordName)
         self.__dict__.update(ffi)
         self.frame_2d_shape = (self.line_length, self.nlines)
-        self.dt = (self.tstop-self.tstart)/self.nframes
+        self.dt /= 1000. # convert to seconds
+        #self.dt = (self.tstop-self.tstart)/self.nframes
     def _reshape_frames(self, stream):
         nlines,nframes = map(int, (self.nlines, self.nframes))
         return (stream[k*nlines:(k+1)*nlines,:] for k in xrange(1,nframes))
@@ -353,7 +355,7 @@ def get_ffi_h5(h5file, record):
     keyf = lambda s: np.squeeze(np.array(group[s]))[()]
     names = [('nframes', 'numFrames'),
              ('tstart', 'firstFrameStartTime'),
-             ('tstop', 'frameTimeLength'),
+             ('dt', 'frameTimeLength'),
              ('nlines', 'numFrameLines'),
              ('transverseStep', 'TransverseStep'),
              ('firstFramePos', 'firstFramePos')]
