@@ -91,7 +91,7 @@ class FrameSequence(object):
     def frame_idx(self,):
         """Return a vector of time stamps, if frame sequence is timelapse and
         dt is set, or just `arange(nframes)`"""
-        L = self.length()
+        L = len(self)
         scale, unit = self.meta['axes'][0]
         if unit == '': scale=1
         return np.arange(0, (L+2)*scale, scale)[:L]
@@ -210,7 +210,7 @@ class FrameSequence(object):
         if fslice is None or type(fslice) is int:
             fslice = (fslice, )
         shape = self.shape(crop)
-	newshape = (self.length(),) + shape
+	newshape = (len(self),) + shape
         out = lib.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(self.frames(), *fslice)):
             out[k,:,:] = frame[crop]
@@ -261,7 +261,7 @@ class FrameSequence(object):
 	return
         
 
-    def length(self):
+    def __len__(self):
         """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
             k = 0
@@ -309,7 +309,7 @@ class FrameSequence(object):
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
-	L = len(pwfn(np.random.randn(self.length())))
+	L = len(pwfn(np.random.randn(len(self))))
 	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
 	#L = len(testv)
 	out = lib.memsafe_arr((L,) + self.shape(), dtype)
@@ -360,7 +360,7 @@ class FrameSequence(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         if stop is None or stop == -1:
-            stop = self.length()
+            stop = len(self)
 	if hasattr(self, 'data'):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
@@ -369,7 +369,7 @@ class FrameSequence(object):
 	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
 	print path+base
-        L = min(stop-start, self.length())
+        L = min(stop-start, len(self))
 	fnames = []
         for i,frame in enumerate(self.frames()):
             if i < start: continue
@@ -416,7 +416,7 @@ class FrameSequence(object):
             marker_idx = []
 
         if stop is None or stop == -1:
-            stop = self.length()
+            stop = len(self)
 	if hasattr(self, 'data'):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
@@ -424,7 +424,7 @@ class FrameSequence(object):
 	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
 	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
-        L = min(stop-start, self.length())
+        L = min(stop-start, len(self))
 
         fig,ax = plt.subplots(1,1,figsize=fig_size)
         plh = ax.imshow(self[start], 
@@ -489,8 +489,8 @@ class FSeq_arr(FrameSequence):
             self.set_default_meta(self)
         else:
             self.meta = meta.copy()
-    def length(self):
-        return self.data.shape[0]
+    def __len__(self):
+        return len(self.data)
     def __getitem__(self, val):
 	x = self.data[val]
 	if len(self.fns) == 0:
@@ -601,7 +601,7 @@ class FSeq_glob(FrameSequence):
             self.set_default_meta()
         else:
             self.meta = meta.copy()
-    def length(self):
+    def __len__(self):
 	return len(self.file_names)
             
     def frames(self, ch = None):
@@ -704,7 +704,7 @@ class FSeq_mlf(FrameSequence):
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
         else:
             return fn(self.mlfimg[val])
-    def length(self):
+    def __len__(self):
         return self.mlfimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
@@ -888,7 +888,7 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
 
-        def length(self):
+        def __len__(self):
             return self.data.shape[0]
         def frames(self):
             fn = self.pipeline()
@@ -909,7 +909,7 @@ try:
             self.data = f['lsc']
             self.h5file = f # just in case we need it
             self.fns = []
-        def length(self):
+        def __len__(self):
             return self.data.shape[0]
         def frames(self):
             fn = self.pipeline()
@@ -933,7 +933,7 @@ try:
                 sys.stderr.write("File exists, removing\n")
             os.remove(name)
         fid = h5py.File(name, 'w')
-        L = np.sum([s.length() for s in seqlist])
+        L = np.sum(map(len, seqlist))
         sh = np.min([s.shape() for s in seqlist], axis=0)
         print 'shape:', sh
         chunkshape = tuple([1] + list(sh))
