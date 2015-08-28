@@ -44,7 +44,7 @@ def cwt_iter(fseq,
       (where i,j are frame indices)
     """
     tick = time.clock()
-    L = fseq.length()
+    L = len(fseq)
     subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
     npix = shape[0]*shape[1]
@@ -162,7 +162,7 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
     subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
 
-    L = fseq.length()
+    L = len(fseq)
     tinds = np.arange(L)
     tck = splrep(rhythm[:,0], rhythm[:,1])
     rhfreqs = map(int, np.round(splev(tinds, tck)))
@@ -206,7 +206,7 @@ def detrend(y, ord=2, take=None):
 
 def meanactmap(fseq, (start,stop), normL=None):
     "Average activation map"
-    L = fseq.length()
+    L = len(fseq)
     normL = ifnot(normL, L)
     out = np.zeros(fseq.shape())
     tv = fseq.frame_idx()
@@ -358,7 +358,7 @@ def fftmap(fseq, frange, func=np.mean,
          - func  : range reducing function. np.mean by default, may be np.sum as well
         """
         tick = time.clock()
-        L = fseq.length()
+        L = len(fseq)
         shape = fseq.shape(kwargs.has_key('sliceobj') and
                            kwargs['sliceobj'] or None)
         total = shape[0]*shape[1]

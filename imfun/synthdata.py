@@ -77,7 +77,7 @@ def synth_movie(tvec, size, nobjs=42, snr=0.5,
 
 def synth_movie_from_seq(seq, baseL, type=1):
     d1 = seq.as3darray()
-    L = seq.length()
+    L = len(seq)
     sdf = np.std(d1[:baseL,:,:], axis=0)
     mf = np.mean(d1[:baseL,:,:], axis=0)
     out = np.zeros(d1.shape)

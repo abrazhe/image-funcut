@@ -481,7 +481,7 @@ class LineScan(DraggableObj):
 		else:
 		    fi = caller.frame_index
 		    fstart = max(0,fi-half_scope)
-		    fstop = min(self.parent.fseq.length(),fi+half_scope)
+		    fstop = min(len(self.parent.fseq),fi+half_scope)
 		    frange = slice(fstart,fstop)
 		    frames = lambda : self.parent.fseq[frange]
 	    else:
@@ -978,7 +978,7 @@ class Picker:
         self.tagger = tags_iter()
         #self.drcs = {}
         self.frame_slider = None
-        Nf = self.fseq.length()
+        Nf = len(self.fseq)
 	if ax is None:
             self.fig, self.ax1 = plt.subplots()
             plt.subplots_adjust(left=0.2, bottom=0.2)
@@ -1036,7 +1036,7 @@ class Picker:
 
     def length(self):
         if self._Nf is None:
-            self._Nf = self.fseq.length()
+            self._Nf = len(self.fseq)
         return self._Nf
     
 
@@ -1256,7 +1256,7 @@ class Picker:
         return out
 
     def set_frame_index(self,n):
-        Nf = self.fseq.length()
+        Nf = len(self.fseq)
 	fi = int(n)%Nf
         self.frame_index = fi
         dz,zunits = self.fseq.meta['axes'][0]
