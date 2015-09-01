@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='image-funcut',
-      version = '0.1.3',
+      version = '0.1.4',
       description = "View, analyse and transform dynamic imaging data",
       scripts = ['imfun/frame_viewer.py'],
       requires = ['numpy','scipy','swan'],
@@ -20,6 +20,7 @@ setup(name='image-funcut',
                     'imfun.mmt',
                     'imfun.multiscale',
                     'imfun.mvm',
+                    'imfun.opflowreg',
                     'imfun.opt',
                     'imfun.pca',
                     'imfun.pica',

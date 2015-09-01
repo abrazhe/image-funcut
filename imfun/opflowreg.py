@@ -92,7 +92,8 @@ class GK_image_aligner:
             dDdp[k+1,:] += (tv-tk)*trange
         return dDdp
    
-    def align_image(self, img, template, p0x, p0y, maxiter=125, damping=1,
+    def align_image(self, img, template, p0x, p0y, maxiter=100, damping=1,
+                    constraint = 5; # max allowed shift in px
                     corr_threshold = 0.99, 
                     dp_threshold = 1e-3):
         #for iterc in range(maxiter):
@@ -107,7 +108,7 @@ class GK_image_aligner:
         
         for niter in range(maxiter):
             T = self.warp_image_parametric(template,px,py) 
-            gTy,gTx = map(ravel, np.gradient(T))
+            gTy,gTx = map(np.ravel, np.gradient(T))
             
             dDdp2 = np.vstack([dDdp*gTx, dDdp*gTy])    
         
@@ -129,11 +130,13 @@ class GK_image_aligner:
             
             acc['d'].append(sum(diff_img**2))
             acc['rho'].append(stats.pearsonr(img.ravel(), T.ravel())[0])
-            mdp = amax(abs(dp))
+            mdp = np.amax(abs(dp))
             acc['mdp'].append(mdp)
             px = px + damping*dpx
             py = py + damping*dpy
-            damping *= damping
+            px = np.clip(px, -constraint, constraint)
+            py = np.clip(py, -constraint, constraint)
+            #damping *= damping
             
             if (acc['rho'][-1] > corr_threshold) or (mdp < dp_threshold):
                 break
