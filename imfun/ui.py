@@ -542,7 +542,8 @@ class LineScan(DraggableObj):
                lowp = -1
             ax.imshow(timeview,
                       extent=x_extent + (0, dx*timeview.shape[0]),
-                      interpolation='nearest')
+                      interpolation='nearest',
+                      aspect='auto')
             ylabel = (xunits !='') and xunits or 'pixels'
             xlabel = (zunits !='')  and zunits or 'frames'
 
@@ -985,7 +986,7 @@ class Picker:
             corners = self.ax1.get_position().get_points()
             #print corners
             axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=_widgetcolor)
-            self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
+            self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf-1, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
 	else:
