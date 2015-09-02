@@ -93,7 +93,7 @@ class GK_image_aligner:
         return dDdp
    
     def align_image(self, img, template, p0x, p0y, maxiter=100, damping=1,
-                    constraint = 5; # max allowed shift in px
+                    constraint = 10., # max allowed shift in px
                     corr_threshold = 0.99, 
                     dp_threshold = 1e-3):
         #for iterc in range(maxiter):
