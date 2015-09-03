@@ -184,6 +184,7 @@ class FrameSequenceOpts(HasTraits):
     
     export_timeseries_btn = Button('Export timeseries from ROIs')
     show_all_timeseries_btn = Button('Show all timeseries')
+    trace_all_vessels_btn = Button('Vessel Contours for all LineROIs')
     drop_all_rois_btn = Button("Drop all ROIs")
     
     reset_range_btn = Button("Reset")
@@ -242,6 +243,7 @@ class FrameSequenceOpts(HasTraits):
 		Group(Item('linescan_width'),
 		      Item('linescan_scope'),
 		      Item('show_all_timeseries_btn',show_label=False),
+                      Item('trace_all_vessels_btn',show_label=False),
 		      Item('load_rois_dict_btn',show_label=False),
                       Item('drop_all_rois_btn',show_label=False),
 		      label = 'ROIs',
@@ -426,6 +428,8 @@ class FrameSequenceOpts(HasTraits):
 	print 'in show_all_timeseries_btn_fired'
 	self.parent.picker.show_zview()
 	pass
+    def _trace_all_vessels_btn_fired(self):
+        self.parent.picker.trace_vessel_contours_in_all_linescans(hwidth=self.linescan_width)
 
     def _reset_range_btn_fired(self):
         if len(self.fs2.shape())<3:

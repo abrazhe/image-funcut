@@ -337,7 +337,7 @@ class DraggableObj:
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
-
+        
     def get_color(self):
         return self.obj.get_facecolor()    
 
@@ -579,6 +579,9 @@ class LineScan(DraggableObj):
             plt.show()
 
         return btn_diam
+
+    def get_color(self):
+        return self.obj.get_color()
 	    
 
     def to_struct(self):
@@ -1224,7 +1227,14 @@ class Picker:
     def drop_all_rois(self):
         for roi in self.roi_objs.values():
             roi.destroy()
-            
+
+    def trace_vessel_contours_in_all_linescans(self, hwidth=2):
+        for tag in self.roi_objs:
+            if self.isLineROI((tag)):
+                roi = self.roi_objs[tag]
+                data,_ = roi.get_zview(hwidth=hwidth)
+                roi.vconts = VesselContours(data, tag)
+        plt.show()
 
     def export_vessel_diameters(self,fname=None,save_figs_to=None, format='csv'):
         objs = self.roi_objs
@@ -1380,7 +1390,7 @@ class Picker:
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
 	    if self.isCircleROI(tag):
                 if np.ndim(x) == 1:
-                    ax.plot(t, x, color = roi.get_facecolor(), label=tag)
+                    ax.plot(t, x, color=roi.get_color(), label=tag)
                 else:
                     colors = ('r','g','b')
                     for k,xe in enumerate(x.T):
@@ -1390,7 +1400,7 @@ class Picker:
 	    else:
 		sh = x.shape
                 dx,xunits = self.fseq.meta['axes'][1]
-		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*dx),
+		ax.imshow(x, extent=(t[0],t[-1],0,sh[1]*dx),
 			  aspect='auto',cmap=_cmap)
             plt.xlim(0,t[-1])
 	ax.figure.show()
@@ -1523,7 +1533,7 @@ class Picker:
                              backgroundcolor='w', size='large')
             else:
                 ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
-	    yield x, roi_label, roi.obj, ax
+	    yield x, roi_label, roi, ax
 
 
 
