@@ -620,7 +620,7 @@ class FrameViewer(HasTraits):
             print "vl,vh:", vl, vh
             self.fso.vmin, self.fso.vmax = float(vl), float(vh)
 
-        Nf = fs2.length()
+        Nf = len(fs2)
         if hasattr(self, 'picker'):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)
