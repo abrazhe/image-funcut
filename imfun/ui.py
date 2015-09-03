@@ -1226,7 +1226,7 @@ class Picker:
             roi.destroy()
             
 
-    def export_vessel_diameters(self,fname=None,save_figs_to=None):
+    def export_vessel_diameters(self,fname=None,save_figs_to=None, format='csv'):
         objs = self.roi_objs
         keys = [k for k in sorted(objs.keys())
                 if self.isLineROI(k) and objs[k].has_traced_vessels()]
@@ -1247,11 +1247,18 @@ class Picker:
                 
         diams = [objs[k].vconts.get_diameter() for k in keys]
         out =  dict(zip(keys, diams))
-        if _with_pandas:
-            out = pd.DataFrame(out)
-            writer = pd.DataFrame.to_csv
+        if format == 'csv':
+           if _with_pandas:
+               out = pd.DataFrame(out)
+               writer = pd.DataFrame.to_csv
+           else:
+               writer = lib.write_dict_csv
+        elif format == 'mat':
+           from scipy import io
+           writer = lambda data, name: io.matlab.savemat(name, data)
         else:
-            writer = lib.write_dict_csv
+           print "Don't know how to save to format %s"%format
+           writer = lambda data, name: None
         if fname is not None:
             writer(out, fname)
         return out
