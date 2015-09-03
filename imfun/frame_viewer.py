@@ -176,6 +176,7 @@ class FrameSequenceOpts(HasTraits):
     _export_vessel_diameters_file = File()
 
     also_save_figures = Bool(False)
+    diameter_save_format = Enum(["csv", "mat"])
     
     export_vessel_diameters_btn = Button("Export vessel diameters")
     export_rois_dict_btn = Button('Export current ROIs')
@@ -291,6 +292,7 @@ class FrameSequenceOpts(HasTraits):
                         Group(
                             Item('export_vessel_diameters_btn',show_label=False),
                             'also_save_figures',
+                            'diameter_save_format',
                             show_border=True),
 			show_border=True,
 			show_labels=False,
@@ -514,7 +516,7 @@ class FrameSequenceOpts(HasTraits):
             if self.also_save_figures:
                 cwd = os.path.dirname(self.fig_full_path)
                 self.parent.picker.fig.savefig(os.path.join(cwd,'lines.png'))
-            p.export_vessel_diameters(name,save_figs_to=cwd)
+            p.export_vessel_diameters(name,save_figs_to=cwd,format=self.diameter_save_format)
                 
                 
 	
