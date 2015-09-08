@@ -23,7 +23,7 @@ def minkowski(p1,p2,k):
         return np.power(np.sum(x), 1./k)
 
 def euclidean(p1,p2):
-    "Euclidean distanc between 2 points"
+    "Euclidean distance between 2 points"
     return minkowski(p1,p2,2)
 
 def cityblock(p1,p2):
