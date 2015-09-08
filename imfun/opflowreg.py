@@ -11,10 +11,11 @@ from numpy import arange
 from scipy.ndimage.interpolation import map_coordinates
 from scipy import sparse, stats
 
-#from numba import jit
+from numba import jit
 
 
-def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False, calc_eig=False):
+def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
+              calc_eig=False, weigh_by_eig = False):
     """
     Optical flow estimation in a set of points using Lucas-Kanade algorithm    
     """
@@ -28,7 +29,7 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False, calc_eig=F
         It = -It
     hw = np.floor(wsize/2)
     dim = len(locations[0])
-    out = np.zeros((len(locations), dim+int(bool(calc_eig))))
+    out = np.zeros((len(locations), dim+int(bool(calc_eig or weigh_by_eig))))
     for k,loc in enumerate(locations):
         window = tuple([slice(l-hw,l+hw+1) for l in loc])
         Ixw,Iyw = Ix[window].ravel(),Iy[window].ravel()
@@ -40,10 +41,44 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False, calc_eig=F
         V  = linalg.lstsq(ATA, AT.dot(Itw))[0]
         #print V.shape
         out[k,:dim] = V.ravel()
-        if calc_eig:
+        if calc_eig or weigh_by_eig:
             u,s,vh = linalg.svd(AT, full_matrices=False)
-            out[k,-1] = (s[1]/s[0])**2 
+            out[k,-1] = (s[1]/s[0])**2
+    if weigh_by_eig:
+        out = out[:,:dim]*out[:,dim:]
     return out
+
+from scipy.interpolation import RectBivariateSpline
+from cluster import euclidean
+#@jit
+def lk_grid_warp(im, mesh, velocities, r=1.,mode='nearest'):
+    xi,yi = np.arange(im.shape[1]), np.arange(im.shape[0])
+    xgrid = np.unique(mesh[:,1])
+    ygrid = np.unique(mesh[:,0])
+    gshape = (len(xgrid), len(ygrid))
+    dxsampler = RectBivariateSpline(xgrid, ygrid, velocities[:,1].reshape(gshape),)
+    dysampler = RectBivariateSpline(xgrid, ygrid, velocities[:,0].reshape(gshape),)
+    dx = dxsampler(xi,yi)
+    dy = dysampler(yi,yi)
+    #return dx, dy
+    xii,yii = np.meshgrid(xi,yi)
+    return map_coordinates(im, [yii-dy, xii-dx],mode=mode)
+
+def lk_register_grid(im1,im2, mesh, maxiter=10):
+    p = np.zeros((len(mesh),2))
+    imx = im1.copy()
+    #acc = []
+    for niter in xrange(maxiter):
+        imx = lk_grid_warp(im1, mesh, p)
+        v = lk_opflow(imx,im2, mesh, weigh_by_eig=True)
+        #v = lk_opflow(imx,im2, mesh)
+        #print amax(abs(v))
+        #v = clip(v, -1,1)
+        p += v
+        #acc.append(imx)
+    return imx, p
+        
+    
 
 
 
