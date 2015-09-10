@@ -2,20 +2,23 @@
 
 from __future__ import division
 import itertools as itt
+from functools import partial
 from collections import defaultdict
 
 import numpy as np
 from numpy import linalg
 
 
-from scipy.ndimage.interpolation import map_coordinates
 from scipy import sparse, stats
+from scipy.ndimage.interpolation import map_coordinates
+from scipy.interpolate import RectBivariateSpline
 
 from skimage import feature as skfeature
 
-from imfun import lib
 
-#from numba import jit
+from imfun import atrous,lib, fseq
+#from cluster import euclidean
+
 
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
               calc_eig=False, weigh_by_eig = False):
@@ -51,17 +54,11 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
         out = out[:,:dim]*out[:,dim:]
     return out
 
-from scipy.interpolate import RectBivariateSpline
-from imfun import atrous
-#from cluster import euclidean
-#@jit
-from functools import partial
-
 class LKP_image_aligner ():
     def __init__(self,mesh,wsize):
         self.mesh = mesh
         self.wsize = wsize
-    def __call__(self, im1,im2, maxiter=10,
+    def __call__(self, im1, im2, maxiter=10,
                  weigh_by_shitomasi = False,
                  smooth_vfield = 2):
 
@@ -200,3 +197,111 @@ class GK_image_aligner:
             dDdp[k+1,:] += (tv-tk)*trange
         return dDdp
    
+# ------------ registration wrappers ------------
+# TODO: make this sane and move to a proper place
+
+def lkp_wrapper(image, template, wsize=25):
+    sh = image.shape
+    mstride=wsize/3
+    grange = range(wsize/2,sh[0]-wsize/2,mstride) # square images FIXME
+    mesh = np.array([(i,j) for i in grange for j in grange])
+    aligner = LKP_image_aligner(mesh, wsize)
+    _,p = aligner(image,template)
+    def _regfn(coordinates):
+        shifts = aligner.grid_shift_coords(p, sh)
+        return [c-s for c,s in zip(coordinates, shifts[::-1])]
+    return _regfn
+
+#TODO: wrapper functions should return functions that transform pixel grid, not frame. 
+# this should make function composition more stable
+
+# https://github.com/pyimreg/imreg
+from imreg import register, sampler, model
+
+def imreg_wrapper(image, template, tform=model.Affine(), registrator=None):
+    if registrator is None: 
+        registrator = register.Register()
+    template, image = map(register.RegisterData, (template,image))
+    step, search = registrator.register(image, template, tform, sampler=sampler.bilinear)
+    def _regfn(coordinates):
+        #return sampler.bilinear(img, tform(step.p, register.RegisterData(img).coords).tensor)
+        ir_coords = model.Coordinates.fromTensor(coordinates)
+        return tform(step.p, ir_coords).tensor
+    return _regfn
+
+def sktrans_wrapper(image,template):
+    shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
+    def _regfn(coordinates):
+        return [c - p for c,p in zip(coordinates, shift)]
+    return _regfn
+
+def gk_wrapper(image, template, nparam=11, transpose=True, constraint=20.):
+    if transpose:
+        template = template.T
+        image = image.T
+    aligner = GK_image_aligner()
+    shift = skfeature.register_translation(template, image, upsample_factor=4.)[0]
+    p0x,p0y = np.ones(nparam)*shift[1], np.ones(nparam)*shift[0]
+    res, p = aligner(image, template, p0x,p0y, maxiter=50, constraint = constraint, corr_threshold=0.95)
+    p = p0x,p0y
+    def _regfn(coordinates):
+        sh = coordinates[0].shape
+        dx = aligner.wcoords_from_params1d(p[0], sh)
+        dy = aligner.wcoords_from_params1d(p[1], sh)
+        if transpose:
+            dx,dy = dy,dx
+        return [coordinates[0]-dy, coordinates[1]-dx]
+    return _regfn
+
+#from multiprocessing import Pool
+
+#!conda install dill
+import dill
+#!pip install git+https://github.com/uqfoundation/pathos 
+from pathos.multiprocessing import ProcessingPool
+
+def parametric_warp(img, fn):
+    """given an image and a function to warp coordinates,
+    warp image to the new coordinates"""
+    start_coordinates = np.meshgrid(*map(np.arange, img.shape))[::-1]
+    return map_coordinates(img, fn(start_coordinates))
+
+def apply_warps(frames, warps):
+    """
+    returns result of applying warps for given frames (one warp per frame)
+    """
+    out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
+    if isinstance(frames, fseq.FrameSequence):
+        out = fseq.open_seq(out)
+        out.meta = frames.meta
+    return out
+
+def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
+    """
+    Given stack of frames (or a FSeq obj) and a template image, 
+    align every frame to template and return a list of functions,
+    which take an image and return warped image, aligned to template.
+    """
+    #return [regfn(img, template, **fnargs) for img in frames] 
+    pool = ProcessingPool(nodes=njobs) 
+    return pool.map(partial(regfn, template=template, **fnargs), frames)
+
+def register_stack_recursive(frames, regfn):
+    """
+    Given stack of frames, 
+    align frames recursively and return a mean frame of the aligned stack and
+    a list of functions, each of which takes an image and return warped image, 
+    aligned to this mean frame.
+    """
+    #import sys
+    #sys.setrecursionlimit(len(frames))
+    L = len(frames)
+    if L < 2:
+        return frames[0], [lambda f:f]
+    else:
+        mf_l, warps_left = register_stack_recursive(frames[:L/2], regfn)
+        mf_r, warps_right = register_stack_recursive(frames[L/2:], regfn)
+        fn = regfn(mf_l, mf_r)
+        fm = 0.5*(parametric_warp(mf_l,fn) + mf_r)
+        return fm, [lib.flcompose2(fx,fn) for fx in warps_left] + warps_right
+        #return fm, [fnutils.flcompose2(fn,fx) for fx in fn1] + fn2
