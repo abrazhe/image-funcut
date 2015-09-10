@@ -55,99 +55,61 @@ from scipy.interpolate import RectBivariateSpline
 from imfun import atrous
 #from cluster import euclidean
 #@jit
-def lk_grid_shift_coords(im, mesh, vfields):
-    xi,yi = np.arange(im.shape[1]), np.arange(im.shape[0])
-    xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
-    dxsampler,dysampler = [RectBivariateSpline(xgrid, ygrid, vfields[dim])
-                           for dim in 1,0]
-    dx = dxsampler(xi,yi)
-    dy = dysampler(xi,yi)
-    return dx, dy
+from functools import partial
 
-def lk_grid_warp(im, mesh, vfields):
-    xi,yi = np.arange(im.shape[1]), np.arange(im.shape[0])
-    xii,yii = np.meshgrid(xi,yi)
-    dx,dy = lk_grid_shift_coords(im, mesh, vfields)
-    return map_coordinates(im, [yii-dy, xii-dx],mode='nearest')
+class LKP_image_aligner ():
+    def __init__(self,mesh,wsize):
+        self.mesh = mesh
+        self.wsize = wsize
+    def __call__(self, im1,im2, maxiter=10,
+                 weigh_by_shitomasi = False,
+                 smooth_vfield = 2):
 
-def lk_register_grid(im1,im2, mesh, maxiter=10, wsize=11,
-                     weigh_by_shitomasi = False,
-                     smooth_vfield = 5):
-    
-    xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
+        mesh = self.mesh
+        xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
 
-    gshape = (len(xgrid), len(ygrid))
-    p = np.zeros((2,)+gshape)
-    imx = im1.copy()
-    for niter in xrange(maxiter):
-        vx = lk_opflow(imx,im2, mesh, wsize=wsize)
+        gshape = (len(xgrid), len(ygrid))
+        p = np.zeros((2,)+gshape)
+        imx = im1.copy()
+        for niter in xrange(maxiter):
+            vx = lk_opflow(imx,im2, mesh, wsize=self.wsize)
 
-        if weigh_by_shitomasi:
-            st_resp = skfeature.corner_shi_tomasi(im1)
-            st_resp =  lib.clip_and_rescale(st_resp, 5000)
-            weights = np.array([st_resp[tuple(l)] for l in mesh])
-            vx = vx*weights[:,None]
+            if weigh_by_shitomasi:
+                st_resp = skfeature.corner_shi_tomasi(im1)
+                st_resp =  lib.clip_and_rescale(st_resp, 5000)
+                weights = np.array([st_resp[tuple(l)] for l in mesh])
+                vx = vx*weights[:,None]
 
-        vfields = vx.T.reshape((2,)+gshape)
+            vfields = vx.T.reshape((2,)+gshape)
 
-        if smooth_vfield:
-            vfields = map(lambda f:atrous.smooth(f,level=smooth_vfield), vfields)
+            if smooth_vfield:
+                vfields = map(partial(atrous.smooth, level=smooth_vfield), vfields)
 
-        p += vfields
-        imx = lk_grid_warp(im1, mesh, p)
-        
-    return imx, p
-        
-    
+            p += vfields
+            imx = self.warp_image(im1, p)
+        return imx, p
 
+    def grid_shift_coords(self, vfields, outshape):
+        mesh = self.mesh
+        xi,yi = np.arange(outshape[1]), np.arange(outshape[0])
+        xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
+        dxsampler,dysampler = [RectBivariateSpline(xgrid, ygrid, vfields[dim])
+                               for dim in 1,0]
+        dx = dxsampler(xi,yi)
+        dy = dysampler(xi,yi)
+        return dx, dy
 
+    def warp_image(self, im, vfields, mode='nearest'):
+        xi,yi = np.arange(im.shape[1]), np.arange(im.shape[0])
+        xii,yii = np.meshgrid(xi,yi)
+        dx,dy = self.grid_shift_coords(vfields, im.shape)
+        return map_coordinates(im, [yii-dy, xii-dx],mode=mode)
 
 class GK_image_aligner:
     """
     Align two images using Lucas-Canade algorithm and Greenberg-Kerr parametrization model
     """
-    def get_blocksize(self, nparams, shape):
-        N = np.prod(shape)
-        return N//(nparams-1), N%(nparams-1)
-        
-    def wcoords_from_params1d(self,p, shape):
-        Npx = np.prod(shape)
-        D = np.zeros(Npx)
-        nparams = len(p)
-        blocksize, remd = self.get_blocksize(nparams, shape)
-        for i in np.arange(nparams-1):
-            tdur = blocksize + (i > nparams-3)*remd
-            tv = np.arange(tdur,dtype=int)
-            D[i*blocksize:i*blocksize+tdur] = p[i] + (p[i+1]-p[i])*tv/tdur
-        return D.reshape(shape)
-
-    def warp_image(self, img, dx,dy, mode='nearest'):
-        sh = img.shape
-        xi,yi = np.meshgrid(np.arange(sh[1]), np.arange(sh[0]))
-        return map_coordinates(img, [yi+ dy, xi+dx], mode=mode)
-    
-    def warp_image_parametric(self, img, px,py):
-        dx = self.wcoords_from_params1d(px, img.shape)
-        dy = self.wcoords_from_params1d(py, img.shape)
-        return self.warp_image(img,dx,dy)
-        
-    def calc_dDdp(self, nparams, shape):
-        #todo: sparse matrices
-        Npx = np.prod(shape)
-        dDdp = np.zeros((nparams,Npx))
-        blocksize,remd= self.get_blocksize(nparams, shape)
-        tv = np.arange(Npx)/blocksize
-        for k in np.arange(nparams-1):
-            tkp1 = k + 1
-            if k >= nparams-2: 
-                tkp1+=remd/blocksize
-            tk = k
-            trange = ((tk <= tv)*(tv < tkp1))>0
-            dDdp[k,:] += (1 - (tv-tk))*trange
-            dDdp[k+1,:] += (tv-tk)*trange
-        return dDdp
-   
-    def align_image(self, img, template, p0x, p0y, maxiter=100, damping=1,
+    def __call__(self, img, template, p0x, p0y, maxiter=100, damping=1,
                     constraint = 10., # max allowed shift in px
                     corr_threshold = 0.99, 
                     dp_threshold = 1e-3):
@@ -162,7 +124,7 @@ class GK_image_aligner:
         acc =  defaultdict(lambda:list())
         
         for niter in range(maxiter):
-            T = self.warp_image_parametric(template,px,py) 
+            T = self.warp_image(template,px,py) 
             gTy,gTx = map(np.ravel, np.gradient(T))
             
             dDdp2 = np.vstack([dDdp*gTx, dDdp*gTy])    
@@ -197,3 +159,44 @@ class GK_image_aligner:
                 break
         
         return acc, (px,py)
+    
+    def get_blocksize(self, nparams, shape):
+        N = np.prod(shape)
+        return N//(nparams-1), N%(nparams-1)
+        
+    def wcoords_from_params1d(self,p, shape):
+        Npx = np.prod(shape)
+        D = np.zeros(Npx)
+        nparams = len(p)
+        blocksize, remd = self.get_blocksize(nparams, shape)
+        for i in np.arange(nparams-1):
+            tdur = blocksize + (i > nparams-3)*remd
+            tv = np.arange(tdur,dtype=int)
+            D[i*blocksize:i*blocksize+tdur] = p[i] + (p[i+1]-p[i])*tv/tdur
+        return D.reshape(shape)
+
+    def warp_image(self, img, px,py, mode='nearest'):
+        sh = img.shape
+        dx = self.wcoords_from_params1d(px, sh)
+        dy = self.wcoords_from_params1d(py, sh)
+        xi,yi = np.meshgrid(np.arange(sh[1]), np.arange(sh[0]))
+        return map_coordinates(img, [yi+ dy, xi+dx], mode=mode)
+
+        return self.warp_image(img,dx,dy)
+        
+    def calc_dDdp(self, nparams, shape):
+        #todo: sparse matrices
+        Npx = np.prod(shape)
+        dDdp = np.zeros((nparams,Npx))
+        blocksize,remd= self.get_blocksize(nparams, shape)
+        tv = np.arange(Npx)/blocksize
+        for k in np.arange(nparams-1):
+            tkp1 = k + 1
+            if k >= nparams-2: 
+                tkp1+=remd/blocksize
+            tk = k
+            trange = ((tk <= tv)*(tv < tkp1))>0
+            dDdp[k,:] += (1 - (tv-tk))*trange
+            dDdp[k+1,:] += (tv-tk)*trange
+        return dDdp
+   
