@@ -19,6 +19,71 @@ from skimage import feature as skfeature
 from imfun import atrous,lib, fseq
 #from cluster import euclidean
 
+# https://github.com/pyimreg/imreg
+import imreg.register
+import imreg.model
+import imreg.sampler # do we really need that?
+
+
+# may be this should be a module?
+class RegistrationInterfaces ():
+    def rigidbody(self, image, template):
+        shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
+        def _regfn(coordinates):
+            return [c - p for c,p in zip(coordinates, shift)]
+        return _regfn
+
+    def imreg(self, image, template, tform):
+        aligner = imreg.register.Register()
+        template, image = map(imreg.register.RegisterData, (template,image))
+        step, search = aligner.register(image, template, tform)
+        def _regfn(coordinates):
+            ir_coords = model.Coordinates.fromTensor(coordinates)
+            return tform(step.p, ir_coords).tensor
+        return _regfn1
+
+    def affine(self,image,template):
+        return self.imreg(image, template, imreg.model.Affine())
+
+    def homography(self, image,template):
+        return self.imreg(image, template, imreg.model.Homography())
+
+    def greenberg_kerr(self, image, template, transpose=True, **fnargs):
+        if transpose:
+            template = template.T
+            image = image.T
+        aligner = GK_image_aligner()
+        shift = skfeature.register_translation(template, image, upsample_factor=4.)[0]
+        p0x,p0y = np.ones(nparam)*shift[1], np.ones(nparam)*shift[0]
+
+        if not 'maxiter' in fnargs:
+            fnargs['maxiter'] = 25
+            
+        res, p = aligner(image, template, p0x,p0y, **fnargs)
+        def _regfn(coordinates):
+            sh = coordinates[0].shape
+            dx = aligner.wcoords_from_params1d(p[0], sh)
+            dy = aligner.wcoords_from_params1d(p[1], sh)
+            if transpose:
+                dx,dy = dy,dx
+            return [coordinates[0]-dy, coordinates[1]-dx]
+        return _regfn
+
+    def softmesh(self, image, template, wsize=25, **fnargs):
+        sh = image.shape
+        mstride=wsize//3
+        grange = range(wsize//2,sh[0]-wsize//2,mstride) # square images FIXME
+        mesh = np.array([(i,j) for i in grange for j in grange])
+        aligner = LKP_image_aligner(mesh, wsize)
+        _,p = aligner(image,template, **fnargs)
+        def _regfn(coordinates):
+            shifts = aligner.grid_shift_coords(p, sh, **fnargs)
+            return [c-s for c,s in zip(coordinates, shifts[::-1])]
+        return _regfn
+        
+
+
+
 
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
               calc_eig=False, weigh_by_eig = False):
@@ -198,60 +263,6 @@ class GK_image_aligner:
         return dDdp
    
 # ------------ registration wrappers ------------
-# TODO: make this sane and move to a proper place
-
-def lkp_wrapper(image, template, wsize=25):
-    sh = image.shape
-    mstride=wsize/3
-    grange = range(wsize/2,sh[0]-wsize/2,mstride) # square images FIXME
-    mesh = np.array([(i,j) for i in grange for j in grange])
-    aligner = LKP_image_aligner(mesh, wsize)
-    _,p = aligner(image,template)
-    def _regfn(coordinates):
-        shifts = aligner.grid_shift_coords(p, sh)
-        return [c-s for c,s in zip(coordinates, shifts[::-1])]
-    return _regfn
-
-#TODO: wrapper functions should return functions that transform pixel grid, not frame. 
-# this should make function composition more stable
-
-# https://github.com/pyimreg/imreg
-from imreg import register, sampler, model
-
-def imreg_wrapper(image, template, tform=model.Affine(), registrator=None):
-    if registrator is None: 
-        registrator = register.Register()
-    template, image = map(register.RegisterData, (template,image))
-    step, search = registrator.register(image, template, tform, sampler=sampler.bilinear)
-    def _regfn(coordinates):
-        #return sampler.bilinear(img, tform(step.p, register.RegisterData(img).coords).tensor)
-        ir_coords = model.Coordinates.fromTensor(coordinates)
-        return tform(step.p, ir_coords).tensor
-    return _regfn
-
-def sktrans_wrapper(image,template):
-    shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
-    def _regfn(coordinates):
-        return [c - p for c,p in zip(coordinates, shift)]
-    return _regfn
-
-def gk_wrapper(image, template, nparam=11, transpose=True, constraint=20.):
-    if transpose:
-        template = template.T
-        image = image.T
-    aligner = GK_image_aligner()
-    shift = skfeature.register_translation(template, image, upsample_factor=4.)[0]
-    p0x,p0y = np.ones(nparam)*shift[1], np.ones(nparam)*shift[0]
-    res, p = aligner(image, template, p0x,p0y, maxiter=50, constraint = constraint, corr_threshold=0.95)
-    p = p0x,p0y
-    def _regfn(coordinates):
-        sh = coordinates[0].shape
-        dx = aligner.wcoords_from_params1d(p[0], sh)
-        dy = aligner.wcoords_from_params1d(p[1], sh)
-        if transpose:
-            dx,dy = dy,dx
-        return [coordinates[0]-dy, coordinates[1]-dx]
-    return _regfn
 
 #from multiprocessing import Pool
 
