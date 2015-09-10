@@ -975,9 +975,7 @@ class Picker:
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
               mean_frame =True,
-              vmax = None, vmin = None, 
-              cmap = 'gray',
-              interpolation = 'nearest'):
+              **imshow_args):
         "Start picking up ROIs"
         self.tagger = tags_iter()
         #self.drcs = {}
@@ -1001,11 +999,22 @@ class Picker:
         axes = self.fseq.meta['axes']
         (dy,yunits), (dx,xunits) = axes[1:3]
 	sy,sx = self.fseq.shape()[:2]
+        
+        if 'cmap' not in imshow_args: imshow_args['cmap'] = 'gray' 
+        if 'interpolation' not in imshow_args: imshow_args['interpolation'] = 'nearest'
+
+        # clim overrides vmin and vmax
+        if 'clim' not in imshow_args:
+            imshow_args['clim'] = None
+        else:
+            imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
+
         if len(self.fseq.shape()) ==2:
-            if vmin is None or vmax is None:
+            if ('vmin' not in imshow_args) or ('vmax' not in imshow_args):
                 avmin,avmax = self.fseq.data_range()
-            if vmin is None: vmin = avmin
-            if vmax is None: vmax = avmax
+            if 'vmin' not in imshow_args : imshow_args.update(vmin=avmin)
+            if 'vmax' not in imshow_args : imshow_args.update(vmax=avmax)
+
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
 
@@ -1023,10 +1032,8 @@ class Picker:
         lowp = [1,-1][iorigin == 'upper']
         self.plh = self.ax1.imshow(f,
                                   extent = (0, sx*dx)+(0, sy*dy)[::lowp],
-                                  interpolation = interpolation,
                                   aspect='equal',
-                                  vmax=vmax,  vmin=vmin,
-                                  cmap=cmap)
+                                  **imshow_args)
         self.ax1.set_xlabel(yunits)
         self.ax1.set_ylabel(xunits)
 
