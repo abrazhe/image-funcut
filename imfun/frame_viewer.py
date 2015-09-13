@@ -527,11 +527,11 @@ class FrameSequenceOpts(HasTraits):
             name = self._export_vessel_diameters_file
             print 'Picked file name:', name
             p = self.parent.picker
-            cwd = None
+            wd = None
             if self.also_save_figures:
-                cwd = os.path.dirname(self.fig_full_path)
-                self.parent.picker.fig.savefig(os.path.join(cwd,'lines.png'))
-            p.export_vessel_diameters(name,save_figs_to=cwd,format=self.diameter_save_format)
+                wd = os.path.abspath(os.path.dirname(name))
+                self.parent.picker.fig.savefig(os.path.join(wd,'lines.png'))
+            p.export_vessel_diameters(name,save_figs_to=wd,format=self.diameter_save_format)
                 
                 
 	
