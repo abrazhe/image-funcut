@@ -117,11 +117,13 @@ class NormalizeDFoF(HasTraits):
 class FrameSequenceOpts(HasTraits):
     _verbose=Bool(True)
 
+    internal_state_flags = {'fig_path_just_changed':False}
+
     self.fs = Instance(fseq.FrameSequence) # 'original' frame sequence
     self.fs2 = Instance(fseq.FrameSequence) # 'processed' frame sequence
 
     linescan_scope = Range(0,500,0, label='Linescan half-range')
-    linescan_width = Int(2, label="Linecan linewidth")
+    linescan_width = Int(3, label="Linecan linewidth")
 
     pipeline = List()
     inventory_dict = {p.name:p for p in [KalmanStackFilter, SpatialGaussFilter,
@@ -132,6 +134,7 @@ class FrameSequenceOpts(HasTraits):
 
     dt = Float(1, label='frame interval')
     dtunits = Str("",label='units')
+    masterpath = Directory(os.getcwd())
     fig_path = File()
     fig_full_path = ""
 
@@ -141,8 +144,8 @@ class FrameSequenceOpts(HasTraits):
 
     ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
 
-    glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
-    glob_enabled = Bool(True)
+    #glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
+    #glob_enabled = Bool(True)
  
     interpolation = Enum(['nearest', 'bilinear', 'bicubic', 'hanning',
                           'hamming', 'hermite', 'kaiser', 'quadric',
@@ -229,8 +232,9 @@ class FrameSequenceOpts(HasTraits):
 	## has to be a method so we can declare views for dialogs !?
 	view = View(
 	    Group(
-		Group('fig_path',
-                      Item('glob', enabled_when='glob_enabled is True'),
+		Group(Item('masterpath', label='Directory'),
+                      Item('fig_path'),
+                      #Item('glob', enabled_when='glob_enabled is True'),
                       Item('record',
                            editor=EnumEditor(name='avail_records'),
                            enabled_when='record_enabled is True',
@@ -240,8 +244,7 @@ class FrameSequenceOpts(HasTraits):
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
-		Group(Item('linescan_width'),
-		      Item('linescan_scope'),
+		Group(HGroup(Item('linescan_width'), Item('linescan_scope')),
 		      Item('show_all_timeseries_btn',show_label=False),
                       Item('trace_all_vessels_btn',show_label=False),
 		      Item('load_rois_dict_btn',show_label=False),
@@ -306,27 +309,29 @@ class FrameSequenceOpts(HasTraits):
         self.parent = parent
         self.get_fs = self.get_fs2
 
+    def _masterpath_changed(self):
+        os.chdir(self.masterpath)
+        if not self.internal_state_flags['fig_path_just_changed']:
+            self.fig_path = ""
+            self.record = "1"
+            self.record_enabled = False
+
     def _fig_path_changed(self):
+        print "-----", self.fig_path
         ext = self.fig_path.split('.')[-1].lower()
-        self.glob_enabled=True
-        if ext in ['mes', 'mlf']:
-            self.glob = ''
-            self.glob_enabled=False
-        if ext == 'mes':
-            vars = mes.load_file_info(self.fig_path)
-            vars = [v for v in vars if v.is_supported()]
-            self.avail_records = map(repr, vars)
-            self.record = self.avail_records[0]
-            self.record_enabled=True
-        dummy_path = os.path.join(os.path.dirname(self.fig_path), u' ')
-        self.fig_full_path = self.fig_path
+        if not self.internal_state_flags['fig_path_just_changed']:
+            if ext == 'mes':
+                vars = mes.load_file_info(self.fig_path)
+                vars = [v for v in vars if v.is_supported()]
+                self.avail_records = map(repr, vars)
+                self.record = self.avail_records[0]
+                self.record_enabled=True
+            self.fig_full_path = self.fig_path
+        self.internal_state_flags['fig_path_just_changed'] = True
+        self.masterpath = os.path.abspath(os.path.dirname(self.fig_path))
         self.fig_path = os.path.split(self.fig_path)[1]
-        print dummy_path
+        self.internal_state_flags['fig_path_just_changed'] = False
         
-        self._export_vessel_diameters_file = dummy_path
-        self._export_timeseries_file = dummy_path
-        self._export_rois_dict = dummy_path
-        self._load_rois_dict = dummy_path
         
             
     ## def _record_changed(self):
@@ -401,7 +406,7 @@ class FrameSequenceOpts(HasTraits):
     def _drop_all_rois_btn_fired(self):
         print "in drop_all_rois"
         if hasattr(self.parent, 'picker'):
-            print "Dropping all rois..."
+            if self._verbose: print "Dropping all rois..."
             self.parent.picker.drop_all_rois()
 
     def _pipeline_items_changed(self):
@@ -443,25 +448,31 @@ class FrameSequenceOpts(HasTraits):
         #if hasattr(self, 'fs'): del self.fs
         #if hasattr(self, 'fs2'): del self.fs2
 
-        ext = self.fig_path.split('.')[-1]
-        if ext in ['mes', 'mlf']:
-            self.glob = ""
+        #ext = self.fig_path.split('.')[-1]
+        #if ext in ['mes', 'mlf']:
+        #    self.glob = ""
 
-        if len(self.glob) > 0:
-            path = os.sep.join(self.fig_full_path.split(os.sep)[:-1])
-            #path = self.fig_path
-            print path
-            path = str(path + os.sep + self.glob)
-        else:
-            path = str(self.fig_full_path)
+        #if len(self.glob) > 0:
+        #    path = os.sep.join(self.fig_full_path.split(os.sep)[:-1])
+        #    #path = self.fig_path
+        #    print path
+        #    path = str(path + os.sep + self.glob)
+        #else:
+        #    path = str(self.fig_full_path)
+
+        path = self.fig_full_path
         if self._verbose:
             print path
-        ext = self.fig_full_path.split('.')[-1].lower()
+
+        ext = path.split('.')[-1].lower()
+
         if ext == 'mes': # in case of mes, self.record is repr, not record name
             record = self.record.split(' ')[0][1:]
         else:
             record = self.record
+
         self.fs = fseq.open_seq(path, record=record, ch=color_channels[self.ch])
+
         if self._verbose:
             print "new fs created"
         #self.fs.fns = self.fw_presets[self.fw_trans1]
