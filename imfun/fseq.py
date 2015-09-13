@@ -650,12 +650,10 @@ class FSeq_imgleic(FSeq_img):
     """
     def __init__(self, pattern, ch=0, fns=[], xmlname = None,
                  meta=None):
-        FSeq_glob.__init__(self, pattern, ch=ch)
+        FSeq_glob.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
-            xmlname = self.pattern.split('*')[0]
+            xmlname = pattern
         self.fns = fns
-        if meta is None:
-            self.set_default_meta()
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(xmlname)
@@ -846,7 +844,8 @@ def open_seq(path, *args, **kwargs):
     elif ending in images:  # A collection of images or a big tiff
         if '*' in path: # many files
             from imfun import leica
-            xml_try = leica.get_xmljob(path.split('*')[0])
+            xml_try = leica.get_xmljob(path)
+            print '*******', path,     xml_try
             if 'xmlname' in kwargs or xml_try:
                 handler =  FSeq_imgleic
             else:
