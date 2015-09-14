@@ -275,8 +275,12 @@ class GK_image_aligner:
 #from multiprocessing import Pool
 
 #!conda install dill
+
+#!pip install https://github.com/uqfoundation/dill/archive/master.zip
 import dill
-#!pip install git+https://github.com/uqfoundation/pathos 
+
+#!pip install git+https://github.com/uqfoundation/pathos
+#!pip install https://github.com/uqfoundation/pathos/archive/master.zip
 from pathos.multiprocessing import ProcessingPool
 
 def parametric_warp(img, fn):
