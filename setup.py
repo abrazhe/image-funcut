@@ -15,7 +15,7 @@ def version_from_git():
 setup(name='image-funcut',
       version = version_from_git(),
       description = "View, analyse and transform dynamic imaging data",
-      scripts = ['imfun/frame_viewer.py'],
+      scripts = ['funcut'],
       requires = ['numpy','scipy','swan'],
       py_modules = ['imfun.atrous',
                     'imfun.bwmorph',
