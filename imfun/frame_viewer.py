@@ -6,7 +6,7 @@ import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-#from scipy import stats, signal, ndimage
+from scipy import stats, signal, ndimage
 #from functools import partial # curry-like function
 import numpy as np
 
