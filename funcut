@@ -71,6 +71,77 @@ def norm_mf(fs):
     mf = fs.mean_frame()
     return lambda frame: frame/mf - 1.0
 
+#class RigidBodyRegister(HasTraits):
+#    name = "Rigid body translation motion stab"
+#    domain = "temporal"
+#    def apply(self, frames):
+#        return 
+
+class LoadMotionStab(HasTraits):
+    name = 'Load and apply motion stab recipe'
+    domain='temporal'
+    path = File()
+    view = View('path')
+    def apply(self, frames):
+        if self.path:
+            warps = opflowreg.load_recipe(self.path)
+            return opflowreg.apply_warps(frames, warps)
+        else:
+            raise NameError("Registration recipe file is not provided")
+
+class CreateMotionStab(HasTraits):
+    name = 'Create and apply motion stab recipe'
+    domain='temporal'
+    save_recipe_to = File()
+    reg_type = Enum('template','recursive')
+    reg_pipeline=Enum('translations',
+                      'translations->affine',
+                      'translations->homography',
+                      'Greenberg-Kerr',
+                      'translations->softmesh')
+    view = View('save_recipe_to', 'reg_type', 'reg_pipeline')
+    def apply(self, frames):
+        registrators = opflowreg.RegistrationInterfaces()
+        if self.reg_type == 'template':
+            tstart = len(frames)/2
+            tstop = min(len(frames),tstart+50)
+            template = np.max(frames[tstart:tstop],axis=0)
+            def register_stack(stack, registrator):
+                return opflowreg.register_stack_to_template(stack,template,registrator)
+        elif self.reg_type == 'recursive':
+            def register_stack(stack, registrator):
+                return opflowreg.register_stack_recursive(stack,registrator)
+        else:
+            raise NameError("Unknown registration type")
+        if 'translations' in self.reg_pipeline:
+            warps1 = register_stack(frames, registrators.rigidbody)
+            newframes = opflowreg.apply_warps(frames, warps1)
+            template = np.max(newframes[tstart:tstop],axis=0)
+            operations = self.reg_pipeline.split('->')
+            #TODO: refactor this:
+            if len(operations)>1:
+                if operations[1] == 'affine':
+                    reg = registrators.affine
+                elif operations[1] == 'homography':
+                    reg = registrators.homography
+                elif operations[1] == 'softmesh':
+                    reg = registrators.softmesh
+                else:
+                    raise NameError("Unknown registrator")
+                warps2 = opflowreg.register_stack_to_template(newframes, template, reg)
+                final_warps = [lib.flcompose(w1,w2) for w1,w2 in zip(warps1,warps2)]
+            else:
+                final_warps = warps1
+                outframes = newframes
+            
+        return outframes
+
+                
+
+
+
+
+
 class KalmanStackFilter(HasTraits):
     name = 'Kalman stack filter'
     domain='temporal'
@@ -84,7 +155,7 @@ class KalmanStackFilter(HasTraits):
 class SpatialGaussFilter(HasTraits):
     name = 'Spatial Gauss filter'
     domain='spatial'
-    sigma = 1.0
+    sigma = Float(1.0)
     view = View('sigma')
     def apply(self, f):
         return ndimage.gaussian_filter(f, self.sigma)
@@ -92,7 +163,7 @@ class SpatialGaussFilter(HasTraits):
 class SpatialMedianFilter(HasTraits):
     name = 'Spatial Median filter'
     domain='spatial'
-    size = 3
+    size = Float(3)
     view = View('size')
     def apply(self, f):
         return signal.medfilt(f, self.size)
@@ -126,8 +197,13 @@ class FrameSequenceOpts(HasTraits):
     linescan_width = Int(3, label="Linecan linewidth")
 
     pipeline = List()
-    inventory_dict = {p.name:p for p in [KalmanStackFilter, SpatialGaussFilter,
-                                         SpatialMedianFilter, NormalizeDFoF]}
+    inventory_dict = {p.name:p for p in
+                      [LoadMotionStab,
+                       CreateMotionStab,
+                       KalmanStackFilter,
+                       SpatialGaussFilter,
+                       SpatialMedianFilter,
+                       NormalizeDFoF]}
     
     inventory = Enum(inventory_dict.keys())
     add_to_pipeline_btn = Button(label='Add to pipeline')
@@ -418,6 +494,7 @@ class FrameSequenceOpts(HasTraits):
         "returns frame sequence after pipeline processing"
         if self._fs2_needs_reload:
             out = self.fs
+            out.fns = []
             for f in self.pipeline:
                 if f.domain == 'spatial':
                     out.fns.append(f.apply)
