@@ -1,8 +1,19 @@
 #!/usr/bin/python
 from distutils.core import setup
 
+import subprocess
+
+
+#version = '0.1.4'
+
+def version_from_git():
+    proc = subprocess.Popen(["git", "describe", "--tags"], stdout=subprocess.PIPE)
+    out,_ = proc.communicate()
+    return out.strip()
+
+
 setup(name='image-funcut',
-      version = '0.1.4',
+      version = version_from_git(),
       description = "View, analyse and transform dynamic imaging data",
       scripts = ['imfun/frame_viewer.py'],
       requires = ['numpy','scipy','swan'],
@@ -39,3 +50,4 @@ classifiers=[
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering',
         ]
+
