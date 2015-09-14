@@ -326,5 +326,14 @@ def register_stack_recursive(frames, regfn):
         mf_r, warps_right = register_stack_recursive(frames[L/2:], regfn)
         fn = regfn(mf_l, mf_r)
         fm = 0.5*(parametric_warp(mf_l,fn) + mf_r)
-        return fm, [lib.flcompose2(fx,fn) for fx in warps_left] + warps_right
+        return fm, [lib.flcompose(fx,fn) for fx in warps_left] + warps_right
         #return fm, [fnutils.flcompose2(fn,fx) for fx in fn1] + fn2
+
+
+def load_recipe(name):
+    with open(name) as recipe:
+        return dill.load(recipe)
+
+def save_recipe(warps, name):
+    with open(name, 'w') as recipe:
+        dill.dump(warps, recipe)

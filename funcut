@@ -93,13 +93,14 @@ class CreateMotionStab(HasTraits):
     name = 'Create and apply motion stab recipe'
     domain='temporal'
     save_recipe_to = File()
+    n_cpu = Int(4)
     reg_type = Enum('template','recursive')
     reg_pipeline=Enum('translations',
                       'translations->affine',
                       'translations->homography',
                       'Greenberg-Kerr',
                       'translations->softmesh')
-    view = View('save_recipe_to', 'reg_type', 'reg_pipeline')
+    view = View('save_recipe_to', 'reg_type', 'reg_pipeline', 'n_cpu')
     def apply(self, frames):
         registrators = opflowreg.RegistrationInterfaces()
         if self.reg_type == 'template':
@@ -107,40 +108,36 @@ class CreateMotionStab(HasTraits):
             tstop = min(len(frames),tstart+50)
             template = np.max(frames[tstart:tstop],axis=0)
             def register_stack(stack, registrator):
-                return opflowreg.register_stack_to_template(stack,template,registrator)
+                return opflowreg.register_stack_to_template(stack,template,registrator, njobs=self.n_cpu)
         elif self.reg_type == 'recursive':
             def register_stack(stack, registrator):
-                return opflowreg.register_stack_recursive(stack,registrator)
+                return opflowreg.register_stack_recursive(stack,registrator)[1]
         else:
             raise NameError("Unknown registration type")
-        if 'translations' in self.reg_pipeline:
-            warps1 = register_stack(frames, registrators.rigidbody)
-            newframes = opflowreg.apply_warps(frames, warps1)
-            template = np.max(newframes[tstart:tstop],axis=0)
-            operations = self.reg_pipeline.split('->')
-            #TODO: refactor this:
-            if len(operations)>1:
-                if operations[1] == 'affine':
-                    reg = registrators.affine
-                elif operations[1] == 'homography':
-                    reg = registrators.homography
-                elif operations[1] == 'softmesh':
-                    reg = registrators.softmesh
-                else:
-                    raise NameError("Unknown registrator")
-                warps2 = opflowreg.register_stack_to_template(newframes, template, reg)
-                final_warps = [lib.flcompose(w1,w2) for w1,w2 in zip(warps1,warps2)]
-            else:
-                final_warps = warps1
-                outframes = newframes
-            
-        return outframes
+        # TODO: below is just crazy. has to be made neat later
+        reg_dispatcher = {'affine':registrators.affine,
+                          'homograhy':registrators.homography,
+                          'translations':registrators.rigidbody,
+                          'Greenberg-Kerr':registrators.greenberg_kerr,
+                          'softmesh':registrators.softmesh}
+        operations = self.reg_pipeline.split('->')
+        newframes = frames
+        warp_history = []
+        for movement_model in operations:
+            warps = register_stack(newframes, reg_dispatcher[movement_model])
+            warp_history.append(warps)
+            newframes = opflowreg.apply_warps(newframes, warps)
+        final_warps = [lib.flcompose(*warpchain) for warpchain in zip(*warp_history)]
+        if self.save_recipe_to:
+            opflowreg.save_recipe(final_warps, self.save_recipe_to)
+            print 'saved motions stab recipe to %s'%self.save_recipe_to
+        return newframes
 
                 
 
 
 
-
+from imfun import opflowreg
 
 class KalmanStackFilter(HasTraits):
     name = 'Kalman stack filter'
@@ -205,8 +202,9 @@ class FrameSequenceOpts(HasTraits):
                        SpatialMedianFilter,
                        NormalizeDFoF]}
     
-    inventory = Enum(inventory_dict.keys())
+    inventory = Enum(sorted(inventory_dict.keys()))
     add_to_pipeline_btn = Button(label='Add to pipeline')
+    clear_pipeline_btn = Button(label='Clear pipeline')
 
     dt = Float(1, label='frame interval')
     dtunits = Str("",label='units')
@@ -329,14 +327,13 @@ class FrameSequenceOpts(HasTraits):
 		      label = 'ROIs',
 		      show_border=True),
 		label='Open'),
-	    Group(Group(Item('pipeline',
-                             show_label=False,
-                             style='custom',
+	    Group(Group(Item('pipeline', show_label=False, style='custom',
                              editor=ListEditor(use_notebook=True,
                                                page_name = '.name',
                                                deletable=True)),
                         HGroup(Item('inventory',show_label=False),
-                               Item('add_to_pipeline_btn',show_label=False)),
+                               Item('add_to_pipeline_btn',show_label=False),
+                               Item('clear_pipeline_btn',show_label=False)),
                         label='Pipeline',show_border=True),
                   label='Post-process'),
 	    Group(Group(Item('low_percentile'),
@@ -468,6 +465,8 @@ class FrameSequenceOpts(HasTraits):
     def _add_to_pipeline_btn_fired(self):
         filt = self.inventory_dict[self.inventory]
         self.pipeline.append(filt())
+    def _clear_pipeline_btn_fired(self):
+        self.pipeline = []
         
 
     def _apply_sd_lim_fired(self):
@@ -641,7 +640,7 @@ class FrameViewer(HasTraits):
     frames = None
     coords_stat = String()
     time_stat = String()
-    recalc_btn = Button("Recalc frames")
+    recalc_btn = Button("Apply pipeline")
 
     frame_fwd_btn = Button('>')
     frame_back_btn = Button('<')
