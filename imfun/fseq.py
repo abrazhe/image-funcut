@@ -829,8 +829,10 @@ def open_seq(path, *args, **kwargs):
       - `instance`  of an appropriate Frame Sequence class
     """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
-    if type(path) is np.ndarray:
+    if isinstance(path, np.ndarray):
 	return FSeq_arr(path, *args, **kwargs)
+    if isinstance(path, FrameSequence):
+        return path
     ending = re.findall('[^*\.]+', path)[-1].lower()
     if ending == 'txt':
         handler = FSeq_txt
