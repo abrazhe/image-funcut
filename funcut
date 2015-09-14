@@ -158,7 +158,8 @@ class FrameSequenceOpts(HasTraits):
     vmax = Float(255)
     vmin = Float(0)
     
-    limrange = lambda : [0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
+    #limrange = lambda : [0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
+    def limrange(): return[0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
 
     low_percentile = Enum(limrange(),label='Low')
     high_percentile = Enum(limrange()[::-1],label='High')
@@ -400,7 +401,8 @@ class FrameSequenceOpts(HasTraits):
                                sd*self.high_sd_lim)
 
     def _apply_percentile_fired(self):
-        fn = lambda s : self.fs2.data_percentile(s)
+        #fn = lambda s : self.fs2.data_percentile(s)
+        def fn(s): return self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
     
     def _drop_all_rois_btn_fired(self):

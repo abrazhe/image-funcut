@@ -18,7 +18,8 @@ def gauss_kern(xsize=1.5, ysize=None):
     Returns:
       - `g` : the 2D kernel as an array
     """
-    norm = lambda _u: 2*int(np.ceil(_u))
+    #norm = lambda _u: 2*int(np.ceil(_u))
+    def norm(_u): return 2*int(np.ceil(_u))
     ysize = ysize and ysize or xsize
     xn,yn = norm(xsize), norm(ysize)
     x, y = np.mgrid[-xn:xn+1, -yn:yn+1]

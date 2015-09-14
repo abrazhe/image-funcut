@@ -249,8 +249,10 @@ def supp_from_obj(object, min_level=0, max_level= 10,
 def deblend_node_old(node, coefs, acc = None):
     if acc is None: acc = [node]
     flat_leaves = flat_tree(node)
-    mxcoef = lambda level, loc : coefs[level][loc]
-    sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
+    #mxcoef = lambda level, loc : coefs[level][loc]
+    def mxcoef(level, loc): return coefs[level][loc]
+    #sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
+    def sublevel(level): return [n for n in flat_leaves if (level-n.level)==1]
     if len(node.branches) > 1:
         tocut = []
         for b in node.branches:
@@ -285,8 +287,10 @@ def deblend_node(node, coefs, acc = None):
     distance = cluster.euclidean
     if acc is None: acc = [node]
     flat_leaves = flat_tree(node)
-    mxcoef = lambda level, loc : coefs[level][loc]
-    sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
+    #mxcoef = lambda level, loc : coefs[level][loc]
+    def mxcoef(level, loc): return coefs[level][loc]
+    #sublevel = lambda level: [n for n in flat_leaves if (level-n.level)==1]
+    def sublevel(level): return [n for n in flat_leaves if (level-n.level)==1]
     tocut = []
     ## for each branch we decide if we want to cut it off
     for b in node.branches:
@@ -456,7 +460,8 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     else:
         gdeblended = [r for r in g if nscales(r) >= min_nscales]
 
-    check = lambda x: len(tree_locations2(x)) > min_px_size
+    #check = lambda x: len(tree_locations2(x)) > min_px_size
+    def check(x): return len(tree_locations2(x)) > min_px_size
     objects = sorted([x for x in gdeblended if check(x)],
 		     key = lambda u: tree_mass(u), reverse=True)
     if retraw == 1:
@@ -634,7 +639,7 @@ def prune_multiple_prevs(objlist):
     'ancestor' object in frame n-1"""
     for o in objlist:
 	full1 = embedded_to_full(o.obj)
-	test = lambda other: recobjs_lm_connected(full1, other)
+	#test = lambda other: recobjs_lm_connected(full1, other)
 	maxpos = ndimage.maximum_position(full1)
 	parents = o.prev
 	if len(parents) > 1:
@@ -655,7 +660,8 @@ def connect_framewise_objs(objlist,testfn = recobjs_overlap, nnext=3):
 	nextframes = objlist[j+1:j+nnext+1]
 	for obj in frame:
 	    full = embedded_to_full(obj.obj)
-	    test1 = lambda o: testfn(full, embedded_to_full(o.obj))
+	    #test1 = lambda o: testfn(full, embedded_to_full(o.obj))
+            def test1(o): return testfn(full, embedded_to_full(o.obj))
 	    for nf in nextframes:
 		nx = filter(test1, nf)
 		if len(nx):

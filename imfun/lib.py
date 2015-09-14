@@ -335,7 +335,8 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
     and make regions where the mask is False transparent
     """
     sh = mask.shape
-    ch = lambda i: np.where(mask, color[i],0)
+    #ch = lambda i: np.where(mask, color[i],0)
+    def ch(i): return np.where(mask, color[i],0)
     stack = np.dstack((ch(0),ch(1),ch(2),alpha*np.ones(sh)*mask))
     return stack
 
@@ -378,8 +379,8 @@ def locextr(v, x=None, refine = True, output='full',
        maxima = np.where(np.diff(dersign) < 0)[0]
        minima = np.where(np.diff(dersign) > 0)[0]
        if sort_values:
-           maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
-           minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
+           maxima = sorted(maxima, key=lambda p: yfit[p], reverse=True)
+           minima = sorted(minima, key=lambda p: yfit[p], reverse=False)
        if output=='full':
            return xfit, yfit, der1, maxima, minima 
        elif output=='max':
@@ -405,7 +406,8 @@ def vinterpolate(v,n=3,smoothing=1):
 
 def ainterpolate(arr, axis=0, n=3, smoothing=1):
     out = None
-    fn = lambda v: vinterpolate(v, n, smoothing)
+    #fn = lambda v: vinterpolate(v, n, smoothing)
+    def fn(v): return vinterpolate(v, n, smoothing)
     if axis == 1:
         out = np.array(map(fn, arr))
     elif axis ==0:
@@ -538,7 +540,8 @@ class Struct:
         self.__dict__.update(kwds)
 
 def lasaf_line_atof(str, sep=';'):
-    replacer = lambda s: string.replace(s, ',', '.')
+    #replacer = lambda s: string.replace(s, ',', '.')
+    def replacer(s): return string.replace(s, ',', '.')
     strlst = map(replacer, str.split(sep))
     return map(np.float, strlst)
 

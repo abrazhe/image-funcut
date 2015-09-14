@@ -67,7 +67,8 @@ class FrameSequence(object):
     def data_range(self):
         """Return global range (`min`, `max`) values for the sequence"""
         # need this strange syntax for min/max for multi-channel images
-        rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
+        #rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
+        def rfn(fn): return lambda x: fn(fn(x, axis=0),axis=0)
         ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self.frames()])
         minv,maxv = np.min(ranges[:,0],axis=0), np.max(ranges[:,1],axis=0)
         return np.array([minv,maxv]).T
@@ -632,16 +633,16 @@ class FSeq_glob(FrameSequence):
             
 class FSeq_img(FSeq_glob):
     """FrameSequence around a set of image files"""
-    loadfn = lambda self,y: imread(y)
+    def loadfn(self,y): return imread(y)
 
 class FSeq_txt(FSeq_glob):
     """FrameSequence around a set of text-image files"""
-    loadfn= lambda self,y: np.loadtxt(y)
+    def loadfn(self,y): np.loadtxt(y)
 
 ## TODO: but npy can be just one array
 class FSeq_npy(FSeq_glob):
     """FrameSequence around a set of npy files"""
-    loadfn= lambda self,y: np.load(y)
+    def loadfn(self, y): return np.load(y)
 
 class FSeq_imgleic(FSeq_img):
     """FrameSequence around the image files created by LeicaSoftware.

@@ -101,7 +101,8 @@ def line_reslice1(data, xind, f):
 
 def line_reslice2(data, p1, p2):
     L = int(lib.eu_dist(p1,p2))
-    f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
+    #f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
+    def f(x1,x2): return lambda i: int(x1 + i*(x2-x1)/L)
     return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
                      for i in range(L)])
 
@@ -228,15 +229,19 @@ class GWExpansionMeasurement1:
 	midpoint = np.argmin(y)
 	lh_r = abs(x[:midpoint]-x[midpoint]) #left branch
 	rh_r = x[midpoint:]-x[midpoint] # right branch
-	vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
+	#vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
+        def vel(d,t): return np.abs(np.gradient(d)/np.gradient(t))
 	rh_v = vel(rh_r[rh_r>=min_r],y[midpoint:][rh_r>=5])
 	lh_v = vel(lh_r[lh_r>=min_r],y[:midpoint][lh_r>=5])
 	rh_r = rh_r[rh_r>=min_r]
 	lh_r = lh_r[lh_r>=min_r]
-	v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
-	vmean_at_r = lambda r0:\
-		     np.mean([v_at_r(lh_r,lh_v,r0),
-			      v_at_r(rh_r,rh_v,r0)])
+	#v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
+        def v_at_r(rv,vv,r0): return vv[np.argmin(np.abs(rv-r0))]
+	#vmean_at_r = lambda r0:\
+	#	     np.mean([v_at_r(lh_r,lh_v,r0),
+	#		      v_at_r(rh_r,rh_v,r0)])
+        def vmean_at_r(r0):
+            return np.mean([v_at_r(lh_r,lh_v,r0), v_at_r(rh_r,rh_v,r0)])
 
 	ax = plt.figure().add_subplot(111);
 	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)

@@ -505,7 +505,8 @@ def estimate_sigma_mad(arr, is_details = False):
     Returns:
       - estimation of standard deviation (:math:`\\sigma`) as a number.
     """
-    mad = lambda x: np.median(np.abs(x-np.median(x)))
+    #mad = lambda x: np.median(np.abs(x-np.median(x)))
+    def mad(x): return np.median(np.abs(x-np.median(x)))
     if is_details:
 	w1 = arr
     else:
