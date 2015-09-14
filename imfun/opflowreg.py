@@ -19,10 +19,16 @@ from skimage import feature as skfeature
 from imfun import atrous,lib, fseq
 #from cluster import euclidean
 
-# https://github.com/pyimreg/imreg
-import imreg.register
-import imreg.model
-import imreg.sampler # do we really need that?
+try: 
+    # https://github.com/pyimreg/imreg
+    import imreg.register
+    import imreg.model
+    import imreg.sampler # do we really need that?
+    _with_imreg = True
+except ImportError:
+    print "Can't load imreg package, affine and homography registrations won't work"
+    _with_imreg = False
+
 
 
 # may be this should be a module?
@@ -34,13 +40,15 @@ class RegistrationInterfaces ():
         return _regfn
 
     def imreg(self, image, template, tform):
+        if not _with_imreg:
+            raise NameError("Don't have imreg module")
         aligner = imreg.register.Register()
         template, image = map(imreg.register.RegisterData, (template,image))
         step, search = aligner.register(image, template, tform)
         def _regfn(coordinates):
-            ir_coords = model.Coordinates.fromTensor(coordinates)
+            ir_coords = imreg.model.Coordinates.fromTensor(coordinates)
             return tform(step.p, ir_coords).tensor
-        return _regfn1
+        return _regfn
 
     def affine(self,image,template):
         return self.imreg(image, template, imreg.model.Affine())
@@ -48,7 +56,7 @@ class RegistrationInterfaces ():
     def homography(self, image,template):
         return self.imreg(image, template, imreg.model.Homography())
 
-    def greenberg_kerr(self, image, template, transpose=True, **fnargs):
+    def greenberg_kerr(self, image, template, nparam=11, transpose=True, **fnargs):
         if transpose:
             template = template.T
             image = image.T
