@@ -293,9 +293,11 @@ def apply_warps(warps, frames, njobs=4):
     """
     returns result of applying warps for given frames (one warp per frame)
     """
-    pool = ProcessingPool(nodes=njobs)
-    out = np.array(pool.map(parametric_warp, frames, warps))
-    #out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
+    if njobs > 1 :
+        pool = ProcessingPool(nodes=njobs)
+        out = np.array(pool.map(parametric_warp, frames, warps))
+    else:
+        out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
     if isinstance(frames, fseq.FrameSequence):
         out = fseq.open_seq(out)
         out.meta = frames.meta
@@ -307,9 +309,12 @@ def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
     align every frame to template and return a list of functions,
     which take an image and return warped image, aligned to template.
     """
-    #return [regfn(img, template, **fnargs) for img in frames] 
-    pool = ProcessingPool(nodes=njobs) 
-    return pool.map(partial(regfn, template=template, **fnargs), frames)
+    if njobs > 1
+        pool = ProcessingPool(nodes=njobs) 
+        out = pool.map(partial(regfn, template=template, **fnargs), frames)
+    else:
+        out = np.array([regfn(img, template, **fnargs) for img in frames])
+    return out
 
 def register_stack_recursive(frames, regfn):
     """
