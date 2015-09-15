@@ -338,9 +338,9 @@ def register_stack_recursive(frames, regfn):
 
 
 def load_recipe(name):
-    with open(name) as recipe:
+    with open(name,'rb') as recipe:
         return dill.load(recipe)
 
 def save_recipe(warps, name):
-    with open(name, 'w') as recipe:
+    with open(name, 'wb') as recipe:
         dill.dump(warps, recipe)
