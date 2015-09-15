@@ -289,11 +289,13 @@ def parametric_warp(img, fn):
     start_coordinates = np.meshgrid(*map(np.arange, img.shape))[::-1]
     return map_coordinates(img, fn(start_coordinates))
 
-def apply_warps(frames, warps):
+def apply_warps(warps, frames, njobs=4):
     """
     returns result of applying warps for given frames (one warp per frame)
     """
-    out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
+    pool = ProcessingPool(nodes=njobs)
+    out = np.array(pool.map(parametric_warp, frames, warps))
+    #out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
     if isinstance(frames, fseq.FrameSequence):
         out = fseq.open_seq(out)
         out.meta = frames.meta
