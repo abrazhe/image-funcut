@@ -7,9 +7,13 @@ import subprocess
 #version = '0.1.4'
 
 def version_from_git():
-    proc = subprocess.Popen(["git", "describe", "--tags"], stdout=subprocess.PIPE)
-    out,_ = proc.communicate()
-    return out.strip()
+    try:
+        proc = subprocess.Popen(["git", "describe", "--tags"], stdout=subprocess.PIPE)
+        out,_ = proc.communicate()
+        version = out.strip()
+    except Exception as e:
+    	version = "0.unspecified"
+    return version
 
 
 setup(name='image-funcut',
