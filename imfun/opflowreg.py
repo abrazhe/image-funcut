@@ -309,7 +309,7 @@ def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
     align every frame to template and return a list of functions,
     which take an image and return warped image, aligned to template.
     """
-    if njobs > 1
+    if njobs > 1:
         pool = ProcessingPool(nodes=njobs) 
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
     else:
