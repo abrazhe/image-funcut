@@ -53,13 +53,19 @@ def load_record(file_name, recordName, ch=None):
     #valid_names = [r.record for r in valid_records]
     r = filter(lambda r: recordName == r.record, valid_records)
     if len(r) == 0:
-        print "Can't find record %s in file %s"(recordName, file_name)
+        print "Can't find record {} in file {}".format(recordName, file_name)
+        print "valid records:", valid_records
+        print "WARNING: falling back to first available record"
+        r = [valid_records[0]]
+        recordName = r[0].record
+        
     handlers = {'matZ':ZStack_mat,
                 'matT':Timelapse_mat,
                 'h5Z':ZStack_h5,
                 'h5T':Timelapse_h5}
     r = r[0]
     key = r.variant+r.get_kind()
+
     print key
     if not 'U' in key:
         obj = handlers[key](file_name, recordName, ch)
