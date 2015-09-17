@@ -19,7 +19,7 @@ def version_from_git():
 setup(name='image-funcut',
       version = version_from_git(),
       description = "View, analyse and transform dynamic imaging data",
-      scripts = ['funcut'],
+      scripts = ['scripts/funcut.py', 'scripts/stabilize-framesequence.py'],
       requires = ['numpy','scipy','swan'],
       py_modules = ['imfun.atrous',
                     'imfun.bwmorph',
