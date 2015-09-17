@@ -155,7 +155,7 @@ def decompose1d_weave(sig, level,
     L,lphi = len(sig), len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
     coefs = np.ones((level+1, L),dtype=dtype)
-    for j in xrange(level):
+    for j in xrange(int(level)):
         phiind = (2**j)*phirange
 	approx = np.zeros(sig.shape, dtype=dtype)
         if _has_numba_:
@@ -194,12 +194,13 @@ def decompose2d_weave(arr2d, level,
       array of wavelet details + last approximation
     """
     if level <= 0: return arr2d
+    level = int(level)
     cprev = arr2d.copy()
     sh,lphi = arr2d.shape, len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
     phi2d = make_phi2d(phi)
     coefs = np.ones((level+1, sh[0], sh[1]),dtype=dtype)
-    for j in xrange(level):
+    for j in xrange(int(level)):
         phiind = (2**j)*phirange
 	approx = np.zeros(sh, dtype=dtype)
         if _has_numba_:
@@ -488,7 +489,7 @@ def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
     """Estimate standard deviation of noise in data using the K-clip algorithm.
     """
     d = np.ravel(decompose(arr,1)[0])
-    for j in xrange(max_iter):
+    for j in xrange(int(max_iter)):
 	d = d[abs(d) < k*np.std(d)]
     return np.std(d)
 
@@ -627,7 +628,7 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
     vcurr = np.copy(v)
     sd = estimate_sigma_mad(v)
     sprev = None
-    for i in xrange(niter):
+    for i in xrange(int(niter)):
 	s = smooth(vcurr, level)
 	sd = np.std(vcurr-s)
 	clip = (vcurr > s+r*sd)
