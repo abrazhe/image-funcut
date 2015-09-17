@@ -69,7 +69,7 @@ def main():
             warp_history.append(warps)
             newframes = opflowreg.apply_warps(warps, newframes, njobs=args.ncpu)
         final_warps = [lib.flcompose(*warpchain) for warpchain in zip(*warp_history)]
-        if self.save_recipe_to:
+        if outname:
             opflowreg.save_recipe(final_warps, outname)
             print 'saved motions stab recipe to {}'.format()
         return newframes
