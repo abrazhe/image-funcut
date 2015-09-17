@@ -71,16 +71,19 @@ def main():
         final_warps = [lib.flcompose(*warpchain) for warpchain in zip(*warp_history)]
         if outname:
             opflowreg.save_recipe(final_warps, outname)
-            print 'saved motions stab recipe to {}'.format()
+            print 'saved motions stab recipe to {}'.format(outname)
         return newframes
     
     for stackname in args.imagestacks:
         outname = stackname + make_outname_suffix(args)
-        fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)
-        smoothers = get_smoothing_pipeline(args.smooth)
-        fs.fns.extend(smoothers)
-        print 'Starting motion stabilization for file {}, saving recipy to {}'.format(stackname, outname)
-        apply_reg(fs, outname)
+        try:
+            fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)
+            smoothers = get_smoothing_pipeline(args.smooth)
+            fs.fns.extend(smoothers)
+            print 'Starting motion stabilization for file {}'.format(stackname)
+            apply_reg(fs, outname)
+        except Exception as e:
+            print "Couldn't process {} becase  {}".format(stackname, e)
         
 
 def make_outname_suffix(args):
