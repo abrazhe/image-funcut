@@ -103,7 +103,7 @@ class CreateMotionStab(HasTraits):
                       'translations->softmesh')
     view = View('save_recipe_to', 'reg_type', 'reg_pipeline', 'n_cpu')
     def apply(self, frames):
-        registrators = opflowreg.RegistrationInterfaces()
+        registrators = opflowreg.RegistrationInterfaces
         if self.reg_type == 'template':
             tstart = len(frames)/2
             tstop = min(len(frames),tstart+50)
@@ -118,7 +118,7 @@ class CreateMotionStab(HasTraits):
         # TODO: below is just crazy. has to be made neat later
         reg_dispatcher = {'affine':registrators.affine,
                           'homograhy':registrators.homography,
-                          'translations':registrators.rigidbody,
+                          'translations':registrators.translations,
                           'Greenberg-Kerr':registrators.greenberg_kerr,
                           'softmesh':registrators.softmesh}
         operations = self.reg_pipeline.split('->')
