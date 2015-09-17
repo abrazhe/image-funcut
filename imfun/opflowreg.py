@@ -31,15 +31,18 @@ except ImportError:
 
 
 
+# So, what is below is practially a namespace for registration inteface wrapeprs
 # may be this should be a module?
-class RegistrationInterfaces ():
-    def rigidbody(self, image, template):
+class RegistrationInterfaces:
+    @staticmethod
+    def translations(image, template):
         shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
         def _regfn(coordinates):
             return [c - p for c,p in zip(coordinates, shift)]
         return _regfn
 
-    def imreg(self, image, template, tform):
+    @staticmethod
+    def imreg(image, template, tform):
         if not _with_imreg:
             raise NameError("Don't have imreg module")
         aligner = imreg.register.Register()
@@ -50,13 +53,16 @@ class RegistrationInterfaces ():
             return tform(step.p, ir_coords).tensor
         return _regfn
 
-    def affine(self,image,template):
-        return self.imreg(image, template, imreg.model.Affine())
+    @staticmethod
+    def affine(image,template):
+        return RegistrationInterfaces.imreg(image, template, imreg.model.Affine())
 
-    def homography(self, image,template):
-        return self.imreg(image, template, imreg.model.Homography())
+    @staticmethod
+    def homography(image,template):
+        return RegistrationInterfaces.imreg(image, template, imreg.model.Homography())
 
-    def greenberg_kerr(self, image, template, nparam=11, transpose=True, **fnargs):
+    @staticmethod
+    def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
         if transpose:
             template = template.T
             image = image.T
@@ -77,7 +83,8 @@ class RegistrationInterfaces ():
             return [coordinates[0]-dy, coordinates[1]-dx]
         return _regfn
 
-    def softmesh(self, image, template, wsize=25, **fnargs):
+    @staticmethod
+    def softmesh(image, template, wsize=25, **fnargs):
         sh = image.shape
         mstride=wsize//3
         grange = range(wsize//2,sh[0]-wsize//2,mstride) # square images FIXME
@@ -85,7 +92,7 @@ class RegistrationInterfaces ():
         aligner = LKP_image_aligner(mesh, wsize)
         _,p = aligner(image,template, **fnargs)
         def _regfn(coordinates):
-            shifts = aligner.grid_shift_coords(p, sh, **fnargs)
+            shifts = aligner.grid_shift_coords(p, sh)
             return [c-s for c,s in zip(coordinates, shifts[::-1])]
         return _regfn
         
