@@ -191,9 +191,9 @@ class ZStack:
     def _ch2ind(self, ch):
         if ch is None or ch == 'all':
             out = slice(0,self.nchannels)
-        elif type(ch) is int:
+        elif isinstance(ch, int):
             out = [ch]
-        elif type(ch) is str:
+        elif isinstance(ch,str):
             out = np.where([ch in s for s in 'rgb'])[0][()]
         return out
                           
@@ -221,9 +221,9 @@ class ZStack:
                     data[framecount,...,j] = stream[k+j]
                 framecount += 1
         else:
-            if type(ch) is int :
+            if isinstance(ch,int) :
                 var_names = var_names[ch::nchannels]
-            elif type(ch) is str :
+            elif isinstance(ch,str) :
                 var_names = [n for n,c in zip(var_names,self.channels) if ch.lower() in c]
             recs = self._get_recs(var_names)
             data = np.array([recs[n] for n in var_names])

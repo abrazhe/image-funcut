@@ -704,7 +704,7 @@ class CircleROI(DraggableObj):
 	    if callable(normp):
 		return normp(v)
 	    else:
-		Lnorm = type(normp) is int and normp or len(v)
+		Lnorm = isinstance(normp,int) and normp or len(v)
 		return lib.DFoF(v)
         else: return v
 

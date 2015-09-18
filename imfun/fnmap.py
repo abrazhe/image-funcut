@@ -251,7 +251,7 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
      2D array, each value contains correlation coefficient of the provided frame
      sequence to the template signal. 
     """
-    if type(corrfn) == str:
+    if isinstance(corrfn, str):
         corrfn = _corrfuncs[corrfn]
     out = np.zeros(fseq.shape())
     if normalize_signal:
@@ -307,7 +307,7 @@ def local_corr_map(arr, normfn=lib.DFoSD,
                    corrfn=np.correlate,
                    keyfn=lambda x:x[0],
                    verbose=False):
-    if type(corrfn) == str:
+    if isinstance(corrfn, str):
         corrfn = _corrfuncs[corrfn]
     sh = arr.shape[1:]
     out = np.zeros(sh)

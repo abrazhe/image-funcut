@@ -53,7 +53,7 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    """Finds local extrema, type of extrema depends on parameter "mode"
    mode can be {'max' | 'min' | 'gup' | 'gdown' | 'gany'}"""
 
-   if type(x) is str:
+   if isinstance(x,str):
        mode = x
 
    if x is None or type(x) is str:

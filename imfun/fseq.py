@@ -149,7 +149,7 @@ class FrameSequence(object):
 	frame range is given as argument fslice. if it's int, use N first
 	frames, if it's tuple-like, it can be of the form [start,] stop [,step]
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(frameit.next())
@@ -165,7 +165,7 @@ class FrameSequence(object):
 
         see fseq.mean_frame docstring for details
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice,  int):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         out = frameit.next() # fix it, it fails here
@@ -186,7 +186,7 @@ class FrameSequence(object):
 	``f[crop]`` for each frame 
 	"""
         fiter = self.frame_slices(crop)
-        if type(fslice) is int :
+        if isinstance(fslice, int):
             fslice = (fslice, )
         return itt.islice(fiter, *fslice)
 
@@ -208,7 +208,7 @@ class FrameSequence(object):
 	  `3D` array `d`, where frames are stored in higher dimensions, such
 	  that ``d[0]`` is the first frame, etc.
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
         shape = self.shape(crop)
 	newshape = (len(self),) + shape
@@ -620,7 +620,7 @@ class FSeq_glob(FrameSequence):
     def __getitem__(self, val):
 	fn = self.pipeline()
 
-        if type(val) is slice or np.ndim(val) > 0:
+        if isinstance(val, slice)  or np.ndim(val) > 0:
             seq =  map(self.loadfn, self.file_names[val])
 	    if self.ch is not None:
 		seq = (img_getter(f, self.ch) for f in seq)
@@ -698,7 +698,7 @@ class FSeq_mlf(FrameSequence):
     def __getitem__(self, val):
 	#L = self.length()
 	fn = self.pipeline()
-        if type(val) is slice or np.ndim(val) > 0:
+        if isinstance(val, slice) or np.ndim(val) > 0:
 	    indices = np.arange(self.mlfimg.nframes)
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
         else:
@@ -795,9 +795,9 @@ class FSeq_mes(FSeq_arr):
                 record = vars[0].record
             else:
                 print "FSeq_mes: Can't find loadable records"
-        elif type(record) is int:
+        elif insinstance(record,int):
             record = 'Df%04d'%record
-        elif type(record) is str:
+        elif isinstance(record,str):
             if not ('Df' in record):
                 record = 'Df%04d'%int(record)
         else:
@@ -920,7 +920,7 @@ try:
             x = self.data[val]
             if self.fns == []:
                 return self.data[val]
-            if type(val) is slice or np.ndim(val) > 0:
+            if isinstance(val,slice) or np.ndim(val) > 0:
                 out = np.zeros(x.shape,x.dtype)
                 for j,f in enumerate(x):
                     out[j] = self.pipeline()(x)

@@ -79,7 +79,7 @@ def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
  	 
     """
 
-    if (type(distance) is str) and distance in distance_fns:
+    if (isinstance(distance,str)) and distance in distance_fns:
         distance = distance_fns[distance]
     else:
         distance = euclidean
@@ -185,7 +185,7 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
  	 
     """
 
-    if (type(distance) is str) and distance_fns.has_key(distance):
+    if (isinstance(distance,str)) and distance_fns.has_key(distance):
         distance = distance_fns[distance]
 
     ### TODOs:
