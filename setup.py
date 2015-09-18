@@ -2,7 +2,7 @@
 #from distutils.core import setup
 
 from setuptools import setup 
-import path
+#import path
 import subprocess
 
 #here = path.abspath(path.dirname(__file__))
@@ -25,8 +25,23 @@ setup(name='image-funcut',
       license = "GPL",
       description = "View, analyse and transform dynamic imaging data",
       scripts = ['scripts/funcut.py', 'scripts/stabilize-framesequence.py'],
-      install_requires = ['numpy','scipy','swan>=0.6.7'],
       packages = ['imfun'],
+      install_requires = ['numpy>=1.9.0',
+                          'scipy>=0.15.0',
+                          'numba>=0.20.0',
+                          'scikit-image>=0.11.0',
+                          'imreg',
+                          'dill>=0.2.4',
+                          'pathos>=0.1',
+                          'h5py>=2.5.0',
+                          'pandas>=0.16.0',
+                          'traits>=4.4.0',
+                          'traitsui>=4.4.0',
+                          'wxpython>=3.0.0',
+                          'swan>=0.6.7'],
+      dependency_links=['https://github.com/pyimreg/imreg/archive/master.zip#egg=imreg',
+                        'https://github.com/uqfoundation/dill/archive/master.zip#egg=dill',
+                        'https://github.com/uqfoundation/pathos/archive/master.zip#egg=pathos>=0.2'],
       classifiers = [
           'Development Status :: 4 - Beta',
           "Intended Audience :: Science/Research",
