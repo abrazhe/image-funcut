@@ -56,7 +56,7 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    if isinstance(x,str):
        mode = x
 
-   if x is None or type(x) is str:
+   if x is None or isinstance(x,str):
        x = np.arange(len(v))
        
    sp0 = ip.UnivariateSpline(x,atrous.smooth(v),s=0)
