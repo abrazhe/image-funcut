@@ -1014,11 +1014,18 @@ class Picker:
         else:
             imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
 
-        if len(self.fseq.shape()) ==2:
-            if ('vmin' not in imshow_args) or ('vmax' not in imshow_args):
-                avmin,avmax = self.fseq.data_range()
+        if ('vmin' not in imshow_args) or ('vmax' not in imshow_args):
+            #avmin,avmax = self.fseq.data_range()
+            if hasattr(self.fseq, 'data'):
+                res = self.fseq.data_percentile((0.05, 99.5))
+            else:
+                res = self.fseq.data_range()
+            avmin,avmax = np.amin(res), np.amax(res)
             if 'vmin' not in imshow_args : imshow_args.update(vmin=avmin)
             if 'vmax' not in imshow_args : imshow_args.update(vmax=avmax)
+
+        # TODO: better take care of LUTs here
+        self.clim = imshow_args['vmin'], imshow_args['vmax']
 
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
@@ -1028,8 +1035,10 @@ class Picker:
 	elif mean_frame:
             dtype = self.fseq[0].dtype
             f = self.fseq.mean_frame().astype(dtype)
-            if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
-                f = lib.rescale(f)
+            #if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
+            #    f = lib.rescale(f)
+            if np.ndim(f) > 2 and f.max()>1:
+                f = np.clip(f, self.clim[0],self.clim[1])/self.clim[1]
         else:
             f = self.fseq.frames().next()
 	self.mean_frame = f
@@ -1296,6 +1305,8 @@ class Picker:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
         show_f = self.fseq[fi]
+        vmin,vmax = self.clim
+        show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
