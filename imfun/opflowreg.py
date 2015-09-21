@@ -35,7 +35,7 @@ except ImportError:
 # may be this should be a module?
 class RegistrationInterfaces:
     @staticmethod
-    def translations(image, template):
+    def shifts(image, template):
         shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
         def _regfn(coordinates):
             return [c - p for c,p in zip(coordinates, shift)]

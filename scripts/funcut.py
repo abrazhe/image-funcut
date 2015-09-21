@@ -96,11 +96,11 @@ class CreateMotionStab(HasTraits):
     save_recipe_to = File()
     n_cpu = Int(4)
     reg_type = Enum('template','recursive')
-    reg_pipeline=Enum('translations',
-                      'translations->affine',
-                      'translations->homography',
+    reg_pipeline=Enum('shifts',
+                      'shifts->affine',
+                      'shifts->homography',
                       'Greenberg-Kerr',
-                      'translations->softmesh')
+                      'shifts->softmesh')
     view = View('save_recipe_to', 'reg_type', 'reg_pipeline', 'n_cpu')
     def apply(self, frames):
         registrators = opflowreg.RegistrationInterfaces
@@ -118,7 +118,7 @@ class CreateMotionStab(HasTraits):
         # TODO: below is just crazy. has to be made neat later
         reg_dispatcher = {'affine':registrators.affine,
                           'homograhy':registrators.homography,
-                          'translations':registrators.translations,
+                          'shifts':registrators.shifts,
                           'Greenberg-Kerr':registrators.greenberg_kerr,
                           'softmesh':registrators.softmesh}
         operations = self.reg_pipeline.split('->')

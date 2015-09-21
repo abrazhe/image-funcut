@@ -21,7 +21,7 @@ def main():
         '-ch': dict(default='r', choices='rgb012', help='color channel to use'),
         '-s': ('--smooth', dict(action='append', metavar = ('FILTER', 'PARAMETER'), nargs=2)),
         '-m': ('--model', dict(action='append',
-                               choices = ['translations', 'softmesh', 'affine', 'Greenberg-Kerr'],
+                               choices = ['shifts', 'softmesh', 'affine', 'Greenberg-Kerr'],
                                help='add movement model to use for stabilization')),
         '-v' : ('--variant', dict(default='template',
                                   choices = ['template', 'recursive'],
@@ -57,8 +57,8 @@ def main():
             raise NameError("Unknown registration type")
         # TODO: below is just crazy. has to be made neat later
         reg_dispatcher = {'affine':registrators.affine,
-                          'homograhy':registrators.homography,
-                          'translations':registrators.translations,
+                          'homography':registrators.homography,
+                          'shifts':registrators.shifts,
                           'Greenberg-Kerr':registrators.greenberg_kerr,
                           'softmesh':registrators.softmesh}
         operations = args.model
