@@ -291,10 +291,18 @@ import dill
 from pathos.multiprocessing import ProcessingPool
 
 def parametric_warp(img, fn):
-    """given an image and a function to warp coordinates,
-    warp image to the new coordinates"""
-    start_coordinates = np.meshgrid(*map(np.arange, img.shape))[::-1]
-    return map_coordinates(img, fn(start_coordinates))
+    """Given an image and a function to warp coordinates,
+    warp image to the new coordinates.
+    In case of a multicolor image, run this function for each color"""
+    sh = img.shape
+    if np.ndim(img) == 2:
+        start_coordinates = np.meshgrid(*map(np.arange, sh[:2]))[::-1]
+        return map_coordinates(img, fn(start_coordinates))
+    elif np.ndim(img) > 2:
+        return np.dstack([parametric_warp(img[...,c],fn) for c in range(img.shape[-1])])
+    else:
+        raise ValueError("Can't handle image of such shape: {}".format(sh))
+    
 
 def apply_warps(warps, frames, njobs=4):
     """
