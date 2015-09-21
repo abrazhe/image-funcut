@@ -47,7 +47,7 @@ setup(name='image-funcut',
           "Intended Audience :: Science/Research",
           'License :: OSI Approved :: GNU General Public License (GPL)',
           'Operating System :: OS Independent :: Linux',
-          'Programming Language :: Python',
+          'Programming Language :: Python :: 2.7',
           'Topic :: Scientific/Engineering',
         ],
       )
