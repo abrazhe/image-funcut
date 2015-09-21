@@ -1009,22 +1009,18 @@ class Picker:
         if 'interpolation' not in imshow_args: imshow_args['interpolation'] = 'nearest'
 
         # clim overrides vmin and vmax
-        if 'clim' not in imshow_args:
-            imshow_args['clim'] = None
-        else:
+        if imshow_args.get('clim', None) is not None:
             imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
 
-        print 'simple test:', imshow_args.get('vmin',None), imshow_args.get('vmax',None)
-        if (not imshow_args.get('vmin',None)) or (not imshow_args.get('vmax',None)):
-            print 'in the check'
+        if (imshow_args.get('vmin',None) is None) or (imshow_args.get('vmax',None) is None):
             #avmin,avmax = self.fseq.data_range()
             if hasattr(self.fseq, 'data'):
                 res = self.fseq.data_percentile((0.05, 99.5))
             else:
                 res = self.fseq.data_range()
             avmin,avmax = np.amin(res), np.amax(res)
-            if 'vmin' not in imshow_args : imshow_args.update(vmin=avmin)
-            if 'vmax' not in imshow_args : imshow_args.update(vmax=avmax)
+            if imshow_args.get('vmin',None) is None : imshow_args.update(vmin=avmin)
+            if imshow_args.get('vmax',None) is None : imshow_args.update(vmax=avmax)
 
         # TODO: better take care of LUTs here
         self.clim = imshow_args['vmin'], imshow_args['vmax']
@@ -1224,7 +1220,8 @@ class Picker:
         if fname:
             pickle.dump(out,
                         open(fname, 'w'), protocol=0)
-            print "Saved ROIs to ", fname
+            if self._verbose:
+                print "Saved ROIs to ", fname
         return out
 
     def load_rois(self, source):
@@ -1349,7 +1346,8 @@ class Picker:
 
     def connect(self):
         "connect all the needed events"
-        print "connecting callbacks to picker"
+        if self._verbose:
+            print "connecting callbacks to picker"
         cf = self.fig.canvas.mpl_connect
         self.cid = {
             'click': cf('button_press_event', self.on_click),
@@ -1362,7 +1360,8 @@ class Picker:
             }
     def disconnect(self):
         if hasattr(self, 'cid'):
-            print "disconnecting old callbacks"
+            if self._verbose:
+                print "disconnecting old callbacks"
             map(self.fig.canvas.mpl_disconnect, self.cid.values())
             
     def isCircleROI(self,tag):
@@ -1408,7 +1407,8 @@ class Picker:
             if not '.pickle' in fname:
                 fname +='.pickle'
             pickle.dump(acc, open(fname, 'w'))
-            print "Saved time-views for all rois to ", fname
+            if self._verbose:
+                print "Saved time-views for all rois to ", fname
 
 
     def show_zview(self, rois = None, **keywords):
