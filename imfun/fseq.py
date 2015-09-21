@@ -422,13 +422,22 @@ class FrameSequence(object):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
 	else:
-	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
-	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
+	    vmin = ifnot(vmin, np.min(map(np.min, self)))
+	    vmax = ifnot(vmax, np.min(map(np.max, self)))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
         L = min(stop-start, len(self))
 
         fig,ax = plt.subplots(1,1,figsize=fig_size)
-        plh = ax.imshow(self[start], 
+
+        if np.ndim(self[start]) > 2:
+            vmin = np.min(vmin)
+            vmax = np.max(vmax)
+            lutfn = lambda f: np.clip(f, vmin,vmax)/vmax
+        else:
+            lutfn = lambda f: f
+
+
+        plh = ax.imshow(lutfn(self[start]), 
                         aspect='equal', **kwargs)
         if not frame_on:
             plt.setp(ax, frame_on=False, xticks=[],yticks=[])
@@ -439,10 +448,10 @@ class FrameSequence(object):
         def _animate(framecount):
             tstr = ''
             k = framecount+start
-            plh.set_data(self[k])
+            plh.set_data(lutfn(self[k]))
             if show_title:
                 if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                    tstr = 'time: %0.3f %s' %(k*dz,zunits)
+                    tstr = ', time: %0.3f %s' %(k*dz,zunits)
                 mytitle.set_text('frame: %04d'%k +tstr)
             if k in marker_idx:
                 plt.setp(marker, visible=True)
@@ -795,7 +804,7 @@ class FSeq_mes(FSeq_arr):
                 record = vars[0].record
             else:
                 print "FSeq_mes: Can't find loadable records"
-        elif insinstance(record,int):
+        elif isinstance(record,int):
             record = 'Df%04d'%record
         elif isinstance(record,str):
             if not ('Df' in record):
