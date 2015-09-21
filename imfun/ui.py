@@ -1306,7 +1306,8 @@ class Picker:
         _title = '%03d '%fi + tstr
         show_f = self.fseq[fi]
         vmin,vmax = self.clim
-        show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
+        if np.ndim(show_f)>2:
+            show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
