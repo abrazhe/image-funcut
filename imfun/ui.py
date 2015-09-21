@@ -705,7 +705,7 @@ class CircleROI(DraggableObj):
 		return normp(v)
 	    else:
 		Lnorm = isinstance(normp,int) and normp or len(v)
-		return lib.DFoF(v)
+		return lib.DFoF(v, Lnorm)
         else: return v
 
     def to_struct(self):
