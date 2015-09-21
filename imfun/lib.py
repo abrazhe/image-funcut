@@ -6,7 +6,7 @@ from itertools import combinations
 
 #from pylab import mpl
 #import pylab as pl
-import matplotlib as mpl
+#import matplotlib as mpl
 import numpy as np
 
 import fnutils

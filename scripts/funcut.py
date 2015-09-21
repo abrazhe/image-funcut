@@ -628,7 +628,7 @@ class FrameSequenceOpts(HasTraits):
         self.dt,self.dtunits = self.fs.meta['axes'][0]
         if self._verbose:
             print self.fs.meta['axes']
-            print 'dt done'
+            #print 'dt done'
 
         self.parent._recalc_btn_fired()
         if self._verbose:
