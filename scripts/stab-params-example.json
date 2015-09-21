@@ -1,0 +1,9 @@
+{"smooth": [["gaussian", 1.0]],
+ "model": [["shifts", {}],
+           ["softmesh", {"wsize": 25,
+                         "maxiter":10,
+                         "smooth_vfield":2,
+                         "weigh_by_shitomasi": 0}]],
+ "type":"template",
+ "ch":"r"
+}
