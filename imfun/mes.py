@@ -193,7 +193,7 @@ class ZStack:
             out = slice(0,self.nchannels)
         elif isinstance(ch, int):
             out = [ch]
-        elif isinstance(ch,str):
+        elif isinstance(ch,basestring):
             out = np.where([ch in s for s in 'rgb'])[0][()]
         return out
                           
@@ -223,7 +223,7 @@ class ZStack:
         else:
             if isinstance(ch,int) :
                 var_names = var_names[ch::nchannels]
-            elif isinstance(ch,str) :
+            elif isinstance(ch,basestring) :
                 var_names = [n for n,c in zip(var_names,self.channels) if ch.lower() in c]
             recs = self._get_recs(var_names)
             data = np.array([recs[n] for n in var_names])
@@ -287,7 +287,7 @@ class Timelapse:
         if not (ch is None or ch=='all'):
             if isinstance(ch, int):
                 var_names = [var_names[ch]]
-            elif isinstance(ch, str):
+            elif isinstance(ch, basestring):
                 var_names = [n for n,c
                              in zip(var_names, self.channels)
                              if ch.lower() in c.lower()]
