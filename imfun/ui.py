@@ -1014,7 +1014,9 @@ class Picker:
         else:
             imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
 
-        if ('vmin' not in imshow_args) or ('vmax' not in imshow_args):
+        print 'simple test:', imshow_args.get('vmin',None), imshow_args.get('vmax',None)
+        if (not imshow_args.get('vmin',None)) or (not imshow_args.get('vmax',None)):
+            print 'in the check'
             #avmin,avmax = self.fseq.data_range()
             if hasattr(self.fseq, 'data'):
                 res = self.fseq.data_percentile((0.05, 99.5))
@@ -1038,6 +1040,7 @@ class Picker:
             #if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
             #    f = lib.rescale(f)
             if np.ndim(f) > 2 and f.max()>1:
+                print self.clim[0], self.clim[1]
                 f = np.clip(f, self.clim[0],self.clim[1])/self.clim[1]
         else:
             f = self.fseq.frames().next()
