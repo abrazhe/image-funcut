@@ -15,6 +15,10 @@ import numpy as np
 
 _dtype_ = np.float64
 
+import matplotlib
+matplotlib.use('Agg')
+
+
 from matplotlib.pyplot import imread
 
 #import quantities as pq
@@ -137,8 +141,8 @@ class FrameSequence(object):
 	"""
         sh = self.shape(crop)
 	out = np.zeros(sh)
-        if len(sh)>2:
-            fn = lambda a: np.mean(a, axis=0)
+        #if len(sh)>2:
+        #    fn = lambda a: np.mean(a, axis=0)
 	for v,r,c in self.pix_iter(fslice=fslice,crop=crop):
 	    out[r,c] = fn(v)
 	return out
@@ -408,6 +412,8 @@ class FrameSequence(object):
             (e.g. for stimulation)
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
+        import matplotlib as mpl
+        mpl.use('Agg')
         from matplotlib import animation
         import matplotlib.pyplot as plt
         dz,zunits = tuple(self.meta['axes'][0])
@@ -418,12 +424,14 @@ class FrameSequence(object):
 
         if stop is None or stop == -1:
             stop = len(self)
+
 	if hasattr(self, 'data'):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
 	else:
 	    vmin = ifnot(vmin, np.min(map(np.min, self)))
 	    vmax = ifnot(vmax, np.min(map(np.max, self)))
+
         kwargs.update({'vmin':vmin, 'vmax':vmax})
         L = min(stop-start, len(self))
 
@@ -470,8 +478,10 @@ class FrameSequence(object):
         else:
             anim.save(video_name+'.avi', writer='mencoder',
                       fps=fps, extra_args=mencoder_extra_args)
-            
-        plt.close(anim._fig)
+        
+        #plt.close(anim._fig)
+        plt.close(fig)
+        #del anim, plh, ax # 
         return 
 
 
