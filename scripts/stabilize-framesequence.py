@@ -5,11 +5,14 @@ import argparse
 
 import json
 
+from functools import partial
+
 import numpy as np
 from scipy import ndimage,signal
 
 import matplotlib
 matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 
 from imfun import opflowreg, atrous, fseq, lib
 
@@ -147,13 +150,27 @@ def main():
                 if args.verbose > 1:
                     print 'vl, vh: ', vl, vh
 
+                proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
+
                 fsall.export_movie_anim(stackname+'-before-video.mp4', fps=25, fig_size=(6,6),
                                         interpolation='nearest',
                                         vmin=vl, vmax=vh,
                                         bitrate=2000, cmap='gray')
                 if args.verbose>2: print 'Done'
 
+
                 fs2 = opflowreg.apply_warps(warps, fsall)
+                proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
+
+                f,axs = plt.subplots(2,1,figsize=(12,5.5))
+                def _lutfn(f): return np.clip(f,vl,vh)/vh
+                for ax,f,t in zip(axs,(proj1,proj2),['raw','stabilized']):
+                    ax.imshow(_lutfn(f))
+                    plt.setp(ax, xticks=[],yticks=[],frame_on=False)
+                    ax.set_title(t)
+                plt.savefig(stackname+'-average-projections.png')
+                plt.close()
+                
 
                 if args.verbose > 2:
                     print stackname+out_suff+'-stabilized-video.mp4'
