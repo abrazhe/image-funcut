@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import division
+
 import os
 import argparse
 
@@ -77,7 +79,7 @@ def main():
             for key,val in pars.items():
                 setattr(args, key, val)
             
-    if args.verbose > 1:
+    if args.verbose > 2:
         print args
 
     registrators = opflowreg.RegistrationInterfaces
@@ -133,7 +135,7 @@ def main():
 
             fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)                    
             smoothers = get_smoothing_pipeline(args.smooth)
-            fs.fns.extend(smoothers)
+            fs.fns = smoothers
             warps = apply_reg(fs)
             opflowreg.save_recipe(warps, outname)
             if args.verbose:
@@ -146,6 +148,7 @@ def main():
                     print stackname+'-before-video.mp4'
                 fsall = fseq.open_seq(stackname, ch='all', record=args.record)
                 vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
+                vh[-1] = np.max(vh)
                 vl,vh = np.min(vl), np.max(vh)
                 if args.verbose > 1:
                     print 'vl, vh: ', vl, vh
@@ -162,21 +165,22 @@ def main():
                 fs2 = opflowreg.apply_warps(warps, fsall)
                 proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
 
-                f,axs = plt.subplots(2,1,figsize=(12,5.5))
-                def _lutfn(f): return np.clip(f,vl,vh)/vh
+                f,axs = plt.subplots(1,2,figsize=(12,5.5))
+                def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
+                #def _lutfn(f): return np.dstack([np.clip(f[...,k],vl[k],vh[k])/vh[k] for k in range(f.shape[-1])])
                 for ax,f,t in zip(axs,(proj1,proj2),['raw','stabilized']):
-                    ax.imshow(_lutfn(f))
+                    ax.imshow(_lutfn(f),aspect='equal')
+                    #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
                     ax.set_title(t)
-                plt.savefig(stackname+'-average-projections.png')
+                plt.savefig(stackname+out_suff+'-average-projections.png')
                 plt.close()
                 
 
                 if args.verbose > 2:
                     print stackname+out_suff+'-stabilized-video.mp4'
 
-                #fs2.export_movie_anim(stackname+out_suff+'-stabilized-video.mp4', fps=25,
-                fs2.export_movie_anim('stabilized-video.mp4', fps=25,
+                fs2.export_movie_anim(stackname+out_suff+'-stabilized-video.mp4', fps=25,
                                       fig_size=(6,6),
                                       interpolation = 'nearest',
                                       vmin=vl, vmax=vh,
