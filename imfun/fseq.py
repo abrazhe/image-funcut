@@ -440,9 +440,10 @@ class FrameSequence(object):
         if np.ndim(self[start]) > 2:
             vmin = np.min(vmin)
             vmax = np.max(vmax)
-            lutfn = lambda f: np.clip(f, vmin,vmax)/vmax
+            #lutfn = lambda f: np.clip(f, vmin,vmax)/vmax
+            def lutfn(f): return np.clip((f-vmin)/(vmax-vmin), 0, 1)
         else:
-            lutfn = lambda f: f
+            def lutfn(f): return f
 
 
         plh = ax.imshow(lutfn(self[start]), 
@@ -502,9 +503,9 @@ def _empty_axes_meta(size=3):
 class FSeq_arr(FrameSequence):
     """A FrameSequence class as a wrapper around a `3D` Numpy array
     """
-    def __init__(self, arr, fns = [], meta=None):
+    def __init__(self, arr, fns = None, meta=None):
         self.data = arr
-        self.fns = fns
+        self.fns = ifnot(fns, [])
         if meta is None:
             self.set_default_meta(self)
         else:
@@ -532,7 +533,7 @@ class FSeq_arr(FrameSequence):
 
     def pix_iter(self, pmask=None,fslice=None,rand=False,**kwargs):
 	"Iterator over time signals from each pixel (FSeq_arr)"
-	if self.fns == []:
+	if not len(self.fns):
 	    if pmask == None:
                 pmask = np.ones(self.shape()[:2], np.bool)
 	    nrows, ncols = self.shape()[:2]
@@ -611,11 +612,11 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
 class FSeq_glob(FrameSequence):
     """A FrameSequence class as a wrapper around a set of files matching a
     glob-like pattern"""
-    def __init__(self, pattern, ch=0, fns=[],
+    def __init__(self, pattern, ch=0, fns=None,
                  meta = None):
         self.pattern = pattern
         self.ch = ch
-        self.fns = fns
+        self.fns = ifnot(fns, [])
 	self.file_names = sorted_file_names(pattern)
         if meta is None:
             self.set_default_meta()
@@ -668,12 +669,12 @@ class FSeq_imgleic(FSeq_img):
     It is just a wrapper around FSeq_img, only it also looks for an xml
     file in Leica's format with the Job description
     """
-    def __init__(self, pattern, ch=0, fns=[], xmlname = None,
+    def __init__(self, pattern, ch=0, fns=None, xmlname = None,
                  meta=None):
         FSeq_glob.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
             xmlname = pattern
-        self.fns = fns
+        self.fns = ifnot(fns, [])
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(xmlname)
@@ -696,12 +697,12 @@ import MLFImage
 
 class FSeq_mlf(FrameSequence):
     "FrameSequence class for MLF multi-frame images"
-    def __init__(self, fname, fns = []):
+    def __init__(self, fname, fns = None):
         self.mlfimg = MLFImage.MLF_Image(fname)
         self.set_default_meta()
         dt = self.mlfimg.dt/1000.0
         self.meta['axes'][0] = (dt, 'sec')
-        self.fns = []
+        self.fns = ifnot(fns, [])
     def frames(self,):
 	"""
 	Return iterator over frames.
@@ -726,7 +727,7 @@ class FSeq_mlf(FrameSequence):
         return self.mlfimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
-	if self.fns == []:
+	if not len(self.fns):
 	    if pmask == None:
 		pmask = np.ones(self.shape(), np.bool)
 	    nrows, ncols = self.shape()
@@ -752,9 +753,9 @@ try:
     import PIL.Image as Image
     class FSeq_multiff(FrameSequence):
         "Class for multi-frame tiff files"
-        def __init__(self, fname, meta=None):
+        def __init__(self, fname, fns = None, meta=None):
             self.set_default_meta()
-            self.fns = []
+            self.fns = ifnot(fns, [])
             self.im = Image.open(fname)
         def frames(self, count=0):
             """
@@ -795,7 +796,7 @@ class FSeq_tiff_2(FSeq_arr):
 import mes
 
 class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record=None, ch=None, fns=[], verbose=False,
+    def __init__(self, fname, record=None, ch=None, fns=None, verbose=False,
                  autocrop = True):
         """
         The following format is assumed:
@@ -805,7 +806,7 @@ class FSeq_mes(FSeq_arr):
         The timelapse images are stored as NXM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
-        self.fns = fns
+        self.fns = ifnot(fns, [])
         self._verbose=verbose
 
         if record is None:
@@ -918,7 +919,7 @@ try:
 
     class FSeq_hdf5_lsc(FrameSequence):
         "Class for hdf5 files written by pylsi software"
-        def __init__(self, fname):
+        def __init__(self, fname, fns=None):
             parent = super(FSeq_hdf5_lsc, self)
             parent.__init__()
             f = h5py.File(fname, 'r')
@@ -929,7 +930,7 @@ try:
             self.meta['axes'][0] = (dt, 'sec')
             self.data = f['lsc']
             self.h5file = f # just in case we need it
-            self.fns = []
+            self.fns = ifnot(fns, [])
         def __len__(self):
             return self.data.shape[0]
         def frames(self):
@@ -937,7 +938,7 @@ try:
             return itt.imap(fn, (f for f in self.data))
         def __getitem__(self, val):
             x = self.data[val]
-            if self.fns == []:
+            if not len(self.fns):
                 return self.data[val]
             if isinstance(val,slice) or np.ndim(val) > 0:
                 out = np.zeros(x.shape,x.dtype)
