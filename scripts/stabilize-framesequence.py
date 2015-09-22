@@ -8,6 +8,9 @@ import json
 import numpy as np
 from scipy import ndimage,signal
 
+import matplotlib
+matplotlib.use('Agg')
+
 from imfun import opflowreg, atrous, fseq, lib
 
 _smoothing_filters = {'gaussian': ndimage.gaussian_filter,
@@ -60,7 +63,6 @@ def main():
                 params = json.loads(m[1])
                 m[1] = params
     for smoother in args.smooth:
-        print smoother
         if len(smoother) == 1:
             default_par = (smoother[0] in ['median']) and 3 or 1
             smoother.append(default_par)
@@ -105,12 +107,12 @@ def main():
                 if len(movement_model)>1:
                     model, model_params = movement_model
                 else:
-                    model,model_params = movement_model[0],{}
+                    model, model_params = movement_model[0],{}
             else:
                 model = movement_model
                 model_params = {}
             if args.verbose > 1:
-                print 'correcting for {}'.format(model)
+                print 'correcting for {} with params: {}'.format(model, model_params)
             warps = register_stack(newframes, reg_dispatcher[model], **model_params)
             warp_history.append(warps)
             newframes = opflowreg.apply_warps(warps, newframes, njobs=args.ncpu)
@@ -124,34 +126,48 @@ def main():
         try:
             if args.verbose:
                 print 'Calculating motion stabilization for file {}'.format(stackname)
-            if not args.pretend:
-                fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)
-                if args.export_movies :
-                    if args.verbose>2:
-                        print stackname+'-before-video.mp4'
-                    fsall = fseq.open_seq(stackname, ch=all, record=args.record)
-                    fsall.export_movie_anim(stackname+out_suff+'-before-video.mp4', fps=25, fig_size=(6,6),
-                                         interpolation='nearest',
-                                         bitrate=2000, cmap='gray')
-                    del fsall
-                    if args.verbose>2: print 'Done'
-                smoothers = get_smoothing_pipeline(args.smooth)
-                fs.fns.extend(smoothers)
-                warps = apply_reg(fs)
-                opflowreg.save_recipe(warps, outname)
-                if args.verbose:
-                    print 'saved motions stab recipe to {}'.format(outname)
-                fs2 = fseq.open_seq(stackname, ch='all', record=args.record)
-                fs2 = opflowreg.apply_warps(warps, fs2)
-                if args.export_movies:
-                    if args.verbose > 2:
-                        print stackname+out_suff+'-stabilized-video.mp4'
-                    fs2.export_movie_anim(stackname+out_suff+'-stabilized-video.mp4', fps=25,
-                                          fig_size=(6,6),
-                                          interpolation = 'nearest',
-                                          bitrate=2000,cmap='gray')
-                    if args.verbose>2: print 'Done'
-                del fs, fs2, warps
+            if args.pretend: continue
+
+            fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)                    
+            smoothers = get_smoothing_pipeline(args.smooth)
+            fs.fns.extend(smoothers)
+            warps = apply_reg(fs)
+            opflowreg.save_recipe(warps, outname)
+            if args.verbose:
+                print 'saved motions stab recipe to {}'.format(outname)
+            del fs
+            
+            if args.export_movies:
+
+                if args.verbose>2:
+                    print stackname+'-before-video.mp4'
+                fsall = fseq.open_seq(stackname, ch='all', record=args.record)
+                vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
+                vl,vh = np.min(vl), np.max(vh)
+                if args.verbose > 1:
+                    print 'vl, vh: ', vl, vh
+
+                fsall.export_movie_anim(stackname+'-before-video.mp4', fps=25, fig_size=(6,6),
+                                        interpolation='nearest',
+                                        vmin=vl, vmax=vh,
+                                        bitrate=2000, cmap='gray')
+                if args.verbose>2: print 'Done'
+
+                fs2 = opflowreg.apply_warps(warps, fsall)
+
+                if args.verbose > 2:
+                    print stackname+out_suff+'-stabilized-video.mp4'
+
+                #fs2.export_movie_anim(stackname+out_suff+'-stabilized-video.mp4', fps=25,
+                fs2.export_movie_anim('stabilized-video.mp4', fps=25,
+                                      fig_size=(6,6),
+                                      interpolation = 'nearest',
+                                      vmin=vl, vmax=vh,
+                                      bitrate=2000,cmap='gray')
+
+                if args.verbose>2: print 'Done'
+                del fsall, fs2
+            del warps
 
         except Exception as e:
             print "Couldn't process {} becase  {}".format(stackname, e)
