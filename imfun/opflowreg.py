@@ -290,16 +290,16 @@ import dill
 #!pip install https://github.com/uqfoundation/pathos/archive/master.zip
 from pathos.multiprocessing import ProcessingPool
 
-def parametric_warp(img, fn):
+def parametric_warp(img, fn,mode='nearest'):
     """Given an image and a function to warp coordinates,
     warp image to the new coordinates.
     In case of a multicolor image, run this function for each color"""
     sh = img.shape
     if np.ndim(img) == 2:
         start_coordinates = np.meshgrid(*map(np.arange, sh[:2]))[::-1]
-        return map_coordinates(img, fn(start_coordinates))
+        return map_coordinates(img, fn(start_coordinates),mode=mode)
     elif np.ndim(img) > 2:
-        return np.dstack([parametric_warp(img[...,c],fn) for c in range(img.shape[-1])])
+        return np.dstack([parametric_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
     else:
         raise ValueError("Can't handle image of such shape: {}".format(sh))
     
