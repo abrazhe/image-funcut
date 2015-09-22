@@ -87,8 +87,10 @@ class RegistrationInterfaces:
     def softmesh(image, template, wsize=25, **fnargs):
         sh = image.shape
         mstride=wsize//3
-        grange = range(wsize//2,sh[0]-wsize//2,mstride) # square images FIXME
-        mesh = np.array([(i,j) for i in grange for j in grange])
+        
+        #granges = [range(wsize//2, shi-wsize//2+1, mstride) for shi in sh[:2]]
+        granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]] 
+        mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
         aligner = LKP_image_aligner(mesh, wsize)
         _,p = aligner(image,template, **fnargs)
         def _regfn(coordinates):
