@@ -20,7 +20,7 @@ def version_from_git():
 
 setup(name='image-funcut',
       # version = version_from_git(), # I have problems with this so far
-      version = '0.1.9',
+      version = '0.2.0',
       url = "https://github.com/abrazhe/image-funcut",
       author = "Alexey Brazhe",
       license = "GPL",
