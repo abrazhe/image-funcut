@@ -6,7 +6,7 @@ from itertools import combinations
 
 #from pylab import mpl
 #import pylab as pl
-import matplotlib as mpl
+#import matplotlib as mpl
 import numpy as np
 
 import fnutils
@@ -86,16 +86,6 @@ try:
 except:
     _scipyp = False
     
-def vessel_mask(f, p, negmask, thresh = None):
-	sh = f.shape
-	X,Y = meshgrid(*map(range, sh))
-	fx = f - plane(p,X,Y)
-	if thresh is None:
-		posmask = fx > median(fx) + fx.std()
-	else:
-		posmask = fx > thresh
-	return posmask*negmask
-	
 def in_circle(coords, radius):
     return lambda x,y: (square_distance((x,y), coords) <= radius**2)
 
@@ -103,7 +93,7 @@ def eu_dist(p1,p2):
     return np.sqrt(np.sum([(x-y)**2 for x,y in zip(p1,p2)]))
 
 def eu_dist2d(p1,p2):
-    "Euler distance between two points"
+    "Euclidean distance between two points"
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def square_distance(p1,p2):
@@ -145,9 +135,6 @@ def zero_low_sd(mat, n = 1.5):
 
 def arr_or(a1,a2):
     return np.vectorize(lambda x,y: x or y)(a1,a2)
-
-def shorten_movie(m,n):
-    return np.array([mean(m[i:i+n,:],0) for i in xrange(0, len(m), n)])
 
 def ma2d(m, n):
     "Moving average in 2d (for rows)"
@@ -204,7 +191,7 @@ def __best (scoref, lst):
     else: return -1,None
 
 def __min1(scoref, lst):
-    return best(lambda x,y: x < y, map(scoref, lst))
+    return __best(lambda x,y: x < y, map(scoref, lst))
 
 def allpairs(seq):
     return combinations(seq,2)
@@ -320,7 +307,7 @@ def DFoF(vec, normL=None, th = 1e-6):
 
 def clip_and_rescale(arr,nout=100):
     "convert data to floats in 0...1, throwing out nout max values"
-    out = arr - np.min(arr)
+    #out = arr - np.min(arr)
     cutoff = 100*(1-float(nout)/np.prod(arr.shape))
     m = np.percentile(arr, cutoff)
     return np.where(arr < m, arr, m)/m
@@ -348,7 +335,8 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
     and make regions where the mask is False transparent
     """
     sh = mask.shape
-    ch = lambda i: np.where(mask, color[i],0)
+    #ch = lambda i: np.where(mask, color[i],0)
+    def ch(i): return np.where(mask, color[i],0)
     stack = np.dstack((ch(0),ch(1),ch(2),alpha*np.ones(sh)*mask))
     return stack
 
@@ -367,7 +355,7 @@ def baseline_als(y, lam=None, p=0.1, niter=10):
     w = np.ones(L)
     for i in xrange(niter):
 	W = sparse.spdiags(w, 0, L, L)
-	Z = W + lam*np.dot(D,D.T)
+	Z = W + lam*D.dot(D.T)
 	z = sparse.linalg.spsolve(Z,w*y)
 	w = p*(y>z) + (1-p)*(y<z)
     return z
@@ -391,8 +379,8 @@ def locextr(v, x=None, refine = True, output='full',
        maxima = np.where(np.diff(dersign) < 0)[0]
        minima = np.where(np.diff(dersign) > 0)[0]
        if sort_values:
-           maxima = sorted(maxima, key = lambda p: yfit[p], reverse=True)
-           minima = sorted(minima, key = lambda p: yfit[p], reverse=False)
+           maxima = sorted(maxima, key=lambda p: yfit[p], reverse=True)
+           minima = sorted(minima, key=lambda p: yfit[p], reverse=False)
        if output=='full':
            return xfit, yfit, der1, maxima, minima 
        elif output=='max':
@@ -418,7 +406,8 @@ def vinterpolate(v,n=3,smoothing=1):
 
 def ainterpolate(arr, axis=0, n=3, smoothing=1):
     out = None
-    fn = lambda v: vinterpolate(v, n, smoothing)
+    #fn = lambda v: vinterpolate(v, n, smoothing)
+    def fn(v): return vinterpolate(v, n, smoothing)
     if axis == 1:
         out = np.array(map(fn, arr))
     elif axis ==0:
@@ -541,27 +530,6 @@ def alias_freq(f, fs):
 ###---------- End Wavelet-related -------------	
 
 
-### Stackless trampolining
-def trampoline(function, *args):
-    """Bounces a function over and over, until we "land" off the
-    trampoline."""
-    bouncer = bounce(function, *args)
-    while True:
-        bouncer = bouncer[1](*bouncer[2])
-        if bouncer[0] == 'land':
-            return bouncer[1]
-
-
-def bounce(function, *args):
-    """Bounce back onto the trampoline, with an upcoming function call."""
-    return ["bounce", function, args]
-
-
-def land(value):
-    """Jump off the trampoline, and land with a value."""
-    return ["land", value]
-### --- end of stackless trampolining
-
 
 ## This is for reading Leica txt files
 ## todo: move to readleicaxml?
@@ -572,7 +540,8 @@ class Struct:
         self.__dict__.update(kwds)
 
 def lasaf_line_atof(str, sep=';'):
-    replacer = lambda s: string.replace(s, ',', '.')
+    #replacer = lambda s: string.replace(s, ',', '.')
+    def replacer(s): return string.replace(s, ',', '.')
     strlst = map(replacer, str.split(sep))
     return map(np.float, strlst)
 

@@ -15,6 +15,10 @@ import numpy as np
 
 _dtype_ = np.float64
 
+import matplotlib
+matplotlib.use('Agg')
+
+
 from matplotlib.pyplot import imread
 
 #import quantities as pq
@@ -67,7 +71,8 @@ class FrameSequence(object):
     def data_range(self):
         """Return global range (`min`, `max`) values for the sequence"""
         # need this strange syntax for min/max for multi-channel images
-        rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
+        #rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
+        def rfn(fn): return lambda x: fn(fn(x, axis=0),axis=0)
         ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self.frames()])
         minv,maxv = np.min(ranges[:,0],axis=0), np.max(ranges[:,1],axis=0)
         return np.array([minv,maxv]).T
@@ -91,7 +96,7 @@ class FrameSequence(object):
     def frame_idx(self,):
         """Return a vector of time stamps, if frame sequence is timelapse and
         dt is set, or just `arange(nframes)`"""
-        L = self.length()
+        L = len(self)
         scale, unit = self.meta['axes'][0]
         if unit == '': scale=1
         return np.arange(0, (L+2)*scale, scale)[:L]
@@ -136,8 +141,8 @@ class FrameSequence(object):
 	"""
         sh = self.shape(crop)
 	out = np.zeros(sh)
-        if len(sh)>2:
-            fn = lambda a: np.mean(a, axis=0)
+        #if len(sh)>2:
+        #    fn = lambda a: np.mean(a, axis=0)
 	for v,r,c in self.pix_iter(fslice=fslice,crop=crop):
 	    out[r,c] = fn(v)
 	return out
@@ -148,11 +153,11 @@ class FrameSequence(object):
 	frame range is given as argument fslice. if it's int, use N first
 	frames, if it's tuple-like, it can be of the form [start,] stop [,step]
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(frameit.next())
-        count = 0
+        count = 0.0
         for k,frame in enumerate(frameit):
             res += frame
 	    count += 1
@@ -164,7 +169,7 @@ class FrameSequence(object):
 
         see fseq.mean_frame docstring for details
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice,  int):
             fslice = (fslice, )
         frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
         out = frameit.next() # fix it, it fails here
@@ -185,7 +190,7 @@ class FrameSequence(object):
 	``f[crop]`` for each frame 
 	"""
         fiter = self.frame_slices(crop)
-        if type(fslice) is int :
+        if isinstance(fslice, int):
             fslice = (fslice, )
         return itt.islice(fiter, *fslice)
 
@@ -207,10 +212,10 @@ class FrameSequence(object):
 	  `3D` array `d`, where frames are stored in higher dimensions, such
 	  that ``d[0]`` is the first frame, etc.
 	"""
-        if fslice is None or type(fslice) is int:
+        if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
         shape = self.shape(crop)
-	newshape = (self.length(),) + shape
+	newshape = (len(self),) + shape
         out = lib.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(self.frames(), *fslice)):
             out[k,:,:] = frame[crop]
@@ -261,7 +266,7 @@ class FrameSequence(object):
 	return
         
 
-    def length(self):
+    def __len__(self):
         """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
             k = 0
@@ -309,7 +314,7 @@ class FrameSequence(object):
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
-	L = len(pwfn(np.random.randn(self.length())))
+	L = len(pwfn(np.random.randn(len(self))))
 	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
 	#L = len(testv)
 	out = lib.memsafe_arr((L,) + self.shape(), dtype)
@@ -360,7 +365,7 @@ class FrameSequence(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         if stop is None or stop == -1:
-            stop = self.length()
+            stop = len(self)
 	if hasattr(self, 'data'):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
@@ -369,7 +374,7 @@ class FrameSequence(object):
 	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
         kwargs.update({'vmin':vmin, 'vmax':vmax})
 	print path+base
-        L = min(stop-start, self.length())
+        L = min(stop-start, len(self))
 	fnames = []
         for i,frame in enumerate(self.frames()):
             if i < start: continue
@@ -407,6 +412,8 @@ class FrameSequence(object):
             (e.g. for stimulation)
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
+        import matplotlib as mpl
+        mpl.use('Agg')
         from matplotlib import animation
         import matplotlib.pyplot as plt
         dz,zunits = tuple(self.meta['axes'][0])
@@ -416,18 +423,30 @@ class FrameSequence(object):
             marker_idx = []
 
         if stop is None or stop == -1:
-            stop = self.length()
+            stop = len(self)
+
 	if hasattr(self, 'data'):
 	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
 	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
 	else:
-	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
-	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
+	    vmin = ifnot(vmin, np.min(map(np.min, self)))
+	    vmax = ifnot(vmax, np.min(map(np.max, self)))
+
         kwargs.update({'vmin':vmin, 'vmax':vmax})
-        L = min(stop-start, self.length())
+        L = min(stop-start, len(self))
 
         fig,ax = plt.subplots(1,1,figsize=fig_size)
-        plh = ax.imshow(self[start], 
+
+        if np.ndim(self[start]) > 2:
+            vmin = np.min(vmin)
+            vmax = np.max(vmax)
+            #lutfn = lambda f: np.clip(f, vmin,vmax)/vmax
+            def lutfn(f): return np.clip((f-vmin)/(vmax-vmin), 0, 1)
+        else:
+            def lutfn(f): return f
+
+
+        plh = ax.imshow(lutfn(self[start]), 
                         aspect='equal', **kwargs)
         if not frame_on:
             plt.setp(ax, frame_on=False, xticks=[],yticks=[])
@@ -438,10 +457,10 @@ class FrameSequence(object):
         def _animate(framecount):
             tstr = ''
             k = framecount+start
-            plh.set_data(self[k])
+            plh.set_data(lutfn(self[k]))
             if show_title:
                 if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                    tstr = 'time: %0.3f %s' %(k*dz,zunits)
+                    tstr = ', time: %0.3f %s' %(k*dz,zunits)
                 mytitle.set_text('frame: %04d'%k +tstr)
             if k in marker_idx:
                 plt.setp(marker, visible=True)
@@ -460,8 +479,10 @@ class FrameSequence(object):
         else:
             anim.save(video_name+'.avi', writer='mencoder',
                       fps=fps, extra_args=mencoder_extra_args)
-            
-        plt.close(anim._fig)
+        
+        #plt.close(anim._fig)
+        plt.close(fig)
+        #del anim, plh, ax # 
         return 
 
 
@@ -482,15 +503,15 @@ def _empty_axes_meta(size=3):
 class FSeq_arr(FrameSequence):
     """A FrameSequence class as a wrapper around a `3D` Numpy array
     """
-    def __init__(self, arr, fns = [], meta=None):
+    def __init__(self, arr, fns = None, meta=None):
         self.data = arr
-        self.fns = fns
+        self.fns = ifnot(fns, [])
         if meta is None:
             self.set_default_meta(self)
         else:
             self.meta = meta.copy()
-    def length(self):
-        return self.data.shape[0]
+    def __len__(self):
+        return len(self.data)
     def __getitem__(self, val):
 	x = self.data[val]
 	if len(self.fns) == 0:
@@ -512,7 +533,7 @@ class FSeq_arr(FrameSequence):
 
     def pix_iter(self, pmask=None,fslice=None,rand=False,**kwargs):
 	"Iterator over time signals from each pixel (FSeq_arr)"
-	if self.fns == []:
+	if not len(self.fns):
 	    if pmask == None:
                 pmask = np.ones(self.shape()[:2], np.bool)
 	    nrows, ncols = self.shape()[:2]
@@ -591,17 +612,17 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
 class FSeq_glob(FrameSequence):
     """A FrameSequence class as a wrapper around a set of files matching a
     glob-like pattern"""
-    def __init__(self, pattern, ch=0, fns=[],
+    def __init__(self, pattern, ch=0, fns=None,
                  meta = None):
         self.pattern = pattern
         self.ch = ch
-        self.fns = fns
+        self.fns = ifnot(fns, [])
 	self.file_names = sorted_file_names(pattern)
         if meta is None:
             self.set_default_meta()
         else:
             self.meta = meta.copy()
-    def length(self):
+    def __len__(self):
 	return len(self.file_names)
             
     def frames(self, ch = None):
@@ -619,7 +640,7 @@ class FSeq_glob(FrameSequence):
     def __getitem__(self, val):
 	fn = self.pipeline()
 
-        if type(val) is slice or np.ndim(val) > 0:
+        if isinstance(val, slice)  or np.ndim(val) > 0:
             seq =  map(self.loadfn, self.file_names[val])
 	    if self.ch is not None:
 		seq = (img_getter(f, self.ch) for f in seq)
@@ -632,30 +653,28 @@ class FSeq_glob(FrameSequence):
             
 class FSeq_img(FSeq_glob):
     """FrameSequence around a set of image files"""
-    loadfn = lambda self,y: imread(y)
+    def loadfn(self,y): return imread(y)
 
 class FSeq_txt(FSeq_glob):
     """FrameSequence around a set of text-image files"""
-    loadfn= lambda self,y: np.loadtxt(y)
+    def loadfn(self,y): np.loadtxt(y)
 
 ## TODO: but npy can be just one array
 class FSeq_npy(FSeq_glob):
     """FrameSequence around a set of npy files"""
-    loadfn= lambda self,y: np.load(y)
+    def loadfn(self, y): return np.load(y)
 
 class FSeq_imgleic(FSeq_img):
     """FrameSequence around the image files created by LeicaSoftware.
     It is just a wrapper around FSeq_img, only it also looks for an xml
     file in Leica's format with the Job description
     """
-    def __init__(self, pattern, ch=0, fns=[], xmlname = None,
+    def __init__(self, pattern, ch=0, fns=None, xmlname = None,
                  meta=None):
-        FSeq_glob.__init__(self, pattern, ch=ch)
+        FSeq_glob.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
-            xmlname = self.pattern.split('*')[0]
-        self.fns = fns
-        if meta is None:
-            self.set_default_meta()
+            xmlname = pattern
+        self.fns = ifnot(fns, [])
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(xmlname)
@@ -678,12 +697,12 @@ import MLFImage
 
 class FSeq_mlf(FrameSequence):
     "FrameSequence class for MLF multi-frame images"
-    def __init__(self, fname, fns = []):
+    def __init__(self, fname, fns = None):
         self.mlfimg = MLFImage.MLF_Image(fname)
         self.set_default_meta()
         dt = self.mlfimg.dt/1000.0
         self.meta['axes'][0] = (dt, 'sec')
-        self.fns = []
+        self.fns = ifnot(fns, [])
     def frames(self,):
 	"""
 	Return iterator over frames.
@@ -699,16 +718,16 @@ class FSeq_mlf(FrameSequence):
     def __getitem__(self, val):
 	#L = self.length()
 	fn = self.pipeline()
-        if type(val) is slice or np.ndim(val) > 0:
+        if isinstance(val, slice) or np.ndim(val) > 0:
 	    indices = np.arange(self.mlfimg.nframes)
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
         else:
             return fn(self.mlfimg[val])
-    def length(self):
+    def __len__(self):
         return self.mlfimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, **kwargs):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
-	if self.fns == []:
+	if not len(self.fns):
 	    if pmask == None:
 		pmask = np.ones(self.shape(), np.bool)
 	    nrows, ncols = self.shape()
@@ -734,9 +753,9 @@ try:
     import PIL.Image as Image
     class FSeq_multiff(FrameSequence):
         "Class for multi-frame tiff files"
-        def __init__(self, fname, meta=None):
+        def __init__(self, fname, fns = None, meta=None):
             self.set_default_meta()
-            self.fns = []
+            self.fns = ifnot(fns, [])
             self.im = Image.open(fname)
         def frames(self, count=0):
             """
@@ -777,7 +796,8 @@ class FSeq_tiff_2(FSeq_arr):
 import mes
 
 class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record, ch=None, fns=[],verbose=False):
+    def __init__(self, fname, record=None, ch=None, fns=None, verbose=False,
+                 autocrop = True):
         """
         The following format is assumed:
         the mes file contains descriptions in fields like "Df0001",
@@ -786,19 +806,29 @@ class FSeq_mes(FSeq_arr):
         The timelapse images are stored as NXM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
-        self.fns = fns
+        self.fns = ifnot(fns, [])
         self._verbose=verbose
 
-        if type(record) is int:
+        if record is None:
+            vars = filter(lambda v: v.is_supported, mes.load_file_info(fname))
+            if len(vars):
+                record = vars[0].record
+            else:
+                print "FSeq_mes: Can't find loadable records"
+        elif isinstance(record,int):
             record = 'Df%04d'%record
-        elif type(record) is str:
+        elif isinstance(record,str):
             if not ('Df' in record):
                 record = 'Df%04d'%int(record)
         else:
-            print "Unknown record definition format"
+            print "FSeq_mes: Unknown record definition format"
 
         self.mesrec = mes.load_record(fname, record, ch)
         self.data, self.meta = self.mesrec.load_data()
+        if autocrop :
+            nrows = self.data.shape[1]
+            self.data = self.data[:,:,:nrows,...]
+
         
 
 
@@ -819,8 +849,10 @@ def open_seq(path, *args, **kwargs):
       - `instance`  of an appropriate Frame Sequence class
     """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
-    if type(path) is np.ndarray:
+    if isinstance(path, np.ndarray):
 	return FSeq_arr(path, *args, **kwargs)
+    if isinstance(path, FrameSequence):
+        return path
     ending = re.findall('[^*\.]+', path)[-1].lower()
     if ending == 'txt':
         handler = FSeq_txt
@@ -835,7 +867,8 @@ def open_seq(path, *args, **kwargs):
     elif ending in images:  # A collection of images or a big tiff
         if '*' in path: # many files
             from imfun import leica
-            xml_try = leica.get_xmljob(path.split('*')[0])
+            xml_try = leica.get_xmljob(path)
+            print '*******', path,     xml_try
             if 'xmlname' in kwargs or xml_try:
                 handler =  FSeq_imgleic
             else:
@@ -877,7 +910,7 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
 
-        def length(self):
+        def __len__(self):
             return self.data.shape[0]
         def frames(self):
             fn = self.pipeline()
@@ -886,7 +919,7 @@ try:
 
     class FSeq_hdf5_lsc(FrameSequence):
         "Class for hdf5 files written by pylsi software"
-        def __init__(self, fname):
+        def __init__(self, fname, fns=None):
             parent = super(FSeq_hdf5_lsc, self)
             parent.__init__()
             f = h5py.File(fname, 'r')
@@ -896,17 +929,18 @@ try:
             self.set_default_meta()
             self.meta['axes'][0] = (dt, 'sec')
             self.data = f['lsc']
-            self.fns = []
-        def length(self):
+            self.h5file = f # just in case we need it
+            self.fns = ifnot(fns, [])
+        def __len__(self):
             return self.data.shape[0]
         def frames(self):
             fn = self.pipeline()
             return itt.imap(fn, (f for f in self.data))
         def __getitem__(self, val):
             x = self.data[val]
-            if self.fns == []:
+            if not len(self.fns):
                 return self.data[val]
-            if type(val) is slice or np.ndim(val) > 0:
+            if isinstance(val,slice) or np.ndim(val) > 0:
                 out = np.zeros(x.shape,x.dtype)
                 for j,f in enumerate(x):
                     out[j] = self.pipeline()(x)
@@ -921,7 +955,7 @@ try:
                 sys.stderr.write("File exists, removing\n")
             os.remove(name)
         fid = h5py.File(name, 'w')
-        L = np.sum([s.length() for s in seqlist])
+        L = np.sum(map(len, seqlist))
         sh = np.min([s.shape() for s in seqlist], axis=0)
         print 'shape:', sh
         chunkshape = tuple([1] + list(sh))
@@ -943,9 +977,51 @@ try:
         fid.close()
         return name
 
+    def mp4_to_hdf5(name, framerate=25.):
+        try :
+            import cv2
+        except ImportError as e:
+            print "Can't load OpenCV python bindings", e
+            return
+        fid = h5py.File(name+'.h5', 'w')
+        fullshape = tuple([L] + list(sh))
+        dset = fid.create_dataset('data', fullshape, dtype=seqlist[0][0].dtype,
+                                  chunks = chunkshape, **kwargs)
+        
+
 except ImportError as e:
     print "Import Error", e
         
         
         
             
+## -- Load video from mp4 -- 
+## requires cv2
+
+try:
+    import cv2
+    def load_mp4(name, framerate=25., start_frame = None, end_frame=None, 
+                 frame_fn = None,
+                 **kwargs):
+        vidcap = cv2.VideoCapture(name)
+        out = []
+        count = 0
+        if frame_fn is None:
+            frame_fn = lambda f:f
+        if start_frame is None:
+            start_frame = 0
+        if end_frame is None:
+            end_frame = 1e9
+        while True:
+            success, image = vidcap.read()
+            if (not success) or (count > end_frame) :
+                break
+            count +=1
+            if count < start_frame:
+                continue
+            out.append(frame_fn(image))
+        fs = open_seq(np.array(out), **kwargs)
+        fs.meta['axes'][0] = (1./framerate, 's')
+        return fs
+except ImportError as e:
+    print "Can't load OpenCV python bindings", e

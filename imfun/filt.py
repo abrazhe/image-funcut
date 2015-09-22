@@ -18,7 +18,8 @@ def gauss_kern(xsize=1.5, ysize=None):
     Returns:
       - `g` : the 2D kernel as an array
     """
-    norm = lambda _u: 2*int(np.ceil(_u))
+    #norm = lambda _u: 2*int(np.ceil(_u))
+    def norm(_u): return 2*int(np.ceil(_u))
     ysize = ysize and ysize or xsize
     xn,yn = norm(xsize), norm(ysize)
     x, y = np.mgrid[-xn:xn+1, -yn:yn+1]
@@ -157,7 +158,7 @@ def adaptive_medianf2(arr, k=3, s=1):
     return d + approx
     
 
-def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05):
+def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05, fn=lambda f:f):
     """Kalman stack filter similar to that of Imagej
 
     Input:
@@ -181,7 +182,7 @@ def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05):
     elif seed is 'first':
         seed = frames[0]
     out = np.zeros_like(frames)
-    predicted = seed
+    predicted = fn(seed)
     Ek = var*np.ones_like(frames[0])
     var = Ek
     for k,M in enumerate(frames):
@@ -190,7 +191,7 @@ def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05):
         err = (corrected-predicted)**2/predicted.max()**2 # unclear
         Ek = Ek*(1.-Kk) + err
         out[k] = corrected
-        predicted = out[k]
+        predicted = fn(out[k])
     return out
     
 

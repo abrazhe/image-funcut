@@ -29,7 +29,7 @@ def pcax(X):
       S = np.sqrt(e)[kei] #sort by eigenvalues
   else:
       print 'PCA - SVD used'
-      U,S,V = np.linalg.svd(X)
+      U,S,V = np.linalg.svd(X, full_matrices=False)
       V = V[:num_data] #only makes sense to return the first num_data
 
   #return the projection matrix, the variance and the mean

@@ -77,7 +77,7 @@ def synth_movie(tvec, size, nobjs=42, snr=0.5,
 
 def synth_movie_from_seq(seq, baseL, type=1):
     d1 = seq.as3darray()
-    L = seq.length()
+    L = len(seq)
     sdf = np.std(d1[:baseL,:,:], axis=0)
     mf = np.mean(d1[:baseL,:,:], axis=0)
     out = np.zeros(d1.shape)
@@ -88,7 +88,7 @@ def synth_movie_from_seq(seq, baseL, type=1):
     return out
 
 def ellipse(xc, yc, a, b, phi):
-    t = arange(0, 2*pi, 0.01)
+    t = np.arange(0, 2*pi, 0.01)
     X = xc + a* cos(t) * cos(phi) + b *sin(t) * sin(phi)
     Y = yc - a* cos(t) * cos(phi) + b *sin(t) * sin(phi)
     return X, Y

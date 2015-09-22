@@ -54,7 +54,10 @@ def locations(shape):
 ##     coefs[j+1] = approx
 ##     return coefs
 
+
+## *** Weave support will be dropped in future versions. We switch to Numba ***
 from scipy import weave
+
 def weave_conv1d_wholes(vout,v,phi,ind):
     if vout.shape != v.shape:
 	raise ValueError("Input and output arrays must have the same shape")
@@ -72,6 +75,16 @@ def weave_conv1d_wholes(vout,v,phi,ind):
     }
     """
     weave.inline(code, ['vout','v','phi', 'ind'])
+
+def conv1d_wholes(vout, v, phi, ind):
+    L,lphi = len(v),len(phi)
+    for l in range(L):
+        vout[l] = 0
+        for k in range(lphi):
+            ki = l + ind[k]
+            if ki < 0 : ki = -ki%L
+            elif ki >= L: ki = L-2-ki%L
+            vout[l] += phi[k]*v[ki]
 
 def weave_conv2d_wholes(uout,u,phi,ind):
     code = """
@@ -97,10 +110,36 @@ def weave_conv2d_wholes(uout,u,phi,ind):
     """
     weave.inline(code, ['uout','u','phi', 'ind'])
 
+def conv2d_wholes(uout, u, phi, ind):
+    (Nr,Nc),lphi = u.shape,len(phi)
+    for i in range(Nr):
+        for j in range(Nc):
+            uout[i,j] = 0
+            for k in range(lphi):
+                ki = i + ind[k]
+                if ki < 0 : ki = -ki%Nr
+                elif ki >= Nr: ki = Nr-2-ki%Nr
+                for l in range(lphi):
+                    li = j + ind[l]
+                    if li < 0: li = -li%Nc
+                    elif li >=Nc: li = Nc-2-li%Nc
+                    uout[i,j] += phi[k,l]*u[ki,li]
+
+    
+    
+try:
+    from numba import jit
+    _has_numba_ = True
+    numba_conv1d_wholes = jit(conv1d_wholes)
+    numba_conv2d_wholes = jit(conv2d_wholes)
+except ImportError as ex:
+    print ex
+    _has_numba_ = False
+        
 
 def decompose1d_weave(sig, level,
 		      phi=_phi_,
-		      dtype= 'float64'):
+		      dtype= _dtype_):
     """
     1D stationary wavelet transform with B3-spline scaling function
 
@@ -116,15 +155,22 @@ def decompose1d_weave(sig, level,
     L,lphi = len(sig), len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
     coefs = np.ones((level+1, L),dtype=dtype)
-    for j in xrange(level):
+    for j in xrange(int(level)):
         phiind = (2**j)*phirange
 	approx = np.zeros(sig.shape, dtype=dtype)
-	weave_conv1d_wholes(approx, cprev, phi, phiind)
+        if _has_numba_:
+            numba_conv1d_wholes(approx, cprev, phi, phiind)
+        else:
+            try:
+                weave_conv1d_wholes(approx, cprev, phi, phiind)
+            except Exception as ex:
+                print ex
+                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                conv1d_wholes(approx, cprev, phi, phiind)
         coefs[j] = cprev - approx
         cprev = approx
     coefs[j+1] = approx
     return coefs
-
 
 
 def make_phi2d(phi):
@@ -148,15 +194,24 @@ def decompose2d_weave(arr2d, level,
       array of wavelet details + last approximation
     """
     if level <= 0: return arr2d
+    level = int(level)
     cprev = arr2d.copy()
     sh,lphi = arr2d.shape, len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
     phi2d = make_phi2d(phi)
     coefs = np.ones((level+1, sh[0], sh[1]),dtype=dtype)
-    for j in xrange(level):
+    for j in xrange(int(level)):
         phiind = (2**j)*phirange
 	approx = np.zeros(sh, dtype=dtype)
-	weave_conv2d_wholes(approx, cprev, phi2d, phiind)
+        if _has_numba_:
+            numba_conv2d_wholes(approx, cprev, phi2d, phiind)
+        else:
+            try:
+                weave_conv2d_wholes(approx, cprev, phi2d, phiind)
+            except Exception as ex:
+                print ex
+                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                conv2d_wholes(approx, cprev,phi2d, phiind)
         coefs[j] = cprev - approx
         cprev = approx
     coefs[j+1] = approx
@@ -345,14 +400,20 @@ def decompose3d_weave(arr, level=1,
     if level <= 0: return [arr]
     arr = arr.astype(_dtype_)
     tapprox = np.zeros(arr.shape,_dtype_)
+    if _has_numba_:
+        f1d = numba_conv1d_wholes
+        f2d = numba_conv2d_wholes
+    else:
+        f1d = weave_conv1d_wholes
+        f2d = weave_conv2d_wholes
     for loc in locations(arr.shape[1:]):
         v = arr[:,loc[0], loc[1]]
-	vo = np.zeros(v.shape, _dtype_)
-        weave_conv1d_wholes(tapprox[:,loc[0], loc[1]], v, phi, phiind)
+	#vo = np.zeros(v.shape, _dtype_)
+        f1d(tapprox[:,loc[0], loc[1]], v, phi, phiind)
     if axis is None:
         approx = np.zeros(arr.shape,_dtype_)
         for k in xrange(arr.shape[0]):
-            weave_conv2d_wholes(approx[k],tapprox[k], phi2d, phiind)
+            f2d(approx[k],tapprox[k], phi2d, phiind)
     else:
         approx = tapprox
     details = arr - approx
@@ -428,7 +489,7 @@ def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
     """Estimate standard deviation of noise in data using the K-clip algorithm.
     """
     d = np.ravel(decompose(arr,1)[0])
-    for j in xrange(max_iter):
+    for j in xrange(int(max_iter)):
 	d = d[abs(d) < k*np.std(d)]
     return np.std(d)
 
@@ -445,7 +506,8 @@ def estimate_sigma_mad(arr, is_details = False):
     Returns:
       - estimation of standard deviation (:math:`\\sigma`) as a number.
     """
-    mad = lambda x: np.median(np.abs(x-np.median(x)))
+    #mad = lambda x: np.median(np.abs(x-np.median(x)))
+    def mad(x): return np.median(np.abs(x-np.median(x)))
     if is_details:
 	w1 = arr
     else:
@@ -566,7 +628,7 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
     vcurr = np.copy(v)
     sd = estimate_sigma_mad(v)
     sprev = None
-    for i in xrange(niter):
+    for i in xrange(int(niter)):
 	s = smooth(vcurr, level)
 	sd = np.std(vcurr-s)
 	clip = (vcurr > s+r*sd)

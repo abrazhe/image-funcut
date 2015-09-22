@@ -53,13 +53,19 @@ def load_record(file_name, recordName, ch=None):
     #valid_names = [r.record for r in valid_records]
     r = filter(lambda r: recordName == r.record, valid_records)
     if len(r) == 0:
-        print "Can't find record %s in file %s"(recordName, file_name)
+        print "Can't find record {} in file {}".format(recordName, file_name)
+        print "valid records:", valid_records
+        print "WARNING: falling back to first available record"
+        r = [valid_records[0]]
+        recordName = r[0].record
+        
     handlers = {'matZ':ZStack_mat,
                 'matT':Timelapse_mat,
                 'h5Z':ZStack_h5,
                 'h5T':Timelapse_h5}
     r = r[0]
     key = r.variant+r.get_kind()
+
     print key
     if not 'U' in key:
         obj = handlers[key](file_name, recordName, ch)
@@ -185,9 +191,9 @@ class ZStack:
     def _ch2ind(self, ch):
         if ch is None or ch == 'all':
             out = slice(0,self.nchannels)
-        elif type(ch) is int:
+        elif isinstance(ch, int):
             out = [ch]
-        elif type(ch) is str:
+        elif isinstance(ch,basestring):
             out = np.where([ch in s for s in 'rgb'])[0][()]
         return out
                           
@@ -215,9 +221,9 @@ class ZStack:
                     data[framecount,...,j] = stream[k+j]
                 framecount += 1
         else:
-            if type(ch) is int :
+            if isinstance(ch,int) :
                 var_names = var_names[ch::nchannels]
-            elif type(ch) is str :
+            elif isinstance(ch,basestring) :
                 var_names = [n for n,c in zip(var_names,self.channels) if ch.lower() in c]
             recs = self._get_recs(var_names)
             data = np.array([recs[n] for n in var_names])
@@ -265,7 +271,7 @@ class Timelapse:
             for k,f in enumerate(self._reshape_frames(streams[0])):
                 data[k] = f
         else:
-            streams = [lib.clip_and_rescale(s) for s in streams]
+            #streams = [lib.clip_and_rescale(s) for s in streams]
             reshape_iter = itt.izip(*map(self._reshape_frames, streams))
             sh = base_shape + (max(3, len(streams)),)
             data = np.zeros(sh, dtype=streams[0].dtype)
@@ -281,7 +287,7 @@ class Timelapse:
         if not (ch is None or ch=='all'):
             if isinstance(ch, int):
                 var_names = [var_names[ch]]
-            elif isinstance(ch, str):
+            elif isinstance(ch, basestring):
                 var_names = [n for n,c
                              in zip(var_names, self.channels)
                              if ch.lower() in c.lower()]
@@ -310,10 +316,11 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         return self.nframes, (self.line_length, self.nlines)
     def get_sampling_interval(self):
         ffi = self.get_ffi()
-        nframes = long(ffi['numFrames'])
-        tstart = float(ffi['firstFrameStartTime'])
-        tstop = float(ffi['frameTimeLength'])
-        return (tstop-tstart)/nframes
+        #nframes = long(ffi['numFrames'])
+        #tstart = float(ffi['firstFrameStartTime'])
+        #tstop = float(ffi['frameTimeLength'])
+        #return (tstop-tstart)/nframes
+        return float(ffi['frameTimeLength'])/1000.
     def get_ffi(self): 
         return first_measure_mat(self.entry)['FoldedFrameInfo'][0]
 
@@ -325,7 +332,8 @@ class Timelapse_h5(Timelapse, H5_Record):
         ffi = get_ffi_h5(self.h5file, recordName)
         self.__dict__.update(ffi)
         self.frame_2d_shape = (self.line_length, self.nlines)
-        self.dt = (self.tstop-self.tstart)/self.nframes
+        self.dt /= 1000. # convert to seconds
+        #self.dt = (self.tstop-self.tstart)/self.nframes
     def _reshape_frames(self, stream):
         nlines,nframes = map(int, (self.nlines, self.nframes))
         return (stream[k*nlines:(k+1)*nlines,:] for k in xrange(1,nframes))
@@ -353,7 +361,7 @@ def get_ffi_h5(h5file, record):
     keyf = lambda s: np.squeeze(np.array(group[s]))[()]
     names = [('nframes', 'numFrames'),
              ('tstart', 'firstFrameStartTime'),
-             ('tstop', 'frameTimeLength'),
+             ('dt', 'frameTimeLength'),
              ('nlines', 'numFrameLines'),
              ('transverseStep', 'TransverseStep'),
              ('firstFramePos', 'firstFramePos')]

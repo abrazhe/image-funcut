@@ -1,5 +1,5 @@
 import itertools as itt
-
+import os
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -27,6 +27,8 @@ from imfun import track
 
 ifnot = lib.ifnot
 in_circle = lib.in_circle
+
+
 
 
 #Just trust what the user sets in mpl.rcParams for image.aspect
@@ -99,7 +101,8 @@ def line_reslice1(data, xind, f):
 
 def line_reslice2(data, p1, p2):
     L = int(lib.eu_dist(p1,p2))
-    f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
+    #f = lambda x1,x2: lambda i: int(x1 + i*(x2-x1)/L)
+    def f(x1,x2): return lambda i: int(x1 + i*(x2-x1)/L)
     return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
                      for i in range(L)])
 
@@ -226,15 +229,19 @@ class GWExpansionMeasurement1:
 	midpoint = np.argmin(y)
 	lh_r = abs(x[:midpoint]-x[midpoint]) #left branch
 	rh_r = x[midpoint:]-x[midpoint] # right branch
-	vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
+	#vel = lambda d,t: np.abs(np.gradient(d)/np.gradient(t))
+        def vel(d,t): return np.abs(np.gradient(d)/np.gradient(t))
 	rh_v = vel(rh_r[rh_r>=min_r],y[midpoint:][rh_r>=5])
 	lh_v = vel(lh_r[lh_r>=min_r],y[:midpoint][lh_r>=5])
 	rh_r = rh_r[rh_r>=min_r]
 	lh_r = lh_r[lh_r>=min_r]
-	v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
-	vmean_at_r = lambda r0:\
-		     np.mean([v_at_r(lh_r,lh_v,r0),
-			      v_at_r(rh_r,rh_v,r0)])
+	#v_at_r = lambda rv,vv,r0: vv[np.argmin(np.abs(rv-r0))]
+        def v_at_r(rv,vv,r0): return vv[np.argmin(np.abs(rv-r0))]
+	#vmean_at_r = lambda r0:\
+	#	     np.mean([v_at_r(lh_r,lh_v,r0),
+	#		      v_at_r(rh_r,rh_v,r0)])
+        def vmean_at_r(r0):
+            return np.mean([v_at_r(lh_r,lh_v,r0), v_at_r(rh_r,rh_v,r0)])
 
 	ax = plt.figure().add_subplot(111);
 	ax.plot(lh_r[lh_r>min_r],lh_v,'b-',lw=2)
@@ -278,7 +285,7 @@ class DraggableObj:
     """Basic class for objects that can be dragged on the screen"""
     verbose = True
     def __init__(self, obj, parent,):
-        self.obj = obj
+        self.obj = obj # matplotlib object
         self.parent = parent
         self.connect()
         self.pressed = None
@@ -335,7 +342,7 @@ class DraggableObj:
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
-
+        
     def get_color(self):
         return self.obj.get_facecolor()    
 
@@ -434,15 +441,7 @@ class LineScan(DraggableObj):
         if not self.event_ok(event, True):
             return
         if event.button == 3:
-            self.disconnect()
-            self.length_tag.set_alpha(0)
-            self.length_tag.remove()
-            self.name_tag.set_alpha(0)
-            self.name_tag.remove()
-            self.obj.remove()
-            self.parent.roi_objs.pop(self.tag)
-            self.parent.legend()
-            self.redraw()
+            self.destroy()
         elif event.button == 1:
             xy = event.xdata,event.ydata
             candidates = [self.centerpoint()] + self.endpoints()
@@ -458,6 +457,18 @@ class LineScan(DraggableObj):
         accepted_keys = ['/', '-', 'r']
 	if event.key in accepted_keys:
 	    self.diameter_manager = self.show_zview()
+
+    def destroy(self):
+        if self.tag in self.parent.roi_objs:
+            self.parent.roi_objs.pop(self.tag)
+        self.disconnect()
+        self.length_tag.set_alpha(0)
+        self.length_tag.remove()
+        self.name_tag.set_alpha(0)
+        self.name_tag.remove()
+        self.obj.remove()
+        self.parent.legend()
+        self.redraw()
 
     def transform_point(self, p):
         dx,dy = self.axes[1:3]['scale']
@@ -475,7 +486,7 @@ class LineScan(DraggableObj):
 		else:
 		    fi = caller.frame_index
 		    fstart = max(0,fi-half_scope)
-		    fstop = min(self.parent.fseq.length(),fi+half_scope)
+		    fstop = min(len(self.parent.fseq),fi+half_scope)
 		    frange = slice(fstart,fstop)
 		    frames = lambda : self.parent.fseq[frange]
 	    else:
@@ -529,14 +540,15 @@ class LineScan(DraggableObj):
 
             # TODO: work out if sx differs from sy
             (dz,zunits), (dx,xunits) = fseq.meta['axes'][:2]
-            x_extent = (0,dz*timeview.shape[0])
+            x_extent = (0,dz*timeview.shape[1])
             if mpl.rcParams['image.origin'] == 'lower':
                lowp = 1
             else:
                lowp = -1
             ax.imshow(timeview,
                       extent=x_extent + (0, dx*timeview.shape[0]),
-                      interpolation='nearest')
+                      interpolation='nearest',
+                      aspect='auto')
             ylabel = (xunits !='') and xunits or 'pixels'
             xlabel = (zunits !='')  and zunits or 'frames'
 
@@ -572,6 +584,9 @@ class LineScan(DraggableObj):
             plt.show()
 
         return btn_diam
+
+    def get_color(self):
+        return self.obj.get_color()
 	    
 
     def to_struct(self):
@@ -642,6 +657,9 @@ class CircleROI(DraggableObj):
         self.set_tagtext()
         self.redraw()
 
+    center = property(lambda self: self.obj.center,
+                      move)
+
     def set_tagtext(self):
         ax = self.obj.axes
         p = self.obj.center
@@ -686,8 +704,8 @@ class CircleROI(DraggableObj):
 	    if callable(normp):
 		return normp(v)
 	    else:
-		Lnorm = type(normp) is int and normp or len(v)
-		return lib.DFoF(v)
+		Lnorm = isinstance(normp,int) and normp or len(v)
+		return lib.DFoF(v, Lnorm)
         else: return v
 
     def to_struct(self):
@@ -701,13 +719,6 @@ class CircleROI(DraggableObj):
 
 
 class DragRect(DraggableObj):
-    def __init__(self, obj):
-        self.obj = obj
-        self.connect()
-        self.pressed = None
-        self.tag = obj.get_label() # obj must support this
-        pass
-
     "Draggable Rectangular ROI"
     def on_press(self, event):
         if not self.event_ok(event, True): return
@@ -736,11 +747,10 @@ def corr_measure(arr1,arr2):
 
 
 class RectFollower(DragRect):
-    def __init__(self, obj, arr):
-        DragRect.__init__(self, obj)
+    def __init__(self, obj, *args, **kwargs):
+        DragRect.__init__(self, obj, *args, **kwargs)
         self.search_width = 1.5*obj.get_width()
         self.search_height = obj.get_width()
-        self.arr = arr
     def on_type(self, event):
         if not self.event_ok(event, True): return
     def xy(self):
@@ -754,11 +764,11 @@ class RectFollower(DragRect):
     def find_best_pos(self, frame, template, measure=sse_measure):
         acc = {}
         sw, sh = self.search_width, self.search_height
-        _,limh, limw = self.arr.shape
+        limh, limw = frame.shape
         for w in np.arange(max(0,-sw/2), min(sw/2,limw)):
             for h in np.arange(max(0,-sh/2), min(limh,sh/2)):
                 s = self.toslice(h,w)
-                d = measure(frame[s], template)
+                d = measure(lib.rescale(frame[s]), template)
                 acc[(w,h)] = d
         pos = sorted(acc.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
         pos = pos[0][0]
@@ -970,21 +980,19 @@ class Picker:
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
               mean_frame =True,
-              vmax = None, vmin = None, 
-              cmap = 'gray',
-              interpolation = 'nearest'):
+              **imshow_args):
         "Start picking up ROIs"
         self.tagger = tags_iter()
         #self.drcs = {}
         self.frame_slider = None
-        Nf = self.fseq.length()
+        Nf = len(self.fseq)
 	if ax is None:
             self.fig, self.ax1 = plt.subplots()
             plt.subplots_adjust(left=0.2, bottom=0.2)
             corners = self.ax1.get_position().get_points()
             #print corners
             axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=_widgetcolor)
-            self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf, valinit=0,
+            self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf-1, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
 	else:
@@ -996,11 +1004,27 @@ class Picker:
         axes = self.fseq.meta['axes']
         (dy,yunits), (dx,xunits) = axes[1:3]
 	sy,sx = self.fseq.shape()[:2]
-        if len(self.fseq.shape()) ==2:
-            if vmin is None or vmax is None:
-                avmin,avmax = self.fseq.data_range()
-            if vmin is None: vmin = avmin
-            if vmax is None: vmax = avmax
+        
+        if 'cmap' not in imshow_args: imshow_args['cmap'] = 'gray' 
+        if 'interpolation' not in imshow_args: imshow_args['interpolation'] = 'nearest'
+
+        # clim overrides vmin and vmax
+        if imshow_args.get('clim', None) is not None:
+            imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
+
+        if (imshow_args.get('vmin',None) is None) or (imshow_args.get('vmax',None) is None):
+            #avmin,avmax = self.fseq.data_range()
+            if hasattr(self.fseq, 'data'):
+                res = self.fseq.data_percentile((0.05, 99.5))
+            else:
+                res = self.fseq.data_range()
+            avmin,avmax = np.amin(res), np.amax(res)
+            if imshow_args.get('vmin',None) is None : imshow_args.update(vmin=avmin)
+            if imshow_args.get('vmax',None) is None : imshow_args.update(vmax=avmax)
+
+        # TODO: better take care of LUTs here
+        self.clim = imshow_args['vmin'], imshow_args['vmax']
+
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
 
@@ -1009,8 +1033,11 @@ class Picker:
 	elif mean_frame:
             dtype = self.fseq[0].dtype
             f = self.fseq.mean_frame().astype(dtype)
-            if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
-                f = lib.rescale(f)
+            #if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
+            #    f = lib.rescale(f)
+            if np.ndim(f) > 2 and f.max()>1:
+                print self.clim[0], self.clim[1]
+                f = np.clip(f, self.clim[0],self.clim[1])/self.clim[1]
         else:
             f = self.fseq.frames().next()
 	self.mean_frame = f
@@ -1018,10 +1045,8 @@ class Picker:
         lowp = [1,-1][iorigin == 'upper']
         self.plh = self.ax1.imshow(f,
                                   extent = (0, sx*dx)+(0, sy*dy)[::lowp],
-                                  interpolation = interpolation,
                                   aspect='equal',
-                                  vmax=vmax,  vmin=vmin,
-                                  cmap=cmap)
+                                  **imshow_args)
         self.ax1.set_xlabel(yunits)
         self.ax1.set_ylabel(xunits)
 
@@ -1035,7 +1060,7 @@ class Picker:
 
     def length(self):
         if self._Nf is None:
-            self._Nf = self.fseq.length()
+            self._Nf = len(self.fseq)
         return self._Nf
     
 
@@ -1162,8 +1187,11 @@ class Picker:
                 self.roi_objs[tag] = newline
             else:
                 try:
+                    newline.destroy()
                     self.curr_line_handle.remove()
-                except: pass
+                except Exception as e:
+                    #print "Can't remove line handle because", e
+                    pass
         else:
             try:
                 self.curr_line_handle.remove()
@@ -1192,14 +1220,15 @@ class Picker:
         if fname:
             pickle.dump(out,
                         open(fname, 'w'), protocol=0)
-            print "Saved ROIs to ", fname
+            if self._verbose:
+                print "Saved ROIs to ", fname
         return out
 
     def load_rois(self, source):
         "Load stored ROIs from a file"
-        if type(source) is str or unicode :
+        if isinstance(source, (str,unicode)):
             data = pickle.load(file(source))
-        elif type(source) is file:
+        elif isinstance(source, file):
             data = pickle.load(source)
         else:
             data = source
@@ -1216,8 +1245,19 @@ class Picker:
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
+    def drop_all_rois(self):
+        for roi in self.roi_objs.values():
+            roi.destroy()
 
-    def export_vessel_diameters(self,fname=None):
+    def trace_vessel_contours_in_all_linescans(self, hwidth=2):
+        for tag in self.roi_objs:
+            if self.isLineROI((tag)):
+                roi = self.roi_objs[tag]
+                data,_ = roi.get_zview(hwidth=hwidth)
+                roi.vconts = VesselContours(data, tag)
+        plt.show()
+
+    def export_vessel_diameters(self,fname=None,save_figs_to=None, format='csv'):
         objs = self.roi_objs
         keys = [k for k in sorted(objs.keys())
                 if self.isLineROI(k) and objs[k].has_traced_vessels()]
@@ -1225,19 +1265,37 @@ class Picker:
             if self._verbose:
                 print "No LineScane ROIs with traced vesels found"
             return
+        if save_figs_to is not None:
+            for k in keys:
+                vcont_obj = objs[k].vconts
+                fig,ax = plt.subplots(1,1)
+                ax.imshow(vcont_obj.data, cmap='gray')
+                ax_lim = ax.axis()
+                ax.plot(vcont_obj.contlines[0].get_ydata(),'r')
+                ax.plot(vcont_obj.contlines[1].get_ydata(),'r')
+                ax.axis(ax_lim)
+                fig.savefig(os.path.join(save_figs_to, k+'.png'))
+                
         diams = [objs[k].vconts.get_diameter() for k in keys]
         out =  dict(zip(keys, diams))
-        if _with_pandas:
-            out = pd.DataFrame(out)
-            writer = pd.DataFrame.to_csv
+        if format == 'csv':
+           if _with_pandas:
+               out = pd.DataFrame(out)
+               writer = pd.DataFrame.to_csv
+           else:
+               writer = lib.write_dict_csv
+        elif format == 'mat':
+           from scipy import io
+           writer = lambda data, name: io.matlab.savemat(name, data)
         else:
-            writer = lib.write_dict_csv
+           print "Don't know how to save to format %s"%format
+           writer = lambda data, name: None
         if fname is not None:
             writer(out, fname)
         return out
 
     def set_frame_index(self,n):
-        Nf = self.fseq.length()
+        Nf = len(self.fseq)
 	fi = int(n)%Nf
         self.frame_index = fi
         dz,zunits = self.fseq.meta['axes'][0]
@@ -1247,6 +1305,9 @@ class Picker:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
         show_f = self.fseq[fi]
+        vmin,vmax = self.clim
+        if np.ndim(show_f)>2:
+            show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
@@ -1285,7 +1346,8 @@ class Picker:
 
     def connect(self):
         "connect all the needed events"
-        print "connecting callbacks to picker"
+        if self._verbose:
+            print "connecting callbacks to picker"
         cf = self.fig.canvas.mpl_connect
         self.cid = {
             'click': cf('button_press_event', self.on_click),
@@ -1298,7 +1360,8 @@ class Picker:
             }
     def disconnect(self):
         if hasattr(self, 'cid'):
-            print "disconnecting old callbacks"
+            if self._verbose:
+                print "disconnecting old callbacks"
             map(self.fig.canvas.mpl_disconnect, self.cid.values())
             
     def isCircleROI(self,tag):
@@ -1344,7 +1407,8 @@ class Picker:
             if not '.pickle' in fname:
                 fname +='.pickle'
             pickle.dump(acc, open(fname, 'w'))
-            print "Saved time-views for all rois to ", fname
+            if self._verbose:
+                print "Saved time-views for all rois to ", fname
 
 
     def show_zview(self, rois = None, **keywords):
@@ -1353,7 +1417,7 @@ class Picker:
         for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
 	    if self.isCircleROI(tag):
                 if np.ndim(x) == 1:
-                    ax.plot(t, x, color = roi.get_facecolor(), label=tag)
+                    ax.plot(t, x, color=roi.get_color(), label=tag)
                 else:
                     colors = ('r','g','b')
                     for k,xe in enumerate(x.T):
@@ -1363,7 +1427,7 @@ class Picker:
 	    else:
 		sh = x.shape
                 dx,xunits = self.fseq.meta['axes'][1]
-		ax.imshow(x.T, extent=(t[0],t[-1],0,sh[1]*dx),
+		ax.imshow(x, extent=(t[0],t[-1],0,sh[1]*dx),
 			  aspect='auto',cmap=_cmap)
             plt.xlim(0,t[-1])
 	ax.figure.show()
@@ -1496,7 +1560,7 @@ class Picker:
                              backgroundcolor='w', size='large')
             else:
                 ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
-	    yield x, roi_label, roi.obj, ax
+	    yield x, roi_label, roi, ax
 
 
 

@@ -1,4 +1,4 @@
-#!/usr/bin/which python 
+#!python
 
 #import gc # trying to make it work on windows
 
@@ -6,7 +6,7 @@ import wx
 import matplotlib as mpl
 mpl.use('WXAgg')
 
-#from scipy import stats, signal, ndimage
+from scipy import stats, signal, ndimage
 #from functools import partial # curry-like function
 import numpy as np
 
@@ -71,6 +71,75 @@ def norm_mf(fs):
     mf = fs.mean_frame()
     return lambda frame: frame/mf - 1.0
 
+#class RigidBodyRegister(HasTraits):
+#    name = "Rigid body translation motion stab"
+#    domain = "temporal"
+#    def apply(self, frames):
+#        return 
+
+class LoadMotionStab(HasTraits):
+    name = 'Load and apply motion stab recipe'
+    domain='temporal'
+    path = File()
+    n_cpu = Int(4)
+    view = View('path', 'n_cpu')
+    def apply(self, frames):
+        if self.path:
+            warps = opflowreg.load_recipe(self.path)
+            return opflowreg.apply_warps(warps, frames, self.n_cpu)
+        else:
+            raise NameError("Registration recipe file is not provided")
+
+class CreateMotionStab(HasTraits):
+    name = 'Create and apply motion stab recipe'
+    domain='temporal'
+    save_recipe_to = File()
+    n_cpu = Int(4)
+    reg_type = Enum('template','recursive')
+    reg_pipeline=Enum('shifts',
+                      'shifts->affine',
+                      'shifts->homography',
+                      'Greenberg-Kerr',
+                      'shifts->softmesh')
+    view = View('save_recipe_to', 'reg_type', 'reg_pipeline', 'n_cpu')
+    def apply(self, frames):
+        registrators = opflowreg.RegistrationInterfaces
+        if self.reg_type == 'template':
+            tstart = len(frames)/2
+            tstop = min(len(frames),tstart+50)
+            template = np.max(frames[tstart:tstop],axis=0)
+            def register_stack(stack, registrator):
+                return opflowreg.register_stack_to_template(stack,template,registrator, njobs=self.n_cpu)
+        elif self.reg_type == 'recursive':
+            def register_stack(stack, registrator):
+                return opflowreg.register_stack_recursive(stack,registrator)[1]
+        else:
+            raise NameError("Unknown registration type")
+        # TODO: below is just crazy. has to be made neat later
+        reg_dispatcher = {'affine':registrators.affine,
+                          'homograhy':registrators.homography,
+                          'shifts':registrators.shifts,
+                          'Greenberg-Kerr':registrators.greenberg_kerr,
+                          'softmesh':registrators.softmesh}
+        operations = self.reg_pipeline.split('->')
+        newframes = frames
+        warp_history = []
+        for movement_model in operations:
+            warps = register_stack(newframes, reg_dispatcher[movement_model])
+            warp_history.append(warps)
+            newframes = opflowreg.apply_warps(warps, newframes, njobs=self.n_cpu)
+        final_warps = [lib.flcompose(*warpchain) for warpchain in zip(*warp_history)]
+        if self.save_recipe_to:
+            opflowreg.save_recipe(final_warps, self.save_recipe_to)
+            print 'saved motions stab recipe to %s'%self.save_recipe_to
+        return newframes
+
+                
+
+
+
+from imfun import opflowreg
+
 class KalmanStackFilter(HasTraits):
     name = 'Kalman stack filter'
     domain='temporal'
@@ -84,7 +153,7 @@ class KalmanStackFilter(HasTraits):
 class SpatialGaussFilter(HasTraits):
     name = 'Spatial Gauss filter'
     domain='spatial'
-    sigma = 1.0
+    sigma = Float(1.0)
     view = View('sigma')
     def apply(self, f):
         return ndimage.gaussian_filter(f, self.sigma)
@@ -92,7 +161,7 @@ class SpatialGaussFilter(HasTraits):
 class SpatialMedianFilter(HasTraits):
     name = 'Spatial Median filter'
     domain='spatial'
-    size = 3
+    size = Float(3)
     view = View('size')
     def apply(self, f):
         return signal.medfilt(f, self.size)
@@ -117,22 +186,32 @@ class NormalizeDFoF(HasTraits):
 class FrameSequenceOpts(HasTraits):
     _verbose=Bool(True)
 
+    internal_state_flags = {'fig_path_just_changed':False}
+
     self.fs = Instance(fseq.FrameSequence) # 'original' frame sequence
     self.fs2 = Instance(fseq.FrameSequence) # 'processed' frame sequence
 
     linescan_scope = Range(0,500,0, label='Linescan half-range')
-    linescan_width = Int(2, label="Linecan linewidth")
+    linescan_width = Int(3, label="Linecan linewidth")
 
     pipeline = List()
-    inventory_dict = {p.name:p for p in [KalmanStackFilter, SpatialGaussFilter,
-                                         SpatialMedianFilter, NormalizeDFoF]}
+    inventory_dict = {p.name:p for p in
+                      [LoadMotionStab,
+                       CreateMotionStab,
+                       KalmanStackFilter,
+                       SpatialGaussFilter,
+                       SpatialMedianFilter,
+                       NormalizeDFoF]}
     
-    inventory = Enum(inventory_dict.keys())
+    inventory = Enum(sorted(inventory_dict.keys()))
     add_to_pipeline_btn = Button(label='Add to pipeline')
+    clear_pipeline_btn = Button(label='Clear pipeline')
 
     dt = Float(1, label='frame interval')
     dtunits = Str("",label='units')
-    fig_path = File("")
+    masterpath = Directory(os.getcwd())
+    fig_path = File()
+    fig_full_path = ""
 
     record = Str('1')
     avail_records = List(['1'])
@@ -140,8 +219,8 @@ class FrameSequenceOpts(HasTraits):
 
     ch = Enum('all', 'red', 'green', 'blue', label='Color channel')
 
-    glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
-    glob_enabled = Bool(True)
+    #glob = Str('*_t*.tif', label='Pattern', description='Image name contains...')
+    #glob_enabled = Bool(True)
  
     interpolation = Enum(['nearest', 'bilinear', 'bicubic', 'hanning',
                           'hamming', 'hermite', 'kaiser', 'quadric',
@@ -154,7 +233,8 @@ class FrameSequenceOpts(HasTraits):
     vmax = Float(255)
     vmin = Float(0)
     
-    limrange = lambda : [0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
+    #limrange = lambda : [0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
+    def limrange(): return[0.5, 1, 2] +range(5,96,10)+[98,99,99.5]
 
     low_percentile = Enum(limrange(),label='Low')
     high_percentile = Enum(limrange()[::-1],label='High')
@@ -173,6 +253,9 @@ class FrameSequenceOpts(HasTraits):
     _load_rois_dict = File()
     _export_timeseries_file = File()
     _export_vessel_diameters_file = File()
+
+    also_save_figures = Bool(False)
+    diameter_save_format = Enum(["csv", "mat"])
     
     export_vessel_diameters_btn = Button("Export vessel diameters")
     export_rois_dict_btn = Button('Export current ROIs')
@@ -180,6 +263,8 @@ class FrameSequenceOpts(HasTraits):
     
     export_timeseries_btn = Button('Export timeseries from ROIs')
     show_all_timeseries_btn = Button('Show all timeseries')
+    trace_all_vessels_btn = Button('Vessel Contours for all LineROIs')
+    drop_all_rois_btn = Button("Drop all ROIs")
     
     reset_range_btn = Button("Reset")
     load_btn = Button("Load images")
@@ -223,8 +308,9 @@ class FrameSequenceOpts(HasTraits):
 	## has to be a method so we can declare views for dialogs !?
 	view = View(
 	    Group(
-		Group('fig_path',
-                      Item('glob', enabled_when='glob_enabled is True'),
+		Group(Item('masterpath', label='Directory'),
+                      Item('fig_path'),
+                      #Item('glob', enabled_when='glob_enabled is True'),
                       Item('record',
                            editor=EnumEditor(name='avail_records'),
                            enabled_when='record_enabled is True',
@@ -234,21 +320,21 @@ class FrameSequenceOpts(HasTraits):
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
-		Group(Item('linescan_width'),
-		      Item('linescan_scope'),
+		Group(HGroup(Item('linescan_width'), Item('linescan_scope')),
 		      Item('show_all_timeseries_btn',show_label=False),
+                      Item('trace_all_vessels_btn',show_label=False),
 		      Item('load_rois_dict_btn',show_label=False),
+                      Item('drop_all_rois_btn',show_label=False),
 		      label = 'ROIs',
 		      show_border=True),
 		label='Open'),
-	    Group(Group(Item('pipeline',
-                             show_label=False,
-                             style='custom',
+	    Group(Group(Item('pipeline', show_label=False, style='custom',
                              editor=ListEditor(use_notebook=True,
                                                page_name = '.name',
                                                deletable=True)),
                         HGroup(Item('inventory',show_label=False),
-                               Item('add_to_pipeline_btn',show_label=False)),
+                               Item('add_to_pipeline_btn',show_label=False),
+                               Item('clear_pipeline_btn',show_label=False)),
                         label='Pipeline',show_border=True),
                   label='Post-process'),
 	    Group(Group(Item('low_percentile'),
@@ -283,7 +369,11 @@ class FrameSequenceOpts(HasTraits):
 			label='Movie'),
 		  Group('export_rois_dict_btn',
 			'export_timeseries_btn',
-                        'export_vessel_diameters_btn',
+                        Group(
+                            Item('export_vessel_diameters_btn',show_label=False),
+                            'also_save_figures',
+                            'diameter_save_format',
+                            show_border=True),
 			show_border=True,
 			show_labels=False,
 			label='ROIs'),
@@ -293,19 +383,32 @@ class FrameSequenceOpts(HasTraits):
     def __init__(self, parent):
         self.parent = parent
         self.get_fs = self.get_fs2
+        #self.masterpath = masterpath
+
+    def _masterpath_changed(self):
+        os.chdir(self.masterpath)
+        if not self.internal_state_flags['fig_path_just_changed']:
+            self.fig_path = ""
+            self.record = "1"
+            self.record_enabled = False
 
     def _fig_path_changed(self):
+        print "-----", self.fig_path
         ext = self.fig_path.split('.')[-1].lower()
-        self.glob_enabled=True
-        if ext in ['mes', 'mlf']:
-            self.glob = ''
-            self.glob_enabled=False
-        if ext == 'mes':
-            vars = mes.load_file_info(self.fig_path)
-            vars = [v for v in vars if v.is_supported()]
-            self.avail_records = map(repr, vars)
-            self.record = self.avail_records[0]
-            self.record_enabled=True
+        if not self.internal_state_flags['fig_path_just_changed']:
+            if ext == 'mes':
+                vars = mes.load_file_info(self.fig_path)
+                vars = [v for v in vars if v.is_supported()]
+                self.avail_records = map(repr, vars)
+                self.record = self.avail_records[0]
+                self.record_enabled=True
+            self.fig_full_path = self.fig_path
+        self.internal_state_flags['fig_path_just_changed'] = True
+        self.masterpath = os.path.abspath(os.path.dirname(self.fig_path))
+        self.fig_path = os.path.split(self.fig_path)[1]
+        self.internal_state_flags['fig_path_just_changed'] = False
+        
+        
             
     ## def _record_changed(self):
     ##     if self.fig_path.split('.')[-1].lower() == 'mes':
@@ -364,6 +467,8 @@ class FrameSequenceOpts(HasTraits):
     def _add_to_pipeline_btn_fired(self):
         filt = self.inventory_dict[self.inventory]
         self.pipeline.append(filt())
+    def _clear_pipeline_btn_fired(self):
+        self.pipeline = []
         
 
     def _apply_sd_lim_fired(self):
@@ -373,8 +478,15 @@ class FrameSequenceOpts(HasTraits):
                                sd*self.high_sd_lim)
 
     def _apply_percentile_fired(self):
-        fn = lambda s : self.fs2.data_percentile(s)
+        #fn = lambda s : self.fs2.data_percentile(s)
+        def fn(s): return self.fs2.data_percentile(s)
         self.set_display_range(self.low_percentile, self.high_percentile, fn)
+    
+    def _drop_all_rois_btn_fired(self):
+        print "in drop_all_rois"
+        if hasattr(self.parent, 'picker'):
+            if self._verbose: print "Dropping all rois..."
+            self.parent.picker.drop_all_rois()
 
     def _pipeline_items_changed(self):
         self._fs2_needs_reload=True
@@ -383,6 +495,7 @@ class FrameSequenceOpts(HasTraits):
         "returns frame sequence after pipeline processing"
         if self._fs2_needs_reload:
             out = self.fs
+            out.fns = []
             for f in self.pipeline:
                 if f.domain == 'spatial':
                     out.fns.append(f.apply)
@@ -400,6 +513,8 @@ class FrameSequenceOpts(HasTraits):
 	print 'in show_all_timeseries_btn_fired'
 	self.parent.picker.show_zview()
 	pass
+    def _trace_all_vessels_btn_fired(self):
+        self.parent.picker.trace_vessel_contours_in_all_linescans(hwidth=self.linescan_width)
 
     def _reset_range_btn_fired(self):
         if len(self.fs2.shape())<3:
@@ -413,24 +528,31 @@ class FrameSequenceOpts(HasTraits):
         #if hasattr(self, 'fs'): del self.fs
         #if hasattr(self, 'fs2'): del self.fs2
 
-        ext = self.fig_path.split('.')[-1]
-        if ext in ['mes', 'mlf']:
-            self.glob = ""
+        #ext = self.fig_path.split('.')[-1]
+        #if ext in ['mes', 'mlf']:
+        #    self.glob = ""
 
-        if len(self.glob) > 0:
-            path = os.sep.join(self.fig_path.split(os.sep)[:-1])
-            print path
-            path = str(path + os.sep + self.glob)
-        else:
-            path = str(self.fig_path)
+        #if len(self.glob) > 0:
+        #    path = os.sep.join(self.fig_full_path.split(os.sep)[:-1])
+        #    #path = self.fig_path
+        #    print path
+        #    path = str(path + os.sep + self.glob)
+        #else:
+        #    path = str(self.fig_full_path)
+
+        path = self.fig_full_path
         if self._verbose:
             print path
-        ext = self.fig_path.split('.')[-1].lower()
+
+        ext = path.split('.')[-1].lower()
+
         if ext == 'mes': # in case of mes, self.record is repr, not record name
             record = self.record.split(' ')[0][1:]
         else:
             record = self.record
+
         self.fs = fseq.open_seq(path, record=record, ch=color_channels[self.ch])
+
         if self._verbose:
             print "new fs created"
         #self.fs.fns = self.fw_presets[self.fw_trans1]
@@ -479,12 +601,19 @@ class FrameSequenceOpts(HasTraits):
 
     def _export_vessel_diameters_btn_fired(self):
         print "_export_vessel_diameters_btn_fired"
+        print 
         ui = self.edit_traits(view='export_vessel_diameters_view')
 	if ui.result == True:
             name = self._export_vessel_diameters_file
             print 'Picked file name:', name
             p = self.parent.picker
-            p.export_vessel_diameters(name)
+            wd = None
+            if self.also_save_figures:
+                wd = os.path.abspath(os.path.dirname(name))
+                self.parent.picker.fig.savefig(os.path.join(wd,'lines.png'))
+            p.export_vessel_diameters(name,save_figs_to=wd,format=self.diameter_save_format)
+                
+                
 	
     def _load_btn_fired(self):
         
@@ -499,7 +628,7 @@ class FrameSequenceOpts(HasTraits):
         self.dt,self.dtunits = self.fs.meta['axes'][0]
         if self._verbose:
             print self.fs.meta['axes']
-            print 'dt done'
+            #print 'dt done'
 
         self.parent._recalc_btn_fired()
         if self._verbose:
@@ -513,7 +642,7 @@ class FrameViewer(HasTraits):
     frames = None
     coords_stat = String()
     time_stat = String()
-    recalc_btn = Button("Recalc frames")
+    recalc_btn = Button("Apply pipeline")
 
     frame_fwd_btn = Button('>')
     frame_back_btn = Button('<')
@@ -537,7 +666,7 @@ class FrameViewer(HasTraits):
                 width=1200,
                 height=600,
                 resizable=True,
-                title= "Frame viewer",
+                title= "Image funcut UI",
                 statusbar = [StatusItem('coords_stat'),
                              StatusItem('time_stat')])
 
@@ -586,7 +715,7 @@ class FrameViewer(HasTraits):
             print "vl,vh:", vl, vh
             self.fso.vmin, self.fso.vmax = float(vl), float(vh)
 
-        Nf = fs2.length()
+        Nf = len(fs2)
         if hasattr(self, 'picker'):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)

@@ -1,7 +1,9 @@
 # Very simple functions to extract useful data from Leica Microscope
 # XML files
 
+import os
 import glob
+import re
 
 def get_prop(node, prop):
     return node.xpathEval('@%s'%prop)[0].content
@@ -11,12 +13,16 @@ def get_prop(node, prop):
 def get_xmljob(name, patt = "*[0-9].xml"):
     if name[-4:] == '.xml':
         return name
-    if name[-1] != '/':
-        name += '/'
-    job =  glob.glob(name+patt)
-    if len(job) > 0: return job[0]
-    else: return None
-
+    
+    folder,filepattern = os.path.split(name)
+    print 'leica: ', folder, filepattern
+    if folder =='': folder='./'
+    print 'leica: ', os.sep.join((folder,patt)) or filepattern
+    candidates = glob.glob(os.sep.join((folder,patt)))
+    
+    if len(candidates)==0: return None
+    return sorted(candidates, key = lambda s: common_overlap(s,name))[-1]
+    
 def ticks_to_ms(lo,hi):
     """
     Converts from two-word tick representation to milliseconds.
@@ -29,6 +35,16 @@ def ticks_to_ms(lo,hi):
 def low_high_pair(a):
     return map(long, (get_prop(a, "LowInteger"),
                       get_prop(a, "HighInteger")))
+
+
+class LeicaProps():
+    def __init__(self, xmlfilename):
+        p = leica_parser()
+        fname = get_xmljob(xmlfilename)
+        p.parse(fname)
+        res = p.getContentHandler().res
+        self.__dict__.update(res)
+
 
 class LeicaProps_old:
     def __init__(self,xmlfilename):
@@ -54,6 +70,14 @@ class LeicaProps_old:
         self.start_time = ticks_to_ms(*low_high_pair(tstamps[0]))
         self.stop_time = ticks_to_ms(*low_high_pair(tstamps[-1]))
         
+
+def common_overlap(str1,str2):
+    L = min(len(str1), len(str2))
+    for k,(c1,c2) in enumerate(zip(str1,str2)):
+        if c1 != c2 and c1 != '*' and c2 !='*' :
+            break
+    return k
+
         
 # ==============
 
@@ -106,13 +130,6 @@ def leica_parser():
     return parser
 
 
-class LeicaProps():
-    def __init__(self, xmlfilename):
-        p = leica_parser()
-        fname = get_xmljob(xmlfilename)
-        p.parse(fname)
-        res = p.getContentHandler().res
-        self.__dict__.update(res)
         
         
             
