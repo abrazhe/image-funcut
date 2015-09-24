@@ -45,7 +45,7 @@ def main():
         '-n': ('--ncpu', dict(default=4, type=int, help="number of CPU cores to use")),
         '--record': dict(default=None, help='record within file to use (where applicable)'),
         '-v': ('--verbose', dict(action='count', help='increment verbosity level')),
-        '--export-movies': dict(action='store_true'),
+        '--with-movies': dict(action='store_true'),
         '--suff': dict(default='', help="optional suffix to append to saved registration recipe"),
         '--fps': dict(default=25,type=float,help='fps of exported movie'),
         '--bitrate':dict(default=2000,type=float, help='bitrate of exported movie')
@@ -142,7 +142,7 @@ def main():
                 print 'saved motions stab recipe to {}'.format(outname)
             del fs
             
-            if args.export_movies:
+            if args.with_movies:
 
                 if args.verbose>2:
                     print stackname+'-before-video.mp4'
@@ -154,13 +154,6 @@ def main():
                     print 'vl, vh: ', vl, vh
 
                 proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
-
-                fsall.export_movie_anim(stackname+'-before-video.mp4', fps=25, fig_size=(6,6),
-                                        interpolation='nearest',
-                                        vmin=vl, vmax=vh,
-                                        bitrate=2000, cmap='gray')
-                if args.verbose>2: print 'Done'
-
 
                 fs2 = opflowreg.apply_warps(warps, fsall)
                 proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
@@ -174,20 +167,19 @@ def main():
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
                     ax.set_title(t)
                 plt.savefig(stackname+out_suff+'-average-projections.png')
-                plt.close()
                 
 
                 if args.verbose > 2:
                     print stackname+out_suff+'-stabilized-video.mp4'
 
-                fs2.export_movie_anim(stackname+out_suff+'-stabilized-video.mp4', fps=25,
-                                      fig_size=(6,6),
-                                      interpolation = 'nearest',
-                                      vmin=vl, vmax=vh,
-                                      bitrate=2000,cmap='gray')
+                fseq.to_movie([fsall, fs2],
+                              stackname+out_suff+'-stabilized-video.mp4',
+                              titles=['before', 'stabilized'],
+                              bitrate=3000)
 
                 if args.verbose>2: print 'Done'
                 del fsall, fs2
+                plt.close('all')
             del warps
 
         except Exception as e:
