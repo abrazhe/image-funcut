@@ -9,6 +9,9 @@ import os
 import re
 import glob
 import itertools as itt
+
+import warnings
+
 import numpy as np
 #import tempfile as tmpf
 
@@ -16,7 +19,7 @@ import numpy as np
 _dtype_ = np.float64
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 
 
 from matplotlib.pyplot import imread
@@ -412,6 +415,7 @@ class FrameSequence(object):
             (e.g. for stimulation)
 	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
 	"""
+        warnings.warn("export_movie_anim is deprecated and will be removed in the future releases")
         import matplotlib as mpl
         mpl.use('Agg')
         from matplotlib import animation
@@ -1025,3 +1029,113 @@ try:
         return fs
 except ImportError as e:
     print "Can't load OpenCV python bindings", e
+
+
+def to_movie(fslist, video_name, fps=25, start=0,stop=None,
+                    ncols = None,
+                    figsize=None, figscale=4,
+                    show_suptitle=True, titles = None,
+                    writer='avconv', bitrate=2500,
+                    frame_on=False, marker_idx=None,
+                    clim = None, **kwargs):
+    """
+    Create an video file from the frame sequence using avconv or other writer.
+    and mpl.Animation
+
+    Parameters:
+      - `video_name`: (`str`) -- a name (without extension) for the movie to
+         be created
+      - `fps`: (`number`) -- frames per second.
+         If None, use 10/self.meta['axes'][0][0]
+      - `marker_idx`: (`array_like`) -- indices when to show a marker
+        (e.g. for stimulation)
+      - `**kwargs` : keyword arguments to be passed to `self.export_png`
+    """
+    from matplotlib import animation
+    import matplotlib.pyplot as plt
+
+    if isinstance(fslist, FrameSequence):
+        fslist = [fslist]
+    
+    marker_idx = ifnot(marker_idx, [])
+    stop = ifnot(stop, np.min(map(len, fslist)))
+    L = stop-start
+
+    dz,zunits = tuple(fslist[0].meta['axes'][0]) # units of the first frame sequence are used
+
+    lutfns = []
+    for fs in fslist:
+        if clim is not None:
+            vmin, vmax = clim
+        else:
+            bounds = fs.data_percentile((1,99)) if hasattr(fs,'data') else fs.data_range()
+            bounds = np.array(bounds).reshape(-1,2)
+            vmin, vmax = np.min(bounds[:,0],0), np.max(bounds[:,1],0)
+        #print vmin,vmax
+        lutfn = lambda f: np.clip((f-vmin)/(vmax-vmin), 0, 1)
+        lutfns.append(lutfn)
+
+
+    #----------------------
+    if ncols is None:
+        nrows, ncols = lib.guess_gridshape(len(fslist))
+    else:
+        nrows = int(np.ceil(len(fslist)/ncols))
+    sh = fslist[0].shape()
+    aspect = float(sh[0])/sh[1]
+    header_add = 0.5
+    figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add)) 
+
+    fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
+
+    titles = ifnot(titles, ['']*len(fslist))
+    if len(titles) < len(fslist):
+        titles = list(titles) + ['']*(len(fslist)-len(titles))
+
+    if 'aspect' not in kwargs:
+        kwargs['aspect']='equal'
+    if 'cmap' not in kwargs:
+        kwargs['cmap'] = 'gray'
+
+    views = []
+    for fs,lut,title,ax in zip(fslist, lutfns, titles, np.ravel(axs)):
+        view = ax.imshow(lut(fs[start]), **kwargs)
+        views.append(view)
+        ax.set_title(title)
+        if not frame_on:
+            plt.setp(ax,frame_on=False,xticks=[],yticks=[])
+        marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
+        ax.add_patch(marker)
+        
+    
+    mytitle = plt.suptitle('')
+    plt.tight_layout()
+    
+    
+    #----------------------
+
+    def _animate(framecount):
+        tstr = ''
+        k = start + framecount
+        for view, fs, lutfn in zip(views, fslist, lutfns):
+            view.set_data(lutfn(fs[k]))
+        if show_suptitle:
+            if zunits == ['sec','msec','s','usec', 'us','ms','seconds']:
+                tstr = ', time: %0.3f %s' %(k*dz,zunits) #TODO: use in py3 way
+            mytitle.set_text('frame %04d'%k + tstr)
+        if k in marker_idx:
+            plt.setp(marker, visible=True)
+        else:
+            plt.setp(marker, visible=False)
+        return views
+
+    anim = animation.FuncAnimation(fig, _animate, frames=L, blit=True)
+    Writer = animation.writers.avail[writer]
+    w = Writer(fps=fps,bitrate=bitrate)
+    anim.save(video_name, writer=w)
+    plt.close(anim._fig)
+    return
+    
+
+    
+    
