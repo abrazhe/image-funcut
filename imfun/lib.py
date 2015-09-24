@@ -212,7 +212,7 @@ def ar1(alpha = 0.74):
 
 def ifnot(a, b):
     "if a is not None, return a, else return b"
-    if a == None: return b
+    if a is None: return b
     else: return a
 
 def embedding(arr, delarrp=True):
@@ -430,6 +430,24 @@ def simple_snr2(arr, plow=50,phigh=75):
     out /= out.mean()
     return out
 
+_gridshapes = {4:(2,2),
+               5:(2,3),
+               6:(2,3),
+               7:(2,4),
+               8:(2,4),
+               9:(3,3),
+               10:(2,5),
+               11:(3,4),
+               12:(3,4)}
+
+def guess_gridshape(nelements):
+    if nelements in _gridshapes:
+        nrows, ncols = _gridshapes[nelements]
+    else:
+        ncols= min(10, nelements)
+        nrows = int(np.ceil(nelements/ncols))
+    return nrows, ncols
+
 def group_maps(maplist, ncols=None,
                titles=None,
                figscale = 2,
@@ -446,9 +464,11 @@ def group_maps(maplist, ncols=None,
         imkw = {}
     else:
         imkw = imkw.copy()
+
     if ncols is None:
-	ncols = min(10, len(maplist))
-    nrows = int(np.ceil(len(maplist)/float(ncols)))
+        nrows, ncols = guess_gridshape(len(maplist))
+    else:
+        nrows = int(np.ceil(len(maplist)/ncols))
     sh = maplist[0].shape
     aspect = float(sh[0])/sh[1]
     figsize = ifnot (figsize, (figscale*ncols/aspect,figscale*nrows)) 
@@ -488,7 +508,7 @@ def data_range(datalist):
    vmax = np.max(map(np.max, datalist))
    return vmin, vmax
 
-def group_plots(ylist, ncols, x = None,
+def group_plots(ylist, ncols=None, x = None,
 		titles = None,
 		suptitle = None,
 		ylabels = None,
@@ -497,7 +517,12 @@ def group_plots(ylist, ncols, x = None,
                 order='C',
 		imkw={}):
     import pylab as pl
-    nrows = np.ceil(len(ylist)/float(ncols))
+
+    if ncols is None:
+        nrows, ncols = guess_gridshape(len(ylist))
+    else:
+        nrows = int(np.ceil(len(ylist)/ncols))
+    
     figsize = ifnot(figsize, (2*ncols,2*nrows))
     fh, axs = pl.subplots(int(nrows), int(ncols),
                           sharex=True,
@@ -608,7 +633,7 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3):
 	s = '\r signal {:06d} out of {:06d}, current: {}'.format(n+1,long(N), s0)
 	sys.stderr.write(s)
 	#out[n] = map(np.std, decompose1d_direct(im, level)[:-1])
-        out[n] = map(np.std, decompose_fn(im, level)[:-1])
+        out[n] = map(np.std, transform_fn(im, level)[:-1])
     return np.mean(out, axis=0)
 
 
