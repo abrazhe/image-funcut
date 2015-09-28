@@ -66,7 +66,7 @@ def load_record(file_name, recordName, ch=None):
     r = r[0]
     key = r.variant+r.get_kind()
 
-    print key
+    #print key
     if not 'U' in key:
         obj = handlers[key](file_name, recordName, ch)
     else:
@@ -183,7 +183,7 @@ class ZStack:
         return np.squeeze(np.dstack(cstack))
     def __getitem__(self, val):
         indices = np.arange(self.base_shape[0])[val]
-        print indices, np.ndim(indices)
+        #print indices, np.ndim(indices)
         if np.ndim(indices) < 1:
             return self._read_frame(indices)
         return np.array(map(self._read_frame, indices))
@@ -210,12 +210,12 @@ class ZStack:
             ## TODO: use smth like np.concatenate(map(lambda m:\
             ## m.reshape(m.shape+(1,)), (x1,x2,x3)), 3)
             sh = tuple(self.base_shape) + (max(3, nchannels),)
-            print 'Shape', sh, self.base_shape, nchannels
+            #print 'Shape', sh, self.base_shape, nchannels
             recs = self._get_recs(var_names)
             stream = lib.clip_and_rescale(np.array([recs[n] for n in var_names]))
             data = np.zeros(sh)
             framecount = 0
-            print 'Shape2:', stream[0].shape
+            #print 'Shape2:', stream[0].shape
             for k in xrange(0, self.nframes//nchannels,nchannels):
                 for j in xrange(nchannels):
                     data[framecount,...,j] = stream[k+j]

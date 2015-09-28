@@ -473,7 +473,7 @@ def group_maps(maplist, ncols=None,
     aspect = float(sh[0])/sh[1]
     figsize = ifnot (figsize, (figscale*ncols/aspect,figscale*nrows)) 
     figh = pl.figure(figsize=figsize)
-    print samerange
+    #print samerange
     if samerange:
 	vmin,vmax = data_range(maplist)
 	imkw.update(dict(vmin=vmin, vmax=vmax))
