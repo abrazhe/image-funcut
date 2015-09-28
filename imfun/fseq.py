@@ -42,6 +42,7 @@ class FrameSequence(object):
 	Returns dx,dy and the flag whether the scale information has been set.
 	If scale info hasn't been set, dx=dy=1
 	"""
+        warnings.warn("`_get_scale` is deprecated and will be removed from future releases")
         if hasattr(self, '_scale_set'):
             scale_flag = self._scale_set
             dx,dy, scale_flag = self.dx, self.dy, self._scale_set
@@ -51,6 +52,7 @@ class FrameSequence(object):
 
     def _set_scale(self, dx=None, dy=None):
 	"""DO NOT USE sets self.dx, self.dy scale information"""
+        warnings.warn("`_get_scale` is deprecated and will be removed from future releases")        
         self._scale_set = True
         if (dx is None) and (dy is None):
             self.dx,self.dy = 1,1
@@ -76,7 +78,7 @@ class FrameSequence(object):
         # need this strange syntax for min/max for multi-channel images
         #rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
         def rfn(fn): return lambda x: fn(fn(x, axis=0),axis=0)
-        ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self.frames()])
+        ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self])
         minv,maxv = np.min(ranges[:,0],axis=0), np.max(ranges[:,1],axis=0)
         return np.array([minv,maxv]).T
         #return (minv, maxv)
@@ -104,18 +106,19 @@ class FrameSequence(object):
         if unit == '': scale=1
         return np.arange(0, (L+2)*scale, scale)[:L]
 
-    def mask_reduce(self, mask):
-        """Return `1D` vector from a mask (or slice), taking average value within
-        this mask in each frame"""
-        return np.asarray([np.mean(f[mask],axis=0) for f in self.frames()])
-    def softmask_reduce(self,mask):
-	"""Return `1D` vector from a mask (or slice), taking average value within
-        this mask in each frame, weighted by mask values between 0 and 1"""
+    def mask_reduce(self, mask, fn=np.mean):
+        """Return `1D` vector from a mask (or slice), by applying a reducing function
+        R^n->R (average by default) within the mask in each frame.
+        Function fn should be able to recieve `axis` optional argument"""
+        return np.asarray([fn(f[mask],axis=0) for f in self])
+
+    def softmask_reduce(self,mask, fn=np.mean):
+	"""Same as mask_reduce, but pixel values are weighted by the mask values between 0 and 1"""
         sh = self.shape()
         mask2d = mask
         if len(sh) >2 :
             mask = np.dstack([mask]*sh[-1])
-        return np.asarray([np.mean((f*mask)[mask2d>0],axis=0) for f in self.frames()])
+        return np.asarray([fn((f*mask)[mask2d>0],axis=0) for f in self])
 
 
     def frame_slices(self, crop):
@@ -273,7 +276,7 @@ class FrameSequence(object):
         """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
             k = 0
-            for _ in self.frames():
+            for _ in self:
                 k+=1
             self._length = k
             return k
@@ -787,8 +790,10 @@ class FSeq_tiff_2(FSeq_arr):
 	x = tiffile.imread(fname)
 	parent = super(FSeq_tiff_2, self)
 	parent.__init__(x, **kwargs)
-        if ch is not None and self.data.ndim > 3:
-            self.data = self.data[:,:,:,ch]
+        if isinstance(ch, basestring) and ch != 'all':
+            ch = np.where([ch in s for s in 'rgb'])[0][()]
+        if ch is not None and ch != 'all' and self.data.ndim > 3:
+            self.data = np.squeeze(self.data[:,:,:,ch])
         if flipv:
             self.data = self.data[:,::-1,...]
         if fliph:
@@ -1053,7 +1058,10 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     """
     from matplotlib import animation
     import matplotlib.pyplot as plt
+    import gc
 
+    plt_interactive = plt.isinteractive()
+    plt.ioff() # make animations in non-interactive mode
     if isinstance(fslist, FrameSequence):
         fslist = [fslist]
     
@@ -1133,7 +1141,14 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     Writer = animation.writers.avail[writer]
     w = Writer(fps=fps,bitrate=bitrate)
     anim.save(video_name, writer=w)
-    plt.close(anim._fig)
+
+    fig.clf()
+    plt.close(fig)
+    plt.close('all')
+    del anim, w, axs, _animate
+    gc.collect()
+    if plt_interactive:
+        plt.ion()
     return
     
 
