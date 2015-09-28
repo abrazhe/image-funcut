@@ -48,7 +48,8 @@ def main():
         '--with-movies': dict(action='store_true'),
         '--suff': dict(default='', help="optional suffix to append to saved registration recipe"),
         '--fps': dict(default=25,type=float,help='fps of exported movie'),
-        '--bitrate':dict(default=2000,type=float, help='bitrate of exported movie')
+        '--bitrate':dict(default=2000,type=float, help='bitrate of exported movie'),
+        '--no-zstacks': dict(action='store_true', help='try to avoid z-stacks')
         }
     for arg,kw in argdict.items():
         if isinstance(kw, dict):
@@ -130,10 +131,15 @@ def main():
         outname = stackname + out_suff + '.stab'
         try:
             if args.verbose:
-                print 'Calculating motion stabilization for file {}'.format(stackname)
+                print '\nCalculating motion stabilization for file {}'.format(stackname)
+                
             if args.pretend: continue
 
-            fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)                    
+            fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)
+
+            if 'no_zstacks' and guess_fseq_type(fs) == 'Z':
+                continue
+            
             smoothers = get_smoothing_pipeline(args.smooth)
             fs.fns = smoothers
             warps = apply_reg(fs)
@@ -148,26 +154,26 @@ def main():
                     print stackname+'-before-video.mp4'
                 fsall = fseq.open_seq(stackname, ch='all', record=args.record)
                 vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
-                vh[-1] = np.max(vh)
                 vl,vh = np.min(vl), np.max(vh)
-                if args.verbose > 1:
+                if args.verbose > 10:
                     print 'vl, vh: ', vl, vh
 
                 proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
 
-                fs2 = opflowreg.apply_warps(warps, fsall)
+                fs2 = opflowreg.apply_warps(warps, fsall, njobs=args.ncpu)
                 proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
 
-                f,axs = plt.subplots(1,2,figsize=(12,5.5))
+                fig,axs = plt.subplots(1,2,figsize=(12,5.5))
                 def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
                 #def _lutfn(f): return np.dstack([np.clip(f[...,k],vl[k],vh[k])/vh[k] for k in range(f.shape[-1])])
-                for ax,f,t in zip(axs,(proj1,proj2),['raw','stabilized']):
+                for ax,f,t in zip(axs,(proj1,proj2),['before','stabilized']):
                     ax.imshow(_lutfn(f),aspect='equal')
                     #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
                     ax.set_title(t)
                 plt.savefig(stackname+out_suff+'-average-projections.png')
-                
+                fig.clf()
+                plt.close(fig)
 
                 if args.verbose > 2:
                     print stackname+out_suff+'-stabilized-video.mp4'
@@ -177,14 +183,24 @@ def main():
                               titles=['before', 'stabilized'],
                               bitrate=3000)
 
-                if args.verbose>2: print 'Done'
                 del fsall, fs2
+                
                 plt.close('all')
             del warps
+            if args.verbose>2: print 'Done'
+
 
         except Exception as e:
             print "Couldn't process {} becase  {}".format(stackname, e)
         
+def guess_fseq_type(fs):
+    dz, units = fs.meta['axes'][0]
+    out = ''
+    if units in ['um','mm','m','nm']:
+        out = 'Z'
+    elif units in ['ms','us', 's', 'msec', 'usec', 'ns', 'sec']:
+        out = 'T'
+    return out
 
 def make_outname_suffix(args):
     models = [isinstance(m,basestring) and m or m[0] for m in args.model]
