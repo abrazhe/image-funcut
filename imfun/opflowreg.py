@@ -290,7 +290,9 @@ import dill
 
 #!pip install git+https://github.com/uqfoundation/pathos
 #!pip install https://github.com/uqfoundation/pathos/archive/master.zip
-from pathos.multiprocessing import ProcessingPool
+
+#from pathos.multiprocessing import ProcessingPool
+from pathos.pools import ProcessPool
 
 def parametric_warp(img, fn,mode='nearest'):
     """Given an image and a function to warp coordinates,
@@ -311,8 +313,10 @@ def apply_warps(warps, frames, njobs=4):
     returns result of applying warps for given frames (one warp per frame)
     """
     if njobs > 1 :
-        pool = ProcessingPool(nodes=njobs)
-        out = np.array(pool.map(parametric_warp, frames, warps))
+        pool = ProcessPool(nodes=njobs)
+        out = pool.map(parametric_warp, frames, warps)
+        #pool.close()
+        out = np.array(out)
     else:
         out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
     if isinstance(frames, fseq.FrameSequence):
@@ -327,8 +331,9 @@ def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
     which take an image and return warped image, aligned to template.
     """
     if njobs > 1:
-        pool = ProcessingPool(nodes=njobs) 
+        pool = ProcessPool(nodes=njobs) 
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
+        #pool.close()
     else:
         out = np.array([regfn(img, template, **fnargs) for img in frames])
     return out
