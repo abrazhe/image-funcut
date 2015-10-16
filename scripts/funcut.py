@@ -193,6 +193,7 @@ class FrameSequenceOpts(HasTraits):
 
     linescan_scope = Range(0,500,0, label='Linescan half-range')
     linescan_width = Int(3, label="Linecan linewidth")
+    roi_prefix = Str('r')
 
     pipeline = List()
     inventory_dict = {p.name:p for p in
@@ -320,13 +321,15 @@ class FrameSequenceOpts(HasTraits):
 		      Item('load_btn', show_label=False),
 		      label = 'Frame sequence',
 		      show_border=True),
-		Group(HGroup(Item('linescan_width'), Item('linescan_scope')),
-		      Item('show_all_timeseries_btn',show_label=False),
-                      Item('trace_all_vessels_btn',show_label=False),
-		      Item('load_rois_dict_btn',show_label=False),
-                      Item('drop_all_rois_btn',show_label=False),
-		      label = 'ROIs',
-		      show_border=True),
+		Group(
+                    Item('roi_prefix'),
+                    HGroup(Item('linescan_width'), Item('linescan_scope')),
+                    Item('show_all_timeseries_btn',show_label=False),
+                    Item('trace_all_vessels_btn',show_label=False),
+                    Item('load_rois_dict_btn',show_label=False),
+                    Item('drop_all_rois_btn',show_label=False),
+                    label = 'ROIs',
+                    show_border=True),
 		label='Open'),
 	    Group(Group(Item('pipeline', show_label=False, style='custom',
                              editor=ListEditor(use_notebook=True,
@@ -408,7 +411,9 @@ class FrameSequenceOpts(HasTraits):
         self.fig_path = os.path.split(self.fig_path)[1]
         self.internal_state_flags['fig_path_just_changed'] = False
         
-        
+    def _roi_prefix_changed(self):
+        if hasattr(self.parent, 'picker'):
+            self.parent.picker.roi_prefix = self.roi_prefix
             
     ## def _record_changed(self):
     ##     if self.fig_path.split('.')[-1].lower() == 'mes':
@@ -720,6 +725,7 @@ class FrameViewer(HasTraits):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)
 	self.picker.caller = self
+        self.picker.roi_prefix = self.fso.roi_prefix
 
         ax1,self.pl,_ = self.picker.start(ax=self.axes, legend_type='axlegend',
                                           cmap = self.fso.colormap,

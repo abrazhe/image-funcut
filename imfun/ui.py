@@ -344,7 +344,7 @@ class DraggableObj:
             self.cid.values())
         
     def get_color(self):
-        return self.obj.get_facecolor()    
+        return self.obj.get_edgecolor()    
 
 class ThresholdLine(DraggableObj):
     def on_press(self,event):
@@ -660,14 +660,28 @@ class CircleROI(DraggableObj):
     center = property(lambda self: self.obj.center,
                       move)
 
-    def set_tagtext(self):
+    def set_tagtext(self, margin=2, angle=np.pi/2):
+        pi = np.pi
         ax = self.obj.axes
         p = self.obj.center
-        r = self.obj.get_radius()
-        x = p[0] + np.sin(np.pi/4)*r
-        y = p[1] + np.sin(np.pi/4)*r
+        r = self.obj.get_radius() + margin
+        x = p[0] + np.cos(angle)*r
+        y = p[1] + np.sin(angle)*r
+        lowp = mpl.rcParams['image.origin'] == 'lower'
+        if lowp : angle = -angle
+        if -pi/4 <= angle < pi/4:
+            ha, va = 'left', 'center'
+        elif -3*pi/4 <= angle < -pi/4:
+            ha,va = 'center', 'bottom'
+        elif pi/4 <= angle < 3*pi/4 :
+            ha,va = 'center', 'top'
+        else:
+            ha,va = 'right', 'center'
+        #print 'ha: {}, va: {}'.format(ha, va)
         if not hasattr(self, 'tagtext'):
-            self.tagtext = ax.text(x,y, '%s'%self.obj.get_label(),
+            self.tagtext = ax.text(x,y, '{}'.format(self.obj.get_label()),
+                                   verticalalignment=va,
+                                   horizontalalignment=ha,
                                    size = 'small',
                                    color = self.get_color())
         else:
@@ -715,7 +729,9 @@ class CircleROI(DraggableObj):
                 'radius': c.radius,
                 'alpha': c.get_alpha(),
                 'label': c.get_label(),
-                'color': c.get_facecolor(),}
+                'facecolor':c.get_facecolor(),
+                'linewidth':c.get_linewidth(),
+                'edgecolor': c.get_edgecolor(),}
 
 
 class DragRect(DraggableObj):
@@ -970,6 +986,7 @@ class Picker:
         self.fseq = fseq
         self._Nf = None
         self.roi_objs = {}
+        self.roi_prefix = 'r'
         self.min_length = 5
 	self.frame_index = 0
         self.shift_on = False
@@ -1100,7 +1117,7 @@ class Picker:
                 self.shift_on = False
                 for spine in self.ax1.spines.values():
                     spine.set_color('k')
-                    spine.set_linewidth(4)
+                    spine.set_linewidth(1)
         self.ax1.figure.canvas.draw()
         return
 
@@ -1111,6 +1128,15 @@ class Picker:
         lh, = self.ax1.plot([0],[0],'-', color=self.cw.next())
         return lh
 
+    def new_roi_tag(self):
+        pref = self.roi_prefix
+        matching_tags = [t for t in self.roi_tags() if t.startswith(pref)]
+        for n in xrange(1,int(1e5)):
+            newtag = pref + '{:02d}'.format(n)
+            if newtag not in matching_tags:
+                break
+        return newtag
+
     def on_click(self,event):
         if not self.event_canvas_ok(event): return
         
@@ -1119,11 +1145,16 @@ class Picker:
         if event.button is 1 and \
            not self.any_roi_contains(event) and \
            not self.shift_on:
-            label = unique_tag(self.roi_tags(), tagger=self.tagger)
+            #label = unique_tag(self.roi_tags(), tagger=self.tagger)
+            label = self.new_roi_tag()
             dx,xunits = self.fseq.meta['axes'][1]
-            c = plt.Circle((x,y), 5*dx, alpha = 0.5,
-                       label = label,
-                       color=self.cw.next())
+            color = self.cw.next()
+            c = plt.Circle((x,y), 5*dx,
+                           label = label,
+                           linewidth = 1.5,
+                           facecolor=color+[0.5],
+                           edgecolor=color)
+                           
             c.figure = self.fig
             self.ax1.add_patch(c)
             self.roi_objs[label]= CircleROI(c, self)
@@ -1180,7 +1211,8 @@ class Picker:
         if self.any_roi_contains(event): return
         if not hasattr(self, 'curr_line_handle'): return
         if len(self.curr_line_handle.get_xdata()) > 1:
-            tag = unique_tag(self.roi_tags(), tagger=self.tagger)
+            #tag = unique_tag(self.roi_tags(), tagger=self.tagger)
+            tag = self.new_roi_tag()
             self.curr_line_handle.set_label(tag)
             newline = LineScan(self.curr_line_handle, self)
             if newline.length() > self.min_length:
@@ -1431,6 +1463,17 @@ class Picker:
 			  aspect='auto',cmap=_cmap)
             plt.xlim(0,t[-1])
 	ax.figure.show()
+
+    def show_zview_groups(self, **keywords):
+        tv = self.fseq.frame_idx()
+        for signals, group, tags, ax in self.roi_show_iterator_groups(**keywords):
+            print signals, tags
+            for s,t in zip(signals, tags):
+                print t
+                c = self.roi_objs[t].get_color()
+                ax.plot(tv, s, color=c)
+        ax.figure.show()
+
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
@@ -1529,7 +1572,7 @@ class Picker:
         return np.linspace(4.0/(self.length()*dz),
                            0.5/dz, num=nfreqs)
 
-    def roi_show_iterator(self, rois = None,
+    def roi_show_iterator_subplots(self, rois = None,
                               **kwargs):
 	#rois = ifnot(rois,
         #             sorted(filter(self.isCircleROI, self.roi_objs.keys())))
@@ -1562,6 +1605,35 @@ class Picker:
                 ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
 	    yield x, roi_label, roi, ax
 
+    def roi_show_iterator_groups(self, **kwargs):
+        """
+        Group roi traces according to roi prefixes and plot these groups in different subplots 
+        """
+        import re
+        def nonempty(x): return len(x)
+        def get_prefix(tag): return filter(nonempty, re.findall('[a-z]*',tag))[0]
+        # TODO : area and path rois should be shown in separate windows/subplots
+        roi_tags = filter(self.isCircleROI, self.roi_tags()) #! this omits path ROIs
+        
+        prefixes = np.unique(map(get_prefix, roi_tags))
+        print prefixes
+
+        L = len(prefixes)
+        if L < 1 : return
+
+                
+        fix, axlist = plt.subplots(L, 1, sharex=True)
+        for k,ax,px in zip(range(L),np.ravel(axlist), prefixes):
+            if k == L-1:
+                dz,zunits = self.fseq.meta['axes'][0]
+                if zunits != '':
+                    ax.set_xlabel("time, %s"%zunits)
+                else:
+                    ax.set_xlabel('frames')
+            matching_tags = [t for t in roi_tags if t.startswith(px)]
+            signals = [self.roi_objs[t].get_zview(**kwargs) for t in matching_tags]
+            ax.set_ylabel(px)
+            yield signals, px, matching_tags, ax
 
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,
