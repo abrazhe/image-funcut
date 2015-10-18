@@ -1125,8 +1125,8 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     def _animate(framecount):
         tstr = ''
         k = start + framecount
-        for view, fs, lutfn in zip(views, fslist, lutfns):
-            view.set_data(lutfn(fs[k]))
+        for view, fs, lut in zip(views, fslist, lutfns):
+            view.set_data(lut(fs[k]))
         if show_suptitle:
             if zunits == ['sec','msec','s','usec', 'us','ms','seconds']:
                 tstr = ', time: %0.3f %s' %(k*dz,zunits) #TODO: use in py3 way
