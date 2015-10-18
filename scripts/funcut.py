@@ -194,6 +194,8 @@ class FrameSequenceOpts(HasTraits):
     linescan_scope = Range(0,500,0, label='Linescan half-range')
     linescan_width = Int(3, label="Linecan linewidth")
     roi_prefix = Str('r')
+    default_radius = Float(5)
+    roi_coloring = Enum('Random','Shared within prefix, random otherwise [N/A]')
 
     pipeline = List()
     inventory_dict = {p.name:p for p in
@@ -322,7 +324,7 @@ class FrameSequenceOpts(HasTraits):
 		      label = 'Frame sequence',
 		      show_border=True),
 		Group(
-                    Item('roi_prefix'),
+                    HGroup('roi_prefix','default_radius'),
                     HGroup(Item('linescan_width'), Item('linescan_scope')),
                     Item('show_all_timeseries_btn',show_label=False),
                     Item('trace_all_vessels_btn',show_label=False),
@@ -414,6 +416,10 @@ class FrameSequenceOpts(HasTraits):
     def _roi_prefix_changed(self):
         if hasattr(self.parent, 'picker'):
             self.parent.picker.roi_prefix = self.roi_prefix
+    def _default_radius_changed(self):
+        if hasattr(self.parent, 'picker'):
+            self.parent.picker.default_circle_rad = self.default_radius
+        
             
     ## def _record_changed(self):
     ##     if self.fig_path.split('.')[-1].lower() == 'mes':
@@ -725,7 +731,8 @@ class FrameViewer(HasTraits):
             self.picker.disconnect()
         self.picker = ifui.Picker(fs2)
 	self.picker.caller = self
-        self.picker.roi_prefix = self.fso.roi_prefix
+        self.fso._default_radius_changed()
+        self.fso._roi_prefix_changed()
 
         ax1,self.pl,_ = self.picker.start(ax=self.axes, legend_type='axlegend',
                                           cmap = self.fso.colormap,

@@ -977,7 +977,7 @@ Keyboard:
   - press `/` or '-' or 'r' with mouse over Line ROI to get z-reslice
 """
 
-class Picker:
+class Picker (object):
     _verbose = False
     def __init__(self, fseq,verbose=False):
         self._corrfn = 'pearson'
@@ -985,8 +985,12 @@ class Picker:
         self._show_legend=False
         self.fseq = fseq
         self._Nf = None
+        self.roi_coloring_model = 'groupvar'
         self.roi_objs = {}
+        self._tag_pallette = {}
         self.roi_prefix = 'r'
+        self.current_color = self.cw.next()
+        self.default_circle_rad = 5
         self.min_length = 5
 	self.frame_index = 0
         self.shift_on = False
@@ -1125,10 +1129,12 @@ class Picker:
         return 
 
     def init_line_handle(self):
-        lh, = self.ax1.plot([0],[0],'-', color=self.cw.next())
+        color = self.new_color()
+        lh, = self.ax1.plot([0],[0],'-', color=color)
         return lh
 
     def new_roi_tag(self):
+        "make new tag/label for a ROI"
         pref = self.roi_prefix
         matching_tags = [t for t in self.roi_tags() if t.startswith(pref)]
         for n in xrange(1,int(1e5)):
@@ -1136,6 +1142,30 @@ class Picker:
             if newtag not in matching_tags:
                 break
         return newtag
+
+    def new_color(self):
+        if self.roi_coloring_model == 'allrandom':
+            self.current_color = self.cw.next()            
+        elif self.roi_coloring_model == 'groupsame':
+            self.current_color = self._tag_pallette[self.roi_prefix]
+        elif self.roi_coloring_model == 'groupvar':
+            base_color = self._tag_pallette[self.roi_prefix]
+            var_color = np.array(self.cw.next())*0.1
+            self.current_color = list(np.clip(base_color+var_color, 0,1))
+        return self.current_color
+
+    @property
+    def roi_prefix(self):
+        "roi prefix property"
+        return self._roi_prefix_x
+    @roi_prefix.setter
+    def roi_prefix(self, pref):
+        matching_rois = self.roi_tags(lambda x: x.startswith(pref))
+        if not len(matching_rois):
+            self._tag_pallette[pref] = self.cw.next()
+        self.current_color = self._tag_pallette[pref]
+        self._roi_prefix_x = pref
+
 
     def on_click(self,event):
         if not self.event_canvas_ok(event): return
@@ -1148,8 +1178,9 @@ class Picker:
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
             dx,xunits = self.fseq.meta['axes'][1]
-            color = self.cw.next()
-            c = plt.Circle((x,y), 5*dx,
+            #color = self.cw.next()
+            color = self.new_color()
+            c = plt.Circle((x,y), self.default_circle_rad*dx,
                            label = label,
                            linewidth = 1.5,
                            facecolor=color+[0.5],
@@ -1242,9 +1273,9 @@ class Picker:
                       [roi.obj.contains(event)[0]
                        for roi in self.roi_objs.values()])
     
-    def roi_tags(self):
+    def roi_tags(self, filt = lambda x:True):
         "List of tags for all ROIs"
-        return self.roi_objs.keys()
+        return sorted(filter(filt, self.roi_objs.keys()))
     
     def export_rois(self, fname=None):
         """Exports picked ROIs as structures to a file and/or returns as list"""
@@ -1446,7 +1477,7 @@ class Picker:
     def show_zview(self, rois = None, **keywords):
 	#print 'in Picker.show_zview()'
         t = self.fseq.frame_idx()
-        for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
+        for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
 	    if self.isCircleROI(tag):
                 if np.ndim(x) == 1:
                     ax.plot(t, x, color=roi.get_color(), label=tag)
@@ -1478,7 +1509,7 @@ class Picker:
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
         freqs = np.fft.fftfreq(int(L), self.fseq.meta['axes'][0][0])[1:L/2]
-        for x,tag,roi,ax in self.roi_show_iterator(rois, **keywords):
+        for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
             y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
         ax.set_xlabel("Frequency, Hz")
@@ -1511,7 +1542,7 @@ class Picker:
         f_s = 1.0/dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
-        for x,tag,roi,ax in self.roi_show_iterator(**keywords):
+        for x,tag,roi,ax in self.roi_show_iterator_subplots(**keywords):
             utils.wavelet_specgram(x, f_s, freqs,  ax,
 				   wavelet, vmin=vmin, vmax=vmax)
             axlist.append(ax)
@@ -1561,7 +1592,7 @@ class Picker:
         dz,zunits = self.fseq.meta['axes'][0]
         fs = 1.0/dz
         freqs = ifnot(freqs, self.default_freqs())
-        for x,tag,roi,ax in self.roi_show_iterator(**keywords):
+        for x,tag,roi,ax in self.roi_show_iterator_subplots(**keywords):
             cwt = pycwt.cwt_f(x, freqs, fs, wavelet, 'zpd')
             eds = pycwt.eds(cwt, wavelet.f0)
             ax.plot(freqs, np.mean(eds, 1))
