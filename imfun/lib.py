@@ -1,5 +1,7 @@
 # Auxilary utils for image-funcut
 
+from __future__ import division
+
 from itertools import combinations
 
 
