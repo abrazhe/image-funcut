@@ -510,6 +510,37 @@ def data_range(datalist):
    vmax = np.max(map(np.max, datalist))
    return vmin, vmax
 
+def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
+              ax = None,
+              figsize=None,**kwargs):
+    from itertools import izip
+
+    if sep is None:
+        mean_range = np.mean([np.max(v)-np.min(v) for v in vecs])
+        sep = 0.05*mean_range
+    
+    if colors is None: colors = 'b'
+    if isinstance(colors, basestring):
+        c = colors
+        colors = (c for i in xrange(1e6))
+    if positions is None:
+        prevpos,positions = 0,[0]
+        ranges = [(v.min(),v.max()) for v in vecs]
+        for r,rnext,v in izip(ranges, ranges[1:],vecs):
+            pos = prevpos + r[1] + sep -np.min(rnext[0])
+            positions.append(pos)
+            prevpos = pos
+    L = np.min(map(len, vecs))
+    if x is None: 
+        x = np.arange(L)
+    if ax is None:
+        f,ax = subplots(1,1,figsize=figsize)
+    for v,p,c in izip(vecs,positions,colors):
+        ax.plot(x, v[:L]+p, color=c, **kwargs)
+        #a.axhline(p, color='b')
+    setp(ax, yticks=[],frame_on=False)
+    ax.axis('tight')
+
 def group_plots(ylist, ncols=None, x = None,
 		titles = None,
 		suptitle = None,
