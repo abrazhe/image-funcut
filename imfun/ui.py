@@ -281,7 +281,7 @@ class GWExpansionMeasurement1:
         return event.inaxes == self.ax and \
                self.canvas.toolbar.mode ==''
 
-class DraggableObj:
+class DraggableObj(object):
     """Basic class for objects that can be dragged on the screen"""
     verbose = True
     def __init__(self, obj, parent,):
@@ -365,6 +365,7 @@ class ThresholdLine(DraggableObj):
         
 
 class LineScan(DraggableObj):
+    roi_type = 'path'
     def __init__(self, obj, parent):
         DraggableObj.__init__(self, obj, parent)
         self.vconts = None
@@ -602,6 +603,7 @@ class LineScan(DraggableObj):
 class CircleROI(DraggableObj):
     """Draggable Circle ROI"""
     step = 1
+    roi_type = 'area'
     def on_scroll(self, event):
         if not self.event_ok(event, True): return
         r = self.obj.get_radius()
@@ -736,6 +738,7 @@ class CircleROI(DraggableObj):
 
 class DragRect(DraggableObj):
     "Draggable Rectangular ROI"
+    roi_type = 'area'
     def on_press(self, event):
         if not self.event_ok(event, True): return
         x0, y0 = self.obj.xy
@@ -808,7 +811,7 @@ def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
         frames.append(((f.max()-f)/f.max())*255.0)
     return np.array(frames)
         
-class VesselContours():
+class VesselContours(object):
     """
     UI for finding vessel contours in cross-lines 
     """
@@ -985,7 +988,7 @@ class Picker (object):
         self._show_legend=False
         self.fseq = fseq
         self._Nf = None
-        self.roi_coloring_model = 'groupvar'
+        self.roi_coloring_model = 'groupvar' # {allrandom | groupsame | groupvar}
         self.roi_objs = {}
         self._tag_pallette = {}
         self.roi_prefix = 'r'
@@ -1474,26 +1477,109 @@ class Picker (object):
                 print "Saved time-views for all rois to ", fname
 
 
-    def show_zview(self, rois = None, **keywords):
-	#print 'in Picker.show_zview()'
-        t = self.fseq.frame_idx()
-        for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
-	    if self.isCircleROI(tag):
-                if np.ndim(x) == 1:
-                    ax.plot(t, x, color=roi.get_color(), label=tag)
-                else:
-                    colors = ('r','g','b')
-                    for k,xe in enumerate(x.T):
-                        color = colors[k%3]
-                        if np.any(xe):
-                            ax.plot(t, xe, color=color,label=tag+':'+color)
-	    else:
-		sh = x.shape
-                dx,xunits = self.fseq.meta['axes'][1]
-		ax.imshow(x, extent=(t[0],t[-1],0,sh[1]*dx),
-			  aspect='auto',cmap=_cmap)
-            plt.xlim(0,t[-1])
-	ax.figure.show()
+    def show_zview(self, rois = None, **kwargs):
+	print 'in Picker.show_zview()'
+
+        tx = self.fseq.frame_idx()
+        if rois is None: rois = self.roi_tags()
+        
+        _key = lambda t: self.roi_objs[t].roi_type
+        figs = []
+        #print self.roi_objs
+        #print rois
+        #roi_types = np.unique(map(_key, rois))
+        #print roi_types
+        #roi_groups = [(t,[r for r in rois if _key(r)==t]) for t in roi_types]
+        roi_groups = itt.groupby(sorted(rois, key=_key), _key)
+        for roi_type, roi_tgroup in roi_groups:
+            print roi_type, roi_tgroup
+            roi_tgroup = list(roi_tgroup)
+
+            prefs = self.roi_prefixes(roi_tgroup)
+            if roi_type is 'area':
+                print prefs
+                _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
+                
+                fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
+                figs.append(fig)
+                
+                if len(_sh)>1:
+                    colors = 'red', 'green', 'blue' #TODO: harmonize with color names in fseq?
+                    for ax, c in zip(axs[0,:], colors):
+                        ax.set_title(c+' channel', color=c)
+
+                for row, prefix in enumerate(prefs):
+                    labels = []
+                    matching_tags = [t for t in roi_tgroup if t.startswith(prefix)]
+                    for t in matching_tags:
+                        roi = self.roi_objs[t]
+                        color = roi.get_color()
+                        signal = roi.get_zview(**kwargs)
+                        if np.ndim(signal) < 2:
+                            signal = signal[:,None]
+                        for k, ve in enumerate(signal.T):
+                            if np.any(ve):
+                                ax = axs[row,k]
+                                ax.plot(tx, ve, color=color, alpha=0.5, label=t)
+                                ax.text(0.9,0.9, t,
+                                        fontsize=14,
+                                        transform=ax.transAxes,color=color,
+                                        alpha=1.0,
+                                        visible=False)
+                    axs[row,0].set_ylabel(prefix)
+                    #DONE: add event that hovering mouse over trace makes its alpha=1
+
+                def _line_highlighter(event):
+                    _ax = event.inaxes
+                    if _ax is None:
+                        return
+                    for line,label in zip(_ax.lines,_ax.texts):
+                        if line.contains(event)[0]:
+                            line.set_alpha(1)
+                            line.set_linewidth(2)
+                            label.set_visible(True)
+                            #leg.set_linewidth(2)
+                        else:
+                            line.set_alpha(0.5)
+                            line.set_linewidth(1)
+                            label.set_visible(False)
+                    _ax.figure.canvas.draw()
+
+                # #TODO: may be use on_click event?
+                fig.canvas.mpl_connect('motion_notify_event', _line_highlighter)
+            elif roi_type is 'path':
+                print 'path'
+                roi_tgroup = list(roi_tgroup)
+                slices = [self.roi_objs[t].get_zview(**kwargs)[0] for t in roi_tgroup]
+                print len(slices)
+                ncols = int(np.ceil(len(slices)/5.))
+                lib.group_maps(slices, ncols=ncols, titles = roi_tgroup)
+                figs.append(plt.gcf())
+            else:
+                print 'ui.Picker.show_zview: unknown roi type, %s'%roi_type
+            for f in figs:
+                 f.show()
+        return figs
+        
+        
+        #area_rois = [t for t in rois if self.roi_objs[t].roi_type == 'area']
+        ## for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
+	##     if self.isCircleROI(tag):
+        ##         if np.ndim(x) == 1:
+        ##             ax.plot(t, x, color=roi.get_color(), label=tag)
+        ##         else:
+        ##             colors = ('r','g','b')
+        ##             for k,xe in enumerate(x.T):
+        ##                 color = colors[k%3]
+        ##                 if np.any(xe):
+        ##                     ax.plot(t, xe, color=color,label=tag+':'+color)
+	##     else:
+	## 	sh = x.shape
+        ##         dx,xunits = self.fseq.meta['axes'][1]
+	## 	ax.imshow(x, extent=(t[0],t[-1],0,sh[1]*dx),
+	## 		  aspect='auto',cmap=_cmap)
+        ##     plt.xlim(0,t[-1])
+	## ax.figure.show()
 
     def show_zview_groups(self, **keywords):
         tv = self.fseq.frame_idx()
@@ -1636,23 +1722,24 @@ class Picker (object):
                 ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
 	    yield x, roi_label, roi, ax
 
+    def roi_prefixes(self, tags=None):
+        import re
+        if tags is None: tags = self.roi_tags()
+        def nonempty(x): return len(x)
+        def get_prefix(tag): return filter(nonempty, re.findall('[a-z]*',tag))[0]
+        return np.unique(map(get_prefix, tags))
+                         
+
     def roi_show_iterator_groups(self, **kwargs):
         """
         Group roi traces according to roi prefixes and plot these groups in different subplots 
         """
-        import re
-        def nonempty(x): return len(x)
-        def get_prefix(tag): return filter(nonempty, re.findall('[a-z]*',tag))[0]
         # TODO : area and path rois should be shown in separate windows/subplots
-        roi_tags = filter(self.isCircleROI, self.roi_tags()) #! this omits path ROIs
-        
-        prefixes = np.unique(map(get_prefix, roi_tags))
+        prefixes = self.roi_prefixes()
         print prefixes
-
         L = len(prefixes)
         if L < 1 : return
-
-                
+             
         fix, axlist = plt.subplots(L, 1, sharex=True)
         for k,ax,px in zip(range(L),np.ravel(axlist), prefixes):
             if k == L-1:
