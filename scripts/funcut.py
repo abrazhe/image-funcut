@@ -265,11 +265,11 @@ class FrameSequenceOpts(HasTraits):
     diameter_save_format = Enum(["csv", "mat"])
     
     export_vessel_diameters_btn = Button("Export vessel diameters")
-    export_rois_dict_btn = Button('Export current ROIs')
+    export_rois_dict_btn = Button('Save ROIs to file')
     load_rois_dict_btn = Button('Load ROIs from file')
     
-    export_timeseries_btn = Button('Export timeseries from ROIs')
-    show_all_timeseries_btn = Button('Show all timeseries')
+    export_timeseries_btn = Button('Export signals from ROIs')
+    show_all_timeseries_btn = Button('Show all ROI signals')
     trace_all_vessels_btn = Button('Vessel Contours for all LineROIs')
     drop_all_rois_btn = Button("Drop all ROIs")
     
@@ -328,12 +328,17 @@ class FrameSequenceOpts(HasTraits):
 		      label = 'Frame sequence',
 		      show_border=True),
 		Group(
-                    HGroup('roi_prefix','default_radius', 'roi_coloring'),
-                    HGroup(Item('linescan_width'), Item('linescan_scope')),
-                    Item('show_all_timeseries_btn',show_label=False),
-                    Item('trace_all_vessels_btn',show_label=False),
-                    Item('load_rois_dict_btn',show_label=False),
-                    Item('drop_all_rois_btn',show_label=False),
+                    Group(
+                        HGroup('roi_prefix','default_radius', 'roi_coloring'),
+                        HGroup(Item('linescan_width'), Item('linescan_scope')),
+                        show_border=True,
+                        label='ROI preferences'),
+                    HSplit(
+                        Item('show_all_timeseries_btn',show_label=False),
+                        Item('trace_all_vessels_btn',show_label=False),),
+                    HSplit(
+                        Item('load_rois_dict_btn',show_label=False),
+                        Item('drop_all_rois_btn',show_label=False),),
                     label = 'ROIs',
                     show_border=True),
 		label='Open'),
@@ -376,13 +381,12 @@ class FrameSequenceOpts(HasTraits):
 			Item('export_btn', show_label=False),
 			show_border=True,
 			label='Movie'),
-		  Group('export_rois_dict_btn',
-			HGroup('export_timeseries_btn','_export_rois_format'),
-                        Group(
-                            Item('export_vessel_diameters_btn',show_label=False),
-                            'also_save_figures',
-                            'diameter_save_format',
-                            show_border=True),
+		  Group(HSplit(Item('export_timeseries_btn', show_label=False),
+                               Item('_export_rois_format',label='format')),
+                        HSplit(Item('export_vessel_diameters_btn',show_label=False),
+                               Item('diameter_save_format', label='format'),
+                               Item('also_save_figures', label='with figures')),
+                        Item('export_rois_dict_btn'),
 			show_border=True,
 			show_labels=False,
 			label='ROIs'),
