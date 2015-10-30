@@ -256,6 +256,7 @@ class FrameSequenceOpts(HasTraits):
     export_stop = Int(-1)
 
     _export_rois_dict = File()
+    _export_rois_format = Enum(['csv', 'tab', 'pickle', 'mat', 'npy', 'hdf'])
     _load_rois_dict = File()
     _export_timeseries_file = File()
     _export_vessel_diameters_file = File()
@@ -376,7 +377,7 @@ class FrameSequenceOpts(HasTraits):
 			show_border=True,
 			label='Movie'),
 		  Group('export_rois_dict_btn',
-			'export_timeseries_btn',
+			HGroup('export_timeseries_btn','_export_rois_format'),
                         Group(
                             Item('export_vessel_diameters_btn',show_label=False),
                             'also_save_figures',
@@ -614,7 +615,7 @@ class FrameSequenceOpts(HasTraits):
 	if ui.result == True:
 	    print self._export_timeseries_file
 	    picker = self.parent.picker
-	    picker.save_time_series_to_file(self._export_timeseries_file)
+	    picker.export_roi_signals(self._export_timeseries_file, format=self._export_rois_format)
 
     def _export_vessel_diameters_btn_fired(self):
         print "_export_vessel_diameters_btn_fired"
