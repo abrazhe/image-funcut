@@ -1,5 +1,7 @@
 import itertools as itt
 import os
+from functools import partial
+
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -971,7 +973,7 @@ Mouse:
 
 Keyboard:
 ~~~~~~~~~
-  - press `h` to show mean/starting frame
+  - press `h` to show 'home' frame
   - press Shift to enable Lasso selector
   - press `t` or `1` with mouse over Circle ROI to show corresponding time series
   - press `w` or `2` over Circle ROI to show wavelet spectrogram
@@ -1003,7 +1005,7 @@ class Picker (object):
         return 
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
-              mean_frame =True,
+              home_frame =True,
               **imshow_args):
         "Start picking up ROIs"
         self.tagger = tags_iter()
@@ -1052,19 +1054,20 @@ class Picker (object):
         if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
             self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
 
-        if isinstance(mean_frame,  np.ndarray):
-	    f = mean_frame
-	elif mean_frame:
-            dtype = self.fseq[0].dtype
+        dtype = self.fseq[0].dtype
+        if isinstance(home_frame,  np.ndarray):
+	    f = home_frame
+        elif callable(home_frame):
+            f = self.fseq.time_project(home_frame)
+            f = f.astype(dtype)
+            pass
+	elif home_frame == 'mean':
             f = self.fseq.mean_frame().astype(dtype)
-            #if np.ndim(f) > 2 and dtype != 'uint8' and f.max() > 1:
-            #    f = lib.rescale(f)
-            if np.ndim(f) > 2 and f.max()>1:
-                print self.clim[0], self.clim[1]
-                f = np.clip(f, self.clim[0],self.clim[1])/self.clim[1]
         else:
             f = self.fseq.frames().next()
-	self.mean_frame = f
+
+        f = self._lutconv(f)
+	self.home_frame = f
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
         self.plh = self.ax1.imshow(f,
@@ -1342,8 +1345,8 @@ class Picker (object):
                 ax.axis(ax_lim)
                 fig.savefig(os.path.join(save_figs_to, k+'.png'))
                 
-        diams = [objs[k].vconts.get_diameter() for k in keys]
-        out =  dict(zip(keys, diams))
+        #diams = [objs[k].vconts.get_diameter() for k in keys]
+        out = {k:objs[k].vconts.get_diameter() for k in keys}
         if format == 'csv':
            if _with_pandas:
                out = pd.DataFrame(out)
@@ -1360,6 +1363,13 @@ class Picker (object):
             writer(out, fname)
         return out
 
+    def _lutconv(self, frame):
+        vmin,vmax = self.clim
+        if np.ndim(frame)>2 and frame.max()>1:
+            return np.clip(frame, vmin,vmax)/vmax
+        else:
+            return np.clip(frame, vmin,vmax)
+
     def set_frame_index(self,n):
         Nf = len(self.fseq)
 	fi = int(n)%Nf
@@ -1370,10 +1380,11 @@ class Picker (object):
         else:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
-        show_f = self.fseq[fi]
-        vmin,vmax = self.clim
-        if np.ndim(show_f)>2:
-            show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
+        show_f = self._lutconv(self.fseq[fi])
+        #vmin,vmax = self.clim
+        #if np.ndim(show_f)>2:
+        #    show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
+        
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
@@ -1430,65 +1441,93 @@ class Picker (object):
                 print "disconnecting old callbacks"
             map(self.fig.canvas.mpl_disconnect, self.cid.values())
             
-    def isCircleROI(self,tag):
-        return isinstance(self.roi_objs[tag], CircleROI)
-
+    def isAreaROI(self, tag):
+        return self.roi_objs[tag].roi_type == 'area'
+    def isPathROI(self, tag):
+        return self.roi_objs[tag].roi_type == 'path'
     def isLineROI(self,tag):
         return isinstance(self.roi_objs[tag], LineScan)
 
-    def get_circle_roi_tags(self):
-	return sorted(filter(self.isCircleROI, self.roi_objs.keys()))
-    def get_timeseries(self, rois=None, normp=False):
+    def get_area_roi_tags(self):
+	return sorted(filter(self.isAreaROI, self.roi_objs.keys()))
+
+    def get_timeseries(self, rois=None, **zview_kwargs):
         rois = ifnot(rois,
-                     sorted(filter(self.isCircleROI, self.roi_objs.keys())))
-        return [self.roi_objs[tag].get_zview(normp)
+                     sorted(filter(self.isAreaROI, self.roi_objs.keys())))
+        return [self.roi_objs[tag].get_zview(**zview_kwargs)
                 for tag in  rois]
 
     ## def timevec(self):
     ##     dt,Nf = self.dt, self.length()
     ##     return np.arange(0,Nf*dt, dt)[:Nf]
 
-    def save_time_series_to_file(self, fname, normp = False):
-        """If only have Point-type ROIs, export time series as text file, if also
-        have linescane, export data as pickle"""
-        point_rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
-        if len(point_rois) == len(self.roi_objs.keys()):
-            ts = self.get_timeseries(normp=normp)
-            t = self.fseq.frame_idx()
-            fd = file(fname, 'w')
-            if hasattr(self.fseq, 'ch'):
-                out_string = "Channel %d\n" % self.fseq.ch
-            else:
-                out_string = ""
-            out_string += "Time\t" + '\t'.join(point_rois) + '\n'
-            for k in xrange(self.length()):
-                out_string += "%e\t"%t[k]
-                out_string += '\t'.join(["%e"%a[k] for a in ts])
-                out_string += '\n'
-                fd.write(out_string)
-                fd.close()
-        else:
-            acc = [(tag,self.roi_objs[tag].get_zview())
-                   for tag in sorted(self.roi_objs.keys())]
-            if not '.pickle' in fname:
-                fname +='.pickle'
-            pickle.dump(acc, open(fname, 'w'))
-            if self._verbose:
-                print "Saved time-views for all rois to ", fname
+    # def export_roi_signals(self, fname, format='csv', normp=False):
+    #     known_formats = ['csv', 'tab', 'pickle', 'hdf', 'mat']
+    #     area_rois = sorted(filter(self.isAreaROI, self.roi_objs.keys()))
+    #     all_rois = self.roi_tags()
+    #     if len(area_rois) == len(all_rois):
+    #         ts = self.get_timeseries(normp=normp)
+    #         t = self.fseq.frame_idx()
+    #         with open(fname, 'w') as fd:
+    #             if hasattr(self.fseq, 'ch'):
+    #                 out_string = "Channel %d\n" % self.fseq.ch
+    #             else:
+    #                 out_string = ""
+    #             out_string += "Time\t" + '\t'.join(point_rois) + '\n'
+    #             for k in xrange(self.length()):
+    #                 out_string += "%e\t"%t[k]
+    #                 out_string += '\t'.join(["%e"%a[k] for a in ts])
+    #                 out_string += '\n'
+    #             fd.write(out_string)
+    #     else:
+    #         acc = [(tag,self.roi_objs[tag].get_zview())
+    #                for tag in sorted(self.roi_objs.keys())]
+    #         if not '.pickle' in fname:
+    #             fname +='.pickle'
+    #         pickle.dump(acc, open(fname, 'w'))
+    #         if self._verbose:
+    #             print "Saved time-views for all rois to ", fname
 
+    def export_roi_signals(self, fname, format='csv'):
+        #TODO: multiple color save to csv and tab 
+        known_formats = ['csv', 'tab', 'pickle', 'hdf', 'mat', 'npy']
+        if format not in known_formats:
+            print 'Pickle.export_roi_signals: unknown save format'
+            print 'can only save to {}'.format(known_formats)
+            return
+        all_rois = self.roi_tags()
+        tv = self.fseq.frame_idx()
+        if format in ['csv', 'tab']:
+            # only save 1D signals to csv and tab
+            all_rois = filter(self.isAreaROI, all_rois)
+        
+        all_zv = {t:self.roi_objs[t].get_zview() for t in all_rois}
+        if format == 'mat':
+            from scipy import io
+            io.matlab.savemat(fname, all_zv)
+        elif format == 'csv':
+            #writer = partial(lib.write_dict_csv, index=('time, s',tv))
+            lib.write_dict_csv(all_zv, fname, index=('time, s', tv))
+        elif format == 'tab':
+            lib.write_dict_tab(all_zv,fname,index=('time,s',tv))
+        elif format == 'pickle':
+            pickle.dump(all_zv, open(fname, 'w'))
+        elif format == 'npy':
+            np.save(fname, all_zv)
+        elif format == 'hdf':
+            lib.write_dict_hdf(all_zv, fname)
+        if self._verbose:
+            print 'saved time-views for rois to ', fname
+        return
 
     def show_zview(self, rois = None, **kwargs):
 	print 'in Picker.show_zview()'
 
         tx = self.fseq.frame_idx()
-        if rois is None: rois = self.roi_tags()
-        
+        if rois is None: rois = self.roi_tags()        
         _key = lambda t: self.roi_objs[t].roi_type
         figs = []
-        #print self.roi_objs
-        #print rois
         #roi_types = np.unique(map(_key, rois))
-        #print roi_types
         #roi_groups = [(t,[r for r in rois if _key(r)==t]) for t in roi_types]
         roi_groups = itt.groupby(sorted(rois, key=_key), _key)
         for roi_type, roi_tgroup in roi_groups:
@@ -1551,9 +1590,10 @@ class Picker (object):
                 print 'path'
                 roi_tgroup = list(roi_tgroup)
                 slices = [self.roi_objs[t].get_zview(**kwargs)[0] for t in roi_tgroup]
-                print len(slices)
                 ncols = int(np.ceil(len(slices)/5.))
-                lib.group_maps(slices, ncols=ncols, titles = roi_tgroup)
+                lib.group_maps(map(self._lutconv, slices),
+                               ncols=ncols, titles = roi_tgroup,
+                               single_colorbar=(np.ndim(self.fseq[0])<2))
                 figs.append(plt.gcf())
             else:
                 print 'ui.Picker.show_zview: unknown roi type, %s'%roi_type
@@ -1561,36 +1601,6 @@ class Picker (object):
                  f.show()
         return figs
         
-        
-        #area_rois = [t for t in rois if self.roi_objs[t].roi_type == 'area']
-        ## for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
-	##     if self.isCircleROI(tag):
-        ##         if np.ndim(x) == 1:
-        ##             ax.plot(t, x, color=roi.get_color(), label=tag)
-        ##         else:
-        ##             colors = ('r','g','b')
-        ##             for k,xe in enumerate(x.T):
-        ##                 color = colors[k%3]
-        ##                 if np.any(xe):
-        ##                     ax.plot(t, xe, color=color,label=tag+':'+color)
-	##     else:
-	## 	sh = x.shape
-        ##         dx,xunits = self.fseq.meta['axes'][1]
-	## 	ax.imshow(x, extent=(t[0],t[-1],0,sh[1]*dx),
-	## 		  aspect='auto',cmap=_cmap)
-        ##     plt.xlim(0,t[-1])
-	## ax.figure.show()
-
-    def show_zview_groups(self, **keywords):
-        tv = self.fseq.frame_idx()
-        for signals, group, tags, ax in self.roi_show_iterator_groups(**keywords):
-            print signals, tags
-            for s,t in zip(signals, tags):
-                print t
-                c = self.roi_objs[t].get_color()
-                ax.plot(tv, s, color=c)
-        ax.figure.show()
-
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
@@ -1644,8 +1654,8 @@ class Picker (object):
                                  **keywords):
 	from swan import utils as swu
         "Create a figure of a signal, spectrogram and a colorbar"
-        if not self.isCircleROI(roitag):
-            print "This is not a circle ROI, exiting"
+        if not self.isAreaROI(roitag):
+            print "This is not an area ROI, exiting"
             return
         signal = self.get_timeseries([roitag],normp=lib.DFoSD)[0]
         Ns = len(signal)
@@ -1692,7 +1702,7 @@ class Picker (object):
     def roi_show_iterator_subplots(self, rois = None,
                               **kwargs):
 	#rois = ifnot(rois,
-        #             sorted(filter(self.isCircleROI, self.roi_objs.keys())))
+        #             sorted(filter(self.isAreaROI, self.roi_objs.keys())))
 	#print 'in Picker.roi_show_iterator'
 	rois = ifnot(rois, sorted(self.roi_objs.keys()))
 	
@@ -1705,7 +1715,7 @@ class Picker (object):
 	for i, roi_label in enumerate(rois):
 	    roi = self.roi_objs[roi_label]
             ax = axlist[i,0]
-	    if self.isCircleROI(roi_label):
+	    if self.isAreaROI(roi_label):
 		x = roi.get_zview(**kwargs)
 	    else:
 		x,points = roi.get_zview(**kwargs)
@@ -1730,30 +1740,6 @@ class Picker (object):
         return np.unique(map(get_prefix, tags))
                          
 
-    def roi_show_iterator_groups(self, **kwargs):
-        """
-        Group roi traces according to roi prefixes and plot these groups in different subplots 
-        """
-        # TODO : area and path rois should be shown in separate windows/subplots
-        prefixes = self.roi_prefixes()
-        print prefixes
-        L = len(prefixes)
-        if L < 1 : return
-             
-        fix, axlist = plt.subplots(L, 1, sharex=True)
-        for k,ax,px in zip(range(L),np.ravel(axlist), prefixes):
-            if k == L-1:
-                dz,zunits = self.fseq.meta['axes'][0]
-                if zunits != '':
-                    ax.set_xlabel("time, %s"%zunits)
-                else:
-                    ax.set_xlabel('frames')
-            matching_tags = [t for t in roi_tags if t.startswith(px)]
-            signals = [self.roi_objs[t].get_zview(**kwargs) for t in matching_tags]
-            ax.set_ylabel(px)
-            yield signals, px, matching_tags, ax
-
-
     def show_xwt_roi(self, tag1, tag2, freqs=None,
                      func = pycwt.wtc_f,
                      wavelet = pycwt.Morlet()):
@@ -1762,8 +1748,8 @@ class Picker (object):
         dz,zunints = self.fseq.meta['axes'][0]
         self.extent=[0,self.length()*dz, freqs[0], freqs[-1]]
 
-        if not (self.isCircleROI(tag1) and self.isCircleROI(tag2)):
-            print "Both tags should be for CircleROIs"
+        if not (self.isAreaROI(tag1) and self.isAreaROI(tag2)):
+            print "Both tags should be for area-type ROIs"
             return
 
         s1 = self.roi_objs[tag1].get_zview(True)
@@ -1789,7 +1775,7 @@ class Picker (object):
 			getter = lambda x: x[0]):
 	if corrfn == None:
 	    corrfn = fnmap.stats.pearsonr
-	rois = sorted(filter(self.isCircleROI, self.roi_objs.keys()))
+	rois = sorted(filter(self.isAreaROI, self.roi_objs.keys()))
 	ts = self.get_timeseries(normp=normp)
         t = self.fseq.frame_idx()
 	nrois = len(rois)
@@ -1809,7 +1795,7 @@ class Picker (object):
 	return out
 
     def show_xwt(self, **kwargs):
-        for p in lib.allpairs(filter(self.isCircleROI, self.roi_objs.keys())):
+        for p in lib.allpairs(filter(self.isAreaROI, self.roi_objs.keys())):
             self.show_xwt_roi(*p,**kwargs)
 
 
