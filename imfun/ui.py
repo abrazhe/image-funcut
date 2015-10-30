@@ -1560,11 +1560,17 @@ class Picker (object):
                             if np.any(ve):
                                 ax = axs[row,k]
                                 ax.plot(tx, ve, color=color, alpha=0.5, label=t)
-                                ax.text(0.9,0.9, t,
-                                        fontsize=14,
-                                        transform=ax.transAxes,color=color,
-                                        alpha=1.0,
-                                        visible=False)
+                                ## ax.text(0.9,0.9, t,
+                                ##         fontsize=14,
+                                ##         transform=ax.transAxes,color=color,
+                                ##         alpha=1.0,
+                                ##         visible=False)
+                    for k in range(signal.shape[1]):
+                        l = axs[row,k].legend(frameon=False)
+                        for lx in l.legendHandles:
+                            lx.set_visible(False)
+                            lx.set_linewidth(2)
+                            lx.set_alpha(1.0)
                     axs[row,0].set_ylabel(prefix)
                     #DONE: add event that hovering mouse over trace makes its alpha=1
 
@@ -1572,7 +1578,8 @@ class Picker (object):
                     _ax = event.inaxes
                     if _ax is None:
                         return
-                    for line,label in zip(_ax.lines,_ax.texts):
+                    #for line,label in zip(_ax.lines,_ax.texts):
+                    for line, label in zip(_ax.lines, _ax.legend_.legendHandles):
                         if line.contains(event)[0]:
                             line.set_alpha(1)
                             line.set_linewidth(2)
