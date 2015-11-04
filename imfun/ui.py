@@ -1567,6 +1567,7 @@ class Picker (object):
                                 ##         visible=False)
                     for k in range(signal.shape[1]):
                         l = axs[row,k].legend(frameon=False)
+                        if l is None: continue
                         for lx in l.legendHandles:
                             lx.set_visible(False)
                             lx.set_linewidth(2)
