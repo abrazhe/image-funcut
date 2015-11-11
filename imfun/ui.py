@@ -1061,7 +1061,7 @@ class Picker (object):
             f = self.fseq.time_project(home_frame)
             f = f.astype(dtype)
             pass
-	elif home_frame == 'mean':
+	elif home_frame == 'mean' or (isinstance(home_frame, bool) and home_frame):
             f = self.fseq.mean_frame().astype(dtype)
         else:
             f = self.fseq.frames().next()
@@ -1393,6 +1393,15 @@ class Picker (object):
                 self.frame_slider.set_val(n)
         self.fig.canvas.draw()
 
+    def show_home_frame(self):
+        show_f = self.home_frame
+        _title = "Home frame"
+        self.plh.set_data(show_f)
+        self.ax1.set_title(_title)
+        self.fig.canvas.draw()
+        self.frame_index = 0
+        #if hasattr(self, 'caller'): #called from frame_viewer
+        #    self.caller.frame_index = self.frame_index
         
     def frame_skip(self,event, n=1):
 	if not self.event_canvas_ok(event):
@@ -1405,13 +1414,7 @@ class Picker (object):
 	known_keys = prev_keys+ next_keys+home_keys
 	if key in known_keys:
 	    if key in home_keys:
-		show_f = self.mean_frame
-		_title = ""
-                self.plh.set_data(show_f)
-                self.ax1.set_title(_title)
-                self.fig.canvas.draw()
-                self.frame_index = 0
-
+                self.show_home_frame()
 	    else:
 		if key in prev_keys:
 		    fi -= n

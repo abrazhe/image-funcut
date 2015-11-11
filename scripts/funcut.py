@@ -668,12 +668,14 @@ class FrameViewer(HasTraits):
 
     frame_fwd_btn = Button('>')
     frame_back_btn = Button('<')
+    frame_home_btn = Button('H')
 
 
     view = View(HSplit(Group(Item('recalc_btn', show_label=False),
                              Item('figure', editor=MPLFigureEditor(),
                                   show_label=False),
-                             HGroup(Item('frame_back_btn'),
+                             HGroup(Item('frame_home_btn'),
+                                 Item('frame_back_btn'),
                                     Item('frame_index',
                                          editor=RangeEditor(low=0,
                                                             high_name='max_frames',
@@ -697,6 +699,10 @@ class FrameViewer(HasTraits):
 
     def _frame_back_btn_fired(self):
         self.frame_index -= 1
+
+    def _frame_home_btn_fired(self):
+        if hasattr(self, 'picker') and self.fso.fs is not None:
+            self.picker.show_home_frame()
 
     def update_status_bar(self, event):
         if event.inaxes:
