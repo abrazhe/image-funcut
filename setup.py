@@ -20,7 +20,7 @@ def version_from_git():
 
 setup(name='image-funcut',
       # version = version_from_git(), # I have problems with this so far
-      version = '0.2.22',
+      version = '0.2.23',
       url = "https://github.com/abrazhe/image-funcut",
       author = "Alexey Brazhe",
       license = "GPL",
@@ -43,7 +43,7 @@ setup(name='image-funcut',
                           'swan>=0.6.7'],
       dependency_links=['https://github.com/pyimreg/imreg/archive/master.zip#egg=imreg',
                         'https://github.com/uqfoundation/dill/archive/master.zip#egg=dill',
-                        'https://github.com/uqfoundation/pathos/archive/master.zip#egg=pathos>=0.2'],
+                        'https://github.com/uqfoundation/pathos/archive/master.zip#egg=pathos>=0.1'],
       classifiers = [
           'Development Status :: 4 - Beta',
           "Intended Audience :: Science/Research",

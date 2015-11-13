@@ -1498,6 +1498,8 @@ class Picker (object):
             print 'Pickle.export_roi_signals: unknown save format'
             print 'can only save to {}'.format(known_formats)
             return
+        def _dict_copy_no_nones(d):
+            return {k:(v if v is not None else 'None') for k,v in d.items()}
         all_rois = self.roi_tags()
         tv = self.fseq.frame_idx()
         if format in ['csv', 'tab']:
@@ -1505,9 +1507,17 @@ class Picker (object):
             all_rois = filter(self.isAreaROI, all_rois)
         
         all_zv = {t:self.roi_objs[t].get_zview() for t in all_rois}
+        if format in ['mat', 'pickle', 'hdf']:
+            all_zv['meta'] = _dict_copy_no_nones(self.fseq.meta)
+            all_zv['roi_props'] = map(_dict_copy_no_nones, self.export_rois())
+            #print all_zv['roi_props']
         if format == 'mat':
             from scipy import io
+            # drop constructor functions for mat files
+            for rd in all_zv['roi_props']:
+                rd.pop('func')
             io.matlab.savemat(fname, all_zv)
+            
         elif format == 'csv':
             #writer = partial(lib.write_dict_csv, index=('time, s',tv))
             lib.write_dict_csv(all_zv, fname, index=('time, s', tv))
@@ -1520,7 +1530,7 @@ class Picker (object):
         elif format == 'hdf':
             lib.write_dict_hdf(all_zv, fname)
         if self._verbose:
-            print 'saved time-views for rois to ', fname
+            print 'Picker: saved time-views for rois to ', fname
         return
 
     def show_zview(self, rois = None, **kwargs):
