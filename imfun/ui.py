@@ -1010,6 +1010,7 @@ class Picker (object):
         "Start picking up ROIs"
         self.tagger = tags_iter()
         #self.drcs = {}
+        self.frame_hooks = []
         self.frame_slider = None
         Nf = len(self.fseq)
 	if ax is None:
@@ -1381,9 +1382,6 @@ class Picker (object):
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
         show_f = self._lutconv(self.fseq[fi])
-        #vmin,vmax = self.clim
-        #if np.ndim(show_f)>2:
-        #    show_f = np.clip(show_f, vmin,vmax)/np.float(vmax)
         
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
@@ -1391,6 +1389,8 @@ class Picker (object):
             if self.frame_slider.val !=n:
                 #print 'updating frame slider'
                 self.frame_slider.set_val(n)
+        for h in self.frame_hooks:
+            h(n)
         self.fig.canvas.draw()
 
     def show_home_frame(self):
