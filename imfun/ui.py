@@ -179,6 +179,8 @@ class GWExpansionMeasurement1:
 	else: ind = None
         return ind
 
+    
+
     def add_point(self, event):
 	p = event.xdata, event.ydata
 	ind = self.get_ind_closest(event)
@@ -1010,7 +1012,7 @@ class Picker (object):
         "Start picking up ROIs"
         self.tagger = tags_iter()
         #self.drcs = {}
-        self.frame_hooks = []
+        self.frame_hooks = {}
         self.frame_slider = None
         Nf = len(self.fseq)
 	if ax is None:
@@ -1370,6 +1372,8 @@ class Picker (object):
             return np.clip(frame, vmin,vmax)/vmax
         else:
             return np.clip(frame, vmin,vmax)
+    def add_frameshow_hook(self, fn, label):
+        self.frame_hooks[label] = fn
 
     def set_frame_index(self,n):
         Nf = len(self.fseq)
@@ -1389,7 +1393,7 @@ class Picker (object):
             if self.frame_slider.val !=n:
                 #print 'updating frame slider'
                 self.frame_slider.set_val(n)
-        for h in self.frame_hooks:
+        for h in self.frame_hooks.values():
             h(n)
         self.fig.canvas.draw()
 
@@ -1537,6 +1541,8 @@ class Picker (object):
 	print 'in Picker.show_zview()'
 
         tx = self.fseq.frame_idx()
+        t0 = tx[self.frame_index]
+
         if rois is None: rois = self.roi_tags()        
         _key = lambda t: self.roi_objs[t].roi_type
         figs = []
@@ -1553,6 +1559,17 @@ class Picker (object):
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
                 
                 fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
+
+                for ax in np.ravel(axs):
+                    lh = ax.axvline(t0, color='k', ls='-',lw=0.5)
+                    def _cursor(n):
+                        try:
+                            lh.set_xdata(tx[n])
+                            fig.canvas.draw()
+                        except:
+                            pass
+                    self.add_frameshow_hook(_cursor, roi_tgroup[0]+rand_tag())
+                    
                 figs.append(fig)
                 
                 if len(_sh)>1:
@@ -1593,7 +1610,7 @@ class Picker (object):
                     if _ax is None:
                         return
                     #for line,label in zip(_ax.lines,_ax.texts):
-                    for line, label in zip(_ax.lines, _ax.legend_.legendHandles):
+                    for line, label in zip(_ax.lines[1:], _ax.legend_.legendHandles):
                         if line.contains(event)[0]:
                             line.set_alpha(1)
                             line.set_linewidth(2)
