@@ -34,7 +34,7 @@ _fields = {
     'nframes': (80, 1, uint64),
     'dt': (88, 1, uint64),      # in ms
     'exposure': (96, 1, uint64), # in us
-    'data_start':(3*1024, None, uint16)
+    'data_start':(30*1024, None, uint16)
     }
 
 
@@ -43,7 +43,7 @@ def read_header(name):
     """
     with open(name, 'rb') as fid:
         magic = fid.read(64)
-        if magic.strip().lower() == file_header.strip().lower():
+        if magic.strip().lower() == _file_header.strip().lower():
             return magic,_fields
 
 class PLSImages(object):
@@ -64,7 +64,7 @@ class PLSImages(object):
         n = n%self.nframes
         pos = self.data_start + n*self.frame_byte_size
         pos = int(pos)
-        print pos
+        #print pos
         tstamp = read_at(self.fid, pos, 1, uint64)
         frame = read_at(self.fid, 0, self.npix, self.dtype, seek_opt=1)
         return np.reshape(frame, self.shape, order='F'), tstamp
