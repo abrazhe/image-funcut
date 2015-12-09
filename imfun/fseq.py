@@ -946,6 +946,8 @@ try:
             fn = self.pipeline()
             return itt.imap(fn, (f for f in self.data))
         def __getitem__(self, val):
+            if val >= len(self):
+                raise IndexError('Frame count out of bounds')
             x = self.data[val]
             if not len(self.fns):
                 return self.data[val]
