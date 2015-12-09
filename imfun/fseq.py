@@ -223,20 +223,20 @@ class FrameSequence(object):
         shape = self.shape(crop)
 	newshape = (len(self),) + shape
         out = lib.memsafe_arr(newshape, dtype)
-        for k,frame in enumerate(itt.islice(self.frames(), *fslice)):
-            out[k,:,:] = frame[crop]
+        for k,frame in enumerate(itt.islice(self, *fslice)):
+            out[k,...] = frame[crop]
         out = out[:k+1]
         if hasattr (out, 'flush'):
             out.flush()
         return out
+
     
-    def pix_iter(self, pmask=None, fslice=None, rand=False,
-		 crop = None,
-		 **kwargs):
-        """Return iterator over time signals from each pixel.
+    
+    def loc_iter(self, pmask=None, fslice=None, rand=False,  crop=None):
+        """Return iterator over pixel locations, which are True in `pmask` 
 
 	Parameters:
-	  - `mask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
+	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
           - `fslice`: (`int`, `slice` or `None`) --
           [start,] stop [, step]  to go through frames
@@ -247,10 +247,8 @@ class FrameSequence(object):
 	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
 	
 	"""
-        arr = self.as3darray(fslice, crop=crop,**kwargs)
 	sh = self.shape(crop)
-        if pmask== None:
-            pmask = np.ones(sh[:2], np.bool)
+        pmask = ifnot(pmask, np.ones(sh[:2], np.bool))
         nrows, ncols = sh[:2]
         rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
         if rand: rcpairs = np.random.permutation(rcpairs)
@@ -265,13 +263,29 @@ class FrameSequence(object):
 		continue
             if submask[row,col]:
                 ## asarray to convert from memory-mapped array
-                yield np.asarray(arr[:,row,col]), row, col
+                yield row, col
+
+    def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,  dtype=_dtype_):
+        """Return iterator over time signals from each pixel.
+        
+	Parameters:
+	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
+            `False` if `mask` is `None`, take all pixels
+          - `fslice`: (`int`, `slice` or `None`) -- [start,] stop [, step]  to go through frames
+	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
+	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
+
+	Yields:
+	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
+	"""
+        arr = self.as3darray(fslice, crop=crop,dtype=dtype)
+        for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand,crop=crop):
+            yield np.asarray(arr[:,row,col],dtype=dtype), row, col
         if hasattr(arr, 'flush'):
             arr.flush()
         del arr
 	return
-        
-
+    
     def __len__(self):
         """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
@@ -542,25 +556,15 @@ class FSeq_arr(FrameSequence):
         else:
             return [np.percentile(arr[...,k],p) for k in range(sh[2])]
 
-    def pix_iter(self, pmask=None,fslice=None,rand=False,**kwargs):
+    def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
 	"Iterator over time signals from each pixel (FSeq_arr)"
-	if not len(self.fns):
-	    if pmask == None:
-                pmask = np.ones(self.shape()[:2], np.bool)
-	    nrows, ncols = self.shape()[:2]
-            if 'dtype' in kwargs:
-		dtype = kwargs['dtype']
-	    else: dtype=_dtype_
-	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
-	    if rand: rcpairs = np.random.permutation(rcpairs)
-	    for row,col in rcpairs:
-		if pmask[row,col]:
-		    v = self.data[:,row,col].copy()
-		    yield np.asarray(v, dtype=dtype), row, col
+        if not self.fns:
+            for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
+	        v = self.data[:,row,col].copy()
+		yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    x = super(FSeq_arr,self)
-	    for a in x.pix_iter(pmask=pmask,fslice=fslice,
-				rand=rand,**kwargs):
+	    base = super(FSeq_arr,self)
+	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand,dtype=dtype):
 		yield a
 
     def frames(self):
@@ -739,29 +743,17 @@ class FSeq_mlf(FrameSequence):
             return fn(self.mlfimg[val])
     def __len__(self):
         return self.mlfimg.nframes
-    def pix_iter(self, pmask=None, fslice=None, rand=False, **kwargs):
+    def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
 	if not len(self.fns):
-	    if pmask == None:
-		pmask = np.ones(self.shape(), np.bool)
-	    nrows, ncols = self.shape()
-            if 'dtype' in kwargs:
-		dtype = kwargs['dtype']
-	    else: dtype=_dtype_
-	    rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
-	    if rand: rcpairs = np.random.permutation(rcpairs)
-	    for row,col in rcpairs:
-		if pmask[row,col]:
-		    v = self.mlfimg.read_timeslice((row,col))
-		    yield np.asarray(v, dtype=dtype), row, col
+	    for row,col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
+		v = self.mlfimg.read_timeslice((row,col))
+		yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    x = super(FSeq_mlf,self)
-	    for a in x.pix_iter(pmask=pmask,fslice=fslice,
-				rand=rand,**kwargs):
+	    base = super(FSeq_mlf,self)
+	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand, dtype=dtype):
 		yield a
 		
-	    #FrameSequence.pix_iter(self, mask=mask,max_frames=max_frames,rand=rand,**kwargs)
-
 import matplotlib.image as mpl_img
 try:
     import PIL.Image as Image
@@ -1031,8 +1023,6 @@ try:
             else:
                 break
         fid.close()
-        
-
 
 except ImportError as e:
     print "Can't load OpenCV python bindings", e
