@@ -520,16 +520,20 @@ class FSeq_arr(FrameSequence):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, val):
-	x = self.data[val]
-	if len(self.fns) == 0:
-	    return self.data[val]
-        if isinstance(val, slice) or np.ndim(val) > 0:
-            out = np.zeros(x.shape, self.pipeline()(x[0]).dtype)
+        fn = self.pipeline()
+        if isinstance(val,slice) or np.ndim(val) > 0:
+            x = self.data[val]
+            if not self.fns:
+                return x
+            out = np.zeros(x.shape,x.dtype)
             for j,f in enumerate(x):
-                out[j] = self.pipeline()(f)
+                out[j] = fn(f)
             return out
-        else: 
-	    return self.pipeline()(x)
+        else:
+            if val > len(self):
+                raise IndexError("Requested frame number out of bounds")
+            return fn(self.data[int(val)])
+
     def data_percentile(self, p):
         sh = self.shape()
         arr = self.data
@@ -646,13 +650,14 @@ class FSeq_glob(FrameSequence):
 					   ifnot(ch, self.ch), self.loadfn))
     def __getitem__(self, val):
 	fn = self.pipeline()
-
         if isinstance(val, slice)  or np.ndim(val) > 0:
             seq =  map(self.loadfn, self.file_names[val])
 	    if self.ch is not None:
 		seq = (img_getter(f, self.ch) for f in seq)
             return map(fn, seq)
         else:
+            if val > len(self):
+                raise IndexError("Requested frame number out of bounds")
 	    frame = self.loadfn(self.file_names[val])
 	    if self.ch is not None:
 		frame = img_getter(frame, self.ch)
@@ -729,6 +734,8 @@ class FSeq_mlf(FrameSequence):
 	    indices = np.arange(self.mlfimg.nframes)
 	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
         else:
+            if val > len(self):
+                raise IndexError("Requested frame number out of bounds")
             return fn(self.mlfimg[val])
     def __len__(self):
         return self.mlfimg.nframes
@@ -919,45 +926,18 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
 
-        def __len__(self):
-            return self.data.shape[0]
-        def frames(self):
-            fn = self.pipeline()
-            return itt.imap(fn, (f for f in self.data))
-
-
-    class FSeq_hdf5_lsc(FrameSequence):
+    class FSeq_hdf5_lsc(FSeq_arr):
         "Class for hdf5 files written by pylsi software"
-        def __init__(self, fname, fns=None):
+        def __init__(self, fname, fns = None):
             parent = super(FSeq_hdf5_lsc, self)
-            parent.__init__()
+            #parent.__init__()
             f = h5py.File(fname, 'r')
             t = f['tstamps']
             self.tv = (t-t[0])/1e6 # relative time, in s
             dt = np.median(np.diff(self.tv))
-            self.set_default_meta()
-            self.meta['axes'][0] = (dt, 'sec')
-            self.data = f['lsc']
-            self.h5file = f # just in case we need it
-            self.fns = ifnot(fns, [])
-        def __len__(self):
-            return self.data.shape[0]
-        def frames(self):
-            fn = self.pipeline()
-            return itt.imap(fn, (f for f in self.data))
-        def __getitem__(self, val):
-            if val >= len(self):
-                raise IndexError('Frame count out of bounds')
-            x = self.data[val]
-            if not len(self.fns):
-                return self.data[val]
-            if isinstance(val,slice) or np.ndim(val) > 0:
-                out = np.zeros(x.shape,x.dtype)
-                for j,f in enumerate(x):
-                    out[j] = self.pipeline()(x)
-                return out
-            else:
-                return self.pipeline()(int(x))
+            meta = {'axes': lib.alist_to_scale([dt,'sec'])}
+            self.h5file = f # just in case we need it later
+            parent.__init__(f['lsc'], fns=fns,meta=meta)
 
     def fseq2h5(seqlist, name,compress_level=-1,verbose=False):
         # todo: add metadata, such as time and spatial scales
@@ -989,7 +969,7 @@ try:
         return name
 
 
-except ImportError as e:
+except ImportError as e: # couln't import h5py
     print "Import Error", e
         
         
