@@ -988,17 +988,6 @@ try:
         fid.close()
         return name
 
-    def mp4_to_hdf5(name, framerate=25.):
-        try :
-            import cv2
-        except ImportError as e:
-            print "Can't load OpenCV python bindings", e
-            return
-        fid = h5py.File(name+'.h5', 'w')
-        fullshape = tuple([L] + list(sh))
-        dset = fid.create_dataset('data', fullshape, dtype=seqlist[0][0].dtype,
-                                  chunks = chunkshape, **kwargs)
-        
 
 except ImportError as e:
     print "Import Error", e
@@ -1034,6 +1023,37 @@ try:
         fs = open_seq(np.array(out), **kwargs)
         fs.meta['axes'][0] = (1./framerate, 's')
         return fs
+
+    def mp4_to_hdf5(name, framerate=25., frame_fn=None, **kwargs):
+        import sys
+        if frame_fn is None:
+            frame_fn = lambda f:f
+        vidcap = cv2.VideoCapture(name)
+        fid = h5py.File(name+'.h5', 'w')
+        success, image = vidcap.read()
+        image = frame_fn(image)
+        if not success: return
+        sh = image.shape
+        chunkshape = tuple([1] + list(sh))
+        data = fid.create_dataset('data', chunkshape, dtype=image.dtype,
+                                  maxshape = (None,)+sh,
+                                  chunks = chunkshape, **kwargs)
+        #meta = fid.create_dataset('meta',
+        frame_count = 0
+        while True:
+            sys.stderr.write('\r {}, {}, {}'.format(frame_count, data.shape, image.shape))
+            data[frame_count,...] = image
+            success, image = vidcap.read()
+            image = frame_fn(image)
+            if success:
+                frame_count += 1                
+                data.resize(frame_count+1,0)
+            else:
+                break
+        fid.close()
+        
+
+
 except ImportError as e:
     print "Can't load OpenCV python bindings", e
 
