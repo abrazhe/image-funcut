@@ -476,6 +476,7 @@ class LineScan(DraggableObj):
         self.redraw()
 
     def transform_point(self, p):
+        "convert Figure coordinates to pixels"
         dx,dy = self.axes[1:3]['scale']
         return p[0]/dx, p[1]/dy
 

@@ -1031,7 +1031,7 @@ except ImportError as e:
 def to_movie(fslist, video_name, fps=25, start=0,stop=None,
                     ncols = None,
                     figsize=None, figscale=4,
-                    show_suptitle=True, titles = None,
+                    with_header=True, titles = None,
                     writer='avconv', bitrate=2500,
                     frame_on=False, marker_idx=None,
                     clim = None, **kwargs):
@@ -1040,13 +1040,22 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     and mpl.Animation
 
     Parameters:
-      - `video_name`: (`str`) -- a name (without extension) for the movie to
-         be created
-      - `fps`: (`number`) -- frames per second.
-         If None, use 10/self.meta['axes'][0][0]
+      - `fslist`: a FrameSequence object or a list of such objects
+      - `video_name`: (`str`) -- name of the movie to be created
+      - `fps`: (`number`) -- frames per second; If None, use 10/self.meta['axes'][0][0]
+      - `start`: start export at this frame count
+      - `stop`: stop export at this frame count
+      - `ncols`: number of columns in a grid to use when exporting several FrameSequence objects
+      - `figsize`: set figure size manually
+      - `figscale`: approximate size of one subplot (discarded if `figsize` is provided)
+      - `with_header`: display a header with frame count and timer
+      - `titles`: optional title string for each provided FrameSequence
+      - `writer`: use this matplotlib movie writer as backend
+      - `bitrate`: output video bitrate
+      - `frame_on`: if True, draw axes and rectangle around video frame
       - `marker_idx`: (`array_like`) -- indices when to show a marker
         (e.g. for stimulation)
-      - `**kwargs` : keyword arguments to be passed to `self.export_png`
+      - `**kwargs` : keyword arguments to be passed to pyplot.imshow, e.g. cmap, vmin, vmax, etc`
     """
     from matplotlib import animation
     import matplotlib.pyplot as plt
@@ -1060,7 +1069,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     marker_idx = ifnot(marker_idx, [])
     stop = ifnot(stop, np.min(map(len, fslist)))
     L = stop-start
-
+    print 'number of frames:', L
     dz,zunits = tuple(fslist[0].meta['axes'][0]) # units of the first frame sequence are used
 
     lutfns = []
@@ -1076,7 +1085,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
         lutfns.append(lutfn)
 
 
-    #----------------------
+    #------ Setting canvas up --------------
     if ncols is None:
         nrows, ncols = lib.guess_gridshape(len(fslist))
     else:
@@ -1108,21 +1117,19 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
         ax.add_patch(marker)
         
     
-    mytitle = plt.suptitle('')
+    header = plt.suptitle('')
     plt.tight_layout()
-    
-    
-    #----------------------
 
+    # ------ Saving -------------
     def _animate(framecount):
         tstr = ''
         k = start + framecount
         for view, fs, lut in zip(views, fslist, lutfns):
             view.set_data(lut(fs[k]))
-        if show_suptitle:
-            if zunits == ['sec','msec','s','usec', 'us','ms','seconds']:
+        if with_header:
+            if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
                 tstr = ', time: %0.3f %s' %(k*dz,zunits) #TODO: use in py3 way
-            mytitle.set_text('frame %04d'%k + tstr)
+            header.set_text('frame %04d'%k + tstr)
         if k in marker_idx:
             plt.setp(marker, visible=True)
         else:
