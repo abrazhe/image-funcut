@@ -709,14 +709,14 @@ class FSeq_imgleic(FSeq_img):
 
 
 #from imfun.MLFImage import MLF_Image
-import MLFImage
+import ioraw
 
-class FSeq_mlf(FrameSequence):
-    "FrameSequence class for MLF multi-frame images"
+class FSeq_plsi(FrameSequence):
+    "FrameSequence class for LaserSpeckle multi-frame images"
     def __init__(self, fname, fns = None):
-        self.mlfimg = MLFImage.MLF_Image(fname)
+        self.plsimg = ioraw.PLSI(fname)
         self.set_default_meta()
-        dt = self.mlfimg.dt/1000.0
+        dt = self.plsimg.dt/1000.0
         self.meta['axes'][0] = (dt, 'sec')
         self.fns = ifnot(fns, [])
     def frames(self,):
@@ -730,27 +730,31 @@ class FSeq_mlf(FrameSequence):
 	"""
 	
         fn = lib.flcompose(identity, *self.fns)
-        return itt.imap(fn,self.mlfimg.flux_frame_iter())
+        return itt.imap(fn,self.plsimg.frame_iter())
     def __getitem__(self, val):
 	#L = self.length()
 	fn = self.pipeline()
         if isinstance(val, slice) or np.ndim(val) > 0:
-	    indices = np.arange(self.mlfimg.nframes)
-	    return itt.imap(fn, itt.imap(self.mlfimg.read_frame, indices[val]))
+	    indices = np.arange(self.plsimg.nframes)
+            if not self.fns:
+                return self.plsimg[val]
+            else:
+                return np.array(map(fn, itt.imap(self.plsimg.read_frame, indices[val])))
+                #return itt.imap(fn, itt.imap(self.plsimg.read_frame, indices[val]))
         else:
             if val > len(self):
                 raise IndexError("Requested frame number out of bounds")
-            return fn(self.mlfimg[val])
+            return fn(self.plsimg[val])
     def __len__(self):
-        return self.mlfimg.nframes
+        return self.plsimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
 	if not len(self.fns):
 	    for row,col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
-		v = self.mlfimg.read_timeslice((row,col))
+		v = self.plsimg.read_timeslice((row,col))
 		yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    base = super(FSeq_mlf,self)
+	    base = super(FSeq_plsi,self)
 	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand, dtype=dtype):
 		yield a
 		
@@ -866,8 +870,8 @@ def open_seq(path, *args, **kwargs):
         handler = FSeq_txt
     elif ending == 'mes':
         handler = FSeq_mes
-    elif ending == 'mlf':
-        handler = FSeq_mlf
+    elif ending in ('mlf', 'pls'):
+        handler = FSeq_plsi
     elif ending == 'npy':
         handler =  FSeq_npy
     elif ending == 'h5':

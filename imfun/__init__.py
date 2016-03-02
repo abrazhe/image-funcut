@@ -11,6 +11,7 @@ else:
     VERSION = __version__
 
 from . import atrous, bwmorph, cluster, fseq, fnmap, fnutils, lib
+from . import ioraw
 from . import mmt, multiscale, mvm
 from . import opflowreg, pica, track, ui
 
