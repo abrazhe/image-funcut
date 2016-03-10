@@ -1233,7 +1233,7 @@ class Picker (object):
         f = plt.figure()
         ax = f.add_subplot(111)
         vmin,vmax = self.plh.get_clim()
-        ax.imshow(self.mean_frame, cmap='gray',vmin=vmin,vmax=vmax)
+        ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
         ax.contour(out, levels=[0],colors=['g'])
         self.pmask = out
         return 
