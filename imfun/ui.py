@@ -4,6 +4,12 @@ from functools import partial
 
 import numpy as np
 
+from scipy import io
+from scipy import ndimage
+from scipy.interpolate import splev, splprep
+
+
+
 from matplotlib import pyplot as plt
 from matplotlib import widgets as mw
 from matplotlib import path
@@ -108,6 +114,15 @@ def line_reslice2(data, p1, p2):
     return np.array([data[f(p1[1],p2[1])(i), f(p1[0],p2[0])(i)]
                      for i in range(L)])
 
+def line_reslice3(data, p1,p2,order=1):
+    #
+    L = int(round(lib.eu_dist(p1,p2)))
+    #uv = (p2-p1)/L
+    uv = np.diff((p1,p2),axis=0)/L
+    coords =  p1 + uv*np.arange(L+1)[:,None]    
+    #print coords.shape, data.shape
+    return ndimage.map_coordinates(data, coords.T[::-1],order=order)
+
 def color_walker():
     ar1 = lib.ar1
     red, green, blue = ar1(), ar1(), ar1()
@@ -208,7 +223,6 @@ class GWExpansionMeasurement1:
 	    self.line.set_data(rezip(self.points))
 
     def action(self,min_r = 5.):
-        from scipy.interpolate import splev, splprep
 	xd, yd = map(np.array, rezip(self.points))
 	par = np.polyfit(xd,yd,2)
 	xfit_par = np.linspace(xd[0], xd[-1], 256)
@@ -299,10 +313,11 @@ class DraggableObj(object):
             self.axes = fseq.meta['axes']
             #self.dy,self.dx, self.scale_setp = fseq.get_scale()
         self.set_tagtext()
+        self.canvas = obj.axes.figure.canvas
         return
 
     def redraw(self):
-        self.obj.axes.figure.canvas.draw()
+        self.canvas.draw()
 
     def event_ok(self, event, should_contain=False):
         containsp = True
@@ -418,13 +433,14 @@ class LineScan(DraggableObj):
         return [np.mean(x), np.mean(y)]
     def length(self):
         return lib.eu_dist(*self.endpoints())
+
     def check_endpoints(self):
-        "Return endpoints in the correct order"
+        """Return endpoints in the order, such as 
+        the first point is the one closest to origin (0,0)"""
         pts = self.endpoints()
-        if pts[0][0] > pts[1][0]:
-            return pts[::-1]
-        else:
-            return pts
+        iord = np.argsort(np.linalg.norm(pts,axis=1))
+        return pts[iord[0]],pts[iord[1]]
+
     def move(self, p):
         ep = self.endpoints()
         cp = np.array(self.centerpoint())
@@ -482,6 +498,10 @@ class LineScan(DraggableObj):
 
     def get_zview(self,hwidth=2,frange=None):
         points = map(self.transform_point, self.check_endpoints())
+        dx,dy = self.axes[1:3]['scale']
+        print 'points:', points[0][0], points[0][1],
+        print 'points:', points[0][0]*dx, points[0][1]*dy
+        print 'points type is:', map(type, points)
 	if frange is None:
 	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
 		caller = self.parent.caller
@@ -500,13 +520,12 @@ class LineScan(DraggableObj):
 	else:
 	    frames = lambda : self.parent.fseq[frange]
 	tv = np.reshape(translate(*points),-1) # translation vector
-	timeview = lambda pts: np.array([line_reslice2(frame, *pts)
-					 for frame in frames()])
+	#timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
+        timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
         
 	if hwidth > 0:
 	    plist = [points]
-	    plist += [points + s*k*tv
-		      for k in range(1, hwidth+1) for s in -1,1]
+	    plist += [points + s*k*tv for k in range(1, hwidth+1) for s in -1,1]
 	    out = np.mean(map(timeview, plist), axis=0)
 	else:
 	    out = timeview(points)
@@ -1358,7 +1377,6 @@ class Picker (object):
            else:
                writer = lib.write_dict_csv
         elif format == 'mat':
-           from scipy import io
            writer = lambda data, name: io.matlab.savemat(name, data)
         else:
            print "Don't know how to save to format %s"%format
@@ -1517,7 +1535,6 @@ class Picker (object):
             all_zv['roi_props'] = map(_dict_copy_no_nones, self.export_rois())
             #print all_zv['roi_props']
         if format == 'mat':
-            from scipy import io
             # drop constructor functions for mat files
             for rd in all_zv['roi_props']:
                 rd.pop('func')
@@ -1651,7 +1668,6 @@ class Picker (object):
 
     def show_xcorrmap(self, roitag, figsize=(6,6),
                       **kwargs):
-        from scipy import ndimage
         roi =  self.roi_objs[roitag]
         signal = self.get_timeseries([roitag],normp=False)[0]
         xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
