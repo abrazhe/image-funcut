@@ -600,6 +600,7 @@ def img_getter(frame, ch):
     :returns: 2D matrix with intensity values
     """
     if len(frame.shape) > 2:
+        if ch == 'all': ch=None
         out = frame[:,:,ch]
     else:
         out = frame
@@ -617,7 +618,7 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
     Returns:
       - iterator over frames. `2D` if `ch` is `int`, `3D` if ch is `None`
     """
-    if ch is not None:
+    if ch not in (None, 'all'):
 	return itt.imap(lambda frame: img_getter(frame, ch),
 			iter_files(pattern, loadfn))
     else:
@@ -656,14 +657,14 @@ class FSeq_glob(FrameSequence):
 	fn = self.pipeline()
         if isinstance(val, slice)  or np.ndim(val) > 0:
             seq =  map(self.loadfn, self.file_names[val])
-	    if self.ch is not None:
+	    if self.ch not in (None, 'all'):
 		seq = (img_getter(f, self.ch) for f in seq)
             return map(fn, seq)
         else:
             if val > len(self):
                 raise IndexError("Requested frame number out of bounds")
 	    frame = self.loadfn(self.file_names[val])
-	    if self.ch is not None:
+	    if self.ch not in (None, 'all'):
 		frame = img_getter(frame, self.ch)
 	    return fn(frame)
             
@@ -795,7 +796,7 @@ class FSeq_tiff_2(FSeq_arr):
 	parent.__init__(x, **kwargs)
         if isinstance(ch, basestring) and ch != 'all':
             ch = np.where([ch in s for s in 'rgb'])[0][()]
-        if ch is not None and ch != 'all' and self.data.ndim > 3:
+        if ch not in (None, 'all') and self.data.ndim > 3:
             self.data = np.squeeze(self.data[:,:,:,ch])
         if flipv:
             self.data = self.data[:,::-1,...]
