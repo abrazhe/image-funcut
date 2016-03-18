@@ -89,7 +89,7 @@ def main():
         if args.type == 'template':
             if args.verbose > 1:
                 print 'stabilization type is template'
-            tstart = len(frames)/2
+            tstart = int(len(frames)/2)
             tstop = min(len(frames),tstart+50)
             template = np.max(frames[tstart:tstop],axis=0)
             def register_stack(stack, registrator, **fnargs):
