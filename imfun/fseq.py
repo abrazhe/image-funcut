@@ -544,7 +544,7 @@ class FSeq_arr(FrameSequence):
                 out[j] = fn(f)
             return out
         else:
-            if val > len(self):
+            if val >= len(self):
                 raise IndexError("Requested frame number out of bounds")
             return fn(self.data[int(val)])
 
