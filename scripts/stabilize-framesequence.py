@@ -48,6 +48,7 @@ def main():
         '--with-movies': dict(action='store_true'),
         '--suff': dict(default='', help="optional suffix to append to saved registration recipe"),
         '--fps': dict(default=25,type=float,help='fps of exported movie'),
+        '--pca-denoise': dict(action='store_true'),
         '--bitrate':dict(default=2000,type=float, help='bitrate of exported movie'),
         '--no-zstacks': dict(action='store_true', help='try to avoid z-stacks')
         }
@@ -139,6 +140,20 @@ def main():
 
             if 'no_zstacks' and guess_fseq_type(fs) == 'Z':
                 continue
+
+            # use first 20 components just as test for now
+            ncomp = 20
+            if args.pca_denoise:
+                print 'start PCA denoising'
+                data = fs.as3darray()
+                emp_mean = data.mean(0)
+                from imfun import pica
+                data = data-emp_mean
+                u,s,vh = np.linalg.svd(pica.reshape_from_movie(data), full_matrices=False)
+                rec = u[:,:ncomp].dot(np.diag(s[:ncomp]).dot(vh[:ncomp]))
+                rec = pica.reshape_to_movie(rec, emp_mean.shape)+emp_mean
+                fs = fseq.open_seq(rec)
+                print 'PCA denoising done'
             
             smoothers = get_smoothing_pipeline(args.smooth)
             fs.fns = smoothers
@@ -191,7 +206,7 @@ def main():
 
 
         except Exception as e:
-            print "Couldn't process {} becase  {}".format(stackname, e)
+            print "Couldn't process {} because  {}".format(stackname, e)
         
 def guess_fseq_type(fs):
     dz, units = fs.meta['axes'][0]
