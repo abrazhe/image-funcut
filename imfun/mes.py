@@ -264,7 +264,7 @@ class Timelapse:
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
         outmeta['axes'] = lib.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
         nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
-        base_shape = (nframes-1, nlines, line_len)
+        base_shape = map(np.int, (nframes-1, nlines, line_len))
         streams = self._load_streams(ch=ch)
         if len(streams) == 1:
             data = np.zeros(base_shape, dtype=streams[0].dtype)
