@@ -126,7 +126,7 @@ class FrameSequence(object):
 	When `crop` is `None`, full frames are returned 
 	"""
         if crop:
-            return (f[crop] for f in self.frames())
+            return (f[crop] for f in self)
         else:
             return self.frames()
 
@@ -396,7 +396,7 @@ class FrameSequence(object):
 	print path+base
         L = min(stop-start, len(self))
 	fnames = []
-        for i,frame in enumerate(self.frames()):
+        for i,frame in enumerate(self):
             if i < start: continue
             if i > stop: break
             ax.cla()
@@ -537,9 +537,10 @@ class FSeq_arr(FrameSequence):
         fn = self.pipeline()
         if isinstance(val,slice) or np.ndim(val) > 0:
             x = self.data[val]
+            dtype = fn(x[0]).dtype
             if not self.fns:
                 return x
-            out = np.zeros(x.shape,x.dtype)
+            out = np.zeros(x.shape,dtype)
             for j,f in enumerate(x):
                 out[j] = fn(f)
             return out
@@ -674,7 +675,15 @@ class FSeq_img(FSeq_glob):
 
 class FSeq_txt(FSeq_glob):
     """FrameSequence around a set of text-image files"""
-    def loadfn(self,y): np.loadtxt(y)
+    def loadfn(self,y): return np.loadtxt(y)
+
+class FSeq_ageom(FSeq_glob):
+    def loadfn(self, name):
+        fid =open(name,'rb')
+        sh = np.fromfile(fid, np.int32, 2); 
+        v = np.fromfile(fid, np.float32, np.int(np.prod(sh)))
+        fid.close()
+        return v.reshape(sh)
 
 ## TODO: but npy can be just one array
 class FSeq_npy(FSeq_glob):
@@ -948,6 +957,9 @@ try:
         print 'shape:', sh
         chunkshape = tuple([1] + list(sh))
         fullshape = tuple([L] + list(sh))
+        if verbose:
+            print "Full shape:", fullshape
+            print "Chunk shape:", chunkshape
         kwargs = dict()
         if compress_level > -1:
             kwargs['compression'] = 'gzip'
@@ -957,7 +969,7 @@ try:
                                   chunks = chunkshape, **kwargs)
         k = 0
         for seq in seqlist:
-            for f in seq.frames():
+            for f in seq:
                 dset[k,...] = f
                 if verbose:
                     sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
