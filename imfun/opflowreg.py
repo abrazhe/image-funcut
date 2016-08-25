@@ -94,7 +94,7 @@ class RegistrationInterfaces:
         aligner = LKP_image_aligner(mesh, wsize)
         _,p = aligner(image,template, **fnargs)
         def _regfn(coordinates):
-            shifts = aligner.grid_shift_coords(p, sh)
+            shifts = aligner.grid_shift_coords(p, sh[::-1])
             return [c-s for c,s in zip(coordinates, shifts[::-1])]
         return _regfn
         
@@ -115,7 +115,7 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
         It = im1-im2 # reverse sign first order difference
     else:
         It = -It
-    hw = np.floor(wsize/2)
+    hw = int(np.floor(wsize/2))
     dim = len(locations[0])
     out = np.zeros((len(locations), dim+int(bool(calc_eig or weigh_by_eig))))
     for k,loc in enumerate(locations):
@@ -140,48 +140,53 @@ class LKP_image_aligner ():
     def __init__(self,mesh,wsize):
         self.mesh = mesh
         self.wsize = wsize
-    def __call__(self, im1, im2, maxiter=10,
+    def __call__(self, source, target, maxiter=10,
                  weigh_by_shitomasi = False,
                  smooth_vfield = 2):
 
         mesh = self.mesh
         xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
 
-        gshape = (len(xgrid), len(ygrid))
+        gshape = (len(ygrid), len(xgrid))
         p = np.zeros((2,)+gshape)
-        imx = im1.copy()
+        imx = source.copy()
         for niter in xrange(maxiter):
-            vx = lk_opflow(imx,im2, mesh, wsize=self.wsize)
+            vx = lk_opflow(target,imx, mesh, wsize=self.wsize)
 
             if weigh_by_shitomasi:
-                st_resp = skfeature.corner_shi_tomasi(im1)
+                st_resp = skfeature.corner_shi_tomasi(source)
                 st_resp =  lib.clip_and_rescale(st_resp, 5000)
                 weights = np.array([st_resp[tuple(l)] for l in mesh])
                 vx = vx*weights[:,None]
 
-            vfields = vx.T.reshape((2,)+gshape)
-
+            vfields = -vx.T.reshape(p.shape)
+            #print 'vfields shape:', vfields.shape
             if smooth_vfield:
                 vfields = map(partial(atrous.smooth, level=smooth_vfield), vfields)
 
             p += vfields
-            imx = self.warp_image(im1, p)
+            imx = self.warp_image(source, p)
         return imx, p
 
     def grid_shift_coords(self, vfields, outshape):
         mesh = self.mesh
         xi,yi = np.arange(outshape[1]), np.arange(outshape[0])
         xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
-        dxsampler,dysampler = [RectBivariateSpline(xgrid, ygrid, vfields[dim])
-                               for dim in 1,0]
-        dx = dxsampler(xi,yi)
-        dy = dysampler(xi,yi)
+        #print '---[grid_shift_coords] outshape', outshape        
+        #print '---[grid_shift_coords] vfields.shape', vfields.shape        
+        dxsampler,dysampler = [RectBivariateSpline(ygrid, xgrid, vfields[dim]) for dim in 1,0]
+        dx = dxsampler(yi,xi)
+        dy = dysampler(yi,xi)
+        #print '---[grid_shift_coords], dx.shape:',dx.shape,
         return dx, dy
 
     def warp_image(self, im, vfields, mode='nearest'):
         xi,yi = np.arange(im.shape[1]), np.arange(im.shape[0])
         xii,yii = np.meshgrid(xi,yi)
+        #print '--[warp_image] vfields shape:', vfields.shape
         dx,dy = self.grid_shift_coords(vfields, im.shape)
+        #print '--[warp_image] shapes: ', dx.shape, dy.shape, xi.shape, xii.shape
+
         return map_coordinates(im, [yii-dy, xii-dx],mode=mode)
 
 class GK_image_aligner:
@@ -294,18 +299,22 @@ import dill
 #from pathos.multiprocessing import ProcessingPool
 from pathos.pools import ProcessPool
 
-def parametric_warp(img, fn,mode='nearest'):
+def parametric_warp(img, fn,mode='constant'):
     """Given an image and a function to warp coordinates,
     warp image to the new coordinates.
     In case of a multicolor image, run this function for each color"""
     sh = img.shape
     if np.ndim(img) == 2:
-        start_coordinates = np.meshgrid(*map(np.arange, sh[:2]))[::-1]
+        start_coordinates = np.meshgrid(*map(np.arange, sh[:2][::-1]))[::-1]
         return map_coordinates(img, fn(start_coordinates),mode=mode)
     elif np.ndim(img) > 2:
         return np.dstack([parametric_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
     else:
         raise ValueError("Can't handle image of such shape: {}".format(sh))
+
+def parametric_flow(fn, sh):
+    start_coordinates = np.meshgrid(*map(np.arange, sh))[::-1]
+    return np.array(start_coordinates) - fn(start_coordinates)
     
 
 def apply_warps(warps, frames, njobs=4):
