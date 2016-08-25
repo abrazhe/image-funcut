@@ -4,6 +4,8 @@ import numpy as np
 from scipy import signal
 from scipy import ndimage
 
+#from numba import jit
+
 import itertools as itt
 
 
@@ -128,6 +130,7 @@ def bspline_smooth(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
 
 
 # TODO: make it faster
+#@jit
 def adaptive_medianf(arr, k = 2):
     """
     Perform adaptive median filtering on 2D array `arr`, by setting

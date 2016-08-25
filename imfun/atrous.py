@@ -527,6 +527,12 @@ def detrend(arr, level=7, **kwargs):
     """
     return arr - decompose(arr, level, **kwargs)[-1]
 
+def smooth_with_detrend(arr,smooth_level=1,detrend_level=7):
+    """Return a smoothed and detrended representation of the input data by removing the
+        aproximation at a given level, and dropping first levels of coefficients.
+    """
+    return np.sum(decompose(arr,detrend_level)[smooth_level:-1], axis=0)    
+
 ## def _wavelet_enh_std(f, level=4, out = 'rec', absp = False):
 ##     fw = dec_atrous2d(f, level)
 ##     if absp:
