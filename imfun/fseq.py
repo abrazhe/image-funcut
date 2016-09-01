@@ -18,7 +18,7 @@ import numpy as np
 
 _dtype_ = np.float64
 
-import matplotlib
+#import matplotlib
 #matplotlib.use('Agg')
 
 
@@ -29,40 +29,12 @@ from matplotlib.pyplot import imread
 from imfun import lib
 ifnot = lib.ifnot
 
-class FrameSequence(object):
-    "Base class for sequence of frames"
+class FrameStackMono(object):
+    "Base class for a stack {stream, sequence} of single-channel frames"
     def set_default_meta(self,ndim=None):
         self.meta = dict()
         scales = lib.alist_to_scale([(1,'')])
         self.meta['axes'] = scales
-
-    def _get_scale(self):
-	"""
-        DO NOT USE
-	Returns dx,dy and the flag whether the scale information has been set.
-	If scale info hasn't been set, dx=dy=1
-	"""
-        warnings.warn("`_get_scale` is deprecated and will be removed from future releases")
-        if hasattr(self, '_scale_set'):
-            scale_flag = self._scale_set
-            dx,dy, scale_flag = self.dx, self.dy, self._scale_set
-        else:
-            dx,dy,scale_flag = 1,1,None
-        return dx, dy, scale_flag
-
-    def _set_scale(self, dx=None, dy=None):
-	"""DO NOT USE sets self.dx, self.dy scale information"""
-        warnings.warn("`_get_scale` is deprecated and will be removed from future releases")        
-        self._scale_set = True
-        if (dx is None) and (dy is None):
-            self.dx,self.dy = 1,1
-            self._scale_set = False
-        elif (dx is not None) and (dy is None):
-            self.dx, self.dy = dx, dx
-        elif (dx is None) and (dy is not None):
-            self.dx, self.dy = dy, dy
-        else:
-            self.dx, self.dy = dx,dy
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
@@ -75,13 +47,10 @@ class FrameSequence(object):
 
     def data_range(self):
         """Return global range (`min`, `max`) values for the sequence"""
-        # need this strange syntax for min/max for multi-channel images
-        #rfn = lambda fn: lambda x: fn(fn(x, axis=0),axis=0)
         def rfn(fn): return lambda x: fn(fn(x, axis=0),axis=0)
-        ranges = np.array([(rfn(np.min)(f), rfn(np.max)(f)) for f in self])
+        ranges = np.array([(np.min(f), np.max(f)) for f in self])
         minv,maxv = np.min(ranges[:,0],axis=0), np.max(ranges[:,1],axis=0)
-        return np.array([minv,maxv]).T
-        #return (minv, maxv)
+        return np.array([minv,maxv]).T # why do I transpose?
 
     def data_percentile(self, p):
 	"""Return a percentile `p` value on data.
@@ -91,12 +60,8 @@ class FrameSequence(object):
 	     Percentile to compute which must be between 0 and 100 inclusive.
 	  
 	"""
-        sh = self.shape()
-        arr = self.as3darray()
-        if len(sh) == 2:
-            return  np.percentile(arr,p)
-        else:
-            return [np.percentile(arr[...,k],p) for k in range(sh[2])]
+        arr = self[:]
+        return  np.percentile(arr,p)
 
     def frame_idx(self,):
         """Return a vector of time stamps, if frame sequence is timelapse and
@@ -112,23 +77,33 @@ class FrameSequence(object):
         Function fn should be able to recieve `axis` optional argument"""
         return np.asarray([fn(f[mask],axis=0) for f in self])
 
+    def multi_mask_reduce(self, masks,fn=np.mean):
+        """
+        Same as mask_reduce, but for multiple masks simultaneously
+        """
+        return np.asarray([[fn(f[mask],axis=0) for mask in masks] for f in self])
+
+
+
     def softmask_reduce(self,mask, fn=np.mean):
 	"""Same as mask_reduce, but pixel values are weighted by the mask values between 0 and 1"""
-        sh = self.shape()
-        mask2d = mask
-        if len(sh) >2 :
-            mask = np.dstack([mask]*sh[-1])
-        return np.asarray([fn((f*mask)[mask2d>0],axis=0) for f in self])
+        return np.asarray([fn((f*mask)[mask>0],axis=0) for f in self])
+
+    def multi_softmask_reduce(self, masks, fn=np.mean):
+        '''
+        Same as softmask_reduce, but for multiple masks simultaneously
+        '''
+        return np.asarray([[fn((f*mask)[mask>0],axis=0) for mask in masks] for f in self])
 
 
-    def frame_slices(self, crop):
+    def frame_slices(self, crop=None):
         """Return iterator over subframes (slices defined by `crop` parameter).
 	When `crop` is `None`, full frames are returned 
 	"""
-        if crop:
-            return (f[crop] for f in self)
-        else:
+        if crop is None:
             return self.frames()
+        else:
+            return (f[crop] for f in self)
 
     def time_project(self,fslice=None,fn=np.mean,crop=None):
 	"""Apply an ``f(vector) -> scalar`` function for each pixel.
@@ -145,8 +120,11 @@ class FrameSequence(object):
         Returns:
 	  - `2D` `array` -- a projected frame
 	"""
-        sh = self.shape(crop)
+        sh = self.frame_shape(crop)
 	out = np.zeros(sh)
+        if callable(fslice):
+            fn = fslice
+            fslice = None
         #if len(sh)>2:
         #    fn = lambda a: np.mean(a, axis=0)
 	for v,r,c in self.pix_iter(fslice=fslice,crop=crop):
@@ -182,14 +160,6 @@ class FrameSequence(object):
         for k,frame in enumerate(frameit):
 	    out = np.max([out, frame], axis=0)
         return out
-
-    def aslist(self, max_frames=None, crop=None):
-        """Return the frames as a list up to `max_frames` frames
-	taking ``f[crop]`` slices.
-	"""
-        print "fseq.aslist is deprecated and will be removed\
-        use the  __getitem__ interface, e.g. fseq[10:20]"
-        return list(self.asiter(max_frames,crop))
 
     def asiter(self, fslice=None, crop=None):
         """Return an iterator over the frames taking frames from fslice and
@@ -262,7 +232,6 @@ class FrameSequence(object):
 	    if r0+row>=sh[0] or c0+col>=sh[1]:
 		continue
             if submask[row,col]:
-                ## asarray to convert from memory-mapped array
                 yield row, col
 
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,  dtype=_dtype_):
@@ -280,9 +249,8 @@ class FrameSequence(object):
 	"""
         arr = self.as3darray(fslice, crop=crop,dtype=dtype)
         for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand,crop=crop):
+            ## asarray to convert from memory-mapped array
             yield np.asarray(arr[:,row,col],dtype=dtype), row, col
-        if hasattr(arr, 'flush'):
-            arr.flush()
         del arr
 	return
     
@@ -297,12 +265,13 @@ class FrameSequence(object):
         else:
             return self._length
 
-    def shape(self, crop=None):
+    @property
+    def frame_shape(self, crop=None):
         "Return the shape of frames in the sequence"
         return self.frame_slices(crop).next().shape
 
     def _norm_mavg(self, tau=90., **kwargs):
-	"Return normalized frame sequence"
+	"Return normalized and temporally smoothed frame sequence"
 	from scipy import ndimage
 	if 'dtype' in kwargs:
 	    dtype = kwargs['dtype']
@@ -316,7 +285,7 @@ class FrameSequence(object):
 	out  = arr/smooth - 1.0
 	out[zi] = 0
         newmeta = self.meta.copy()
-	return FSeq_arr(out, meta=newmeta)
+	return FStackM_arr(out, meta=newmeta)
 	
 
     def pw_transform(self, pwfn, verbose=False, **kwargs):
@@ -329,7 +298,7 @@ class FrameSequence(object):
             the pixels
 	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
 	"""
-	#nrows, ncols = self.shape()[:2]
+	#nrows, ncols = self.frame_shape[:2]
         if 'dtype' in kwargs:
 	    dtype = kwargs['dtype']
 	else:
@@ -337,7 +306,7 @@ class FrameSequence(object):
 	L = len(pwfn(np.random.randn(len(self))))
 	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
 	#L = len(testv)
-	out = lib.memsafe_arr((L,) + self.shape(), dtype)
+	out = lib.memsafe_arr((L,) + self.frame_shape, dtype)
         for v, row, col in self.pix_iter(**kwargs):
 	    if verbose:
 		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
@@ -351,161 +320,8 @@ class FrameSequence(object):
             newmeta = kwargs['meta'].copy()
         else:
             newmeta = self.meta.copy() 
-        return FSeq_arr(out, meta=newmeta)
-
-    def export_img(self, path, base = 'fseq-export-', figsize=(4,4),
-                   start = 0, stop = None, show_title = True,
-                   format='.png', vmin = None, vmax=None, **kwargs):
-	"""Export frames as images by drawing them with ``pylab.imshow``.
-
-	Parameters:
-	  - `path` : (`str`) -- directory where to save images to. Will be created
-	    if doesn't exist
-	  - `base` : (`str`) -- a prefix for the created file names
-	  - `figsize`: (`tuple` or `array-like`) -- size of the figures in inches
-	  - `start` : (`int`) -- start at this frame
-	  - `stop` : (`int` or `None`) -- stop at this frame
-	  - `show_title`: (`Bool`) -- flag whether to show a title over the
-	    frame
-	  - `format`: (`str`) -- output format, can be png, svg, eps, pdf,
-	    bmp,tif
-	  - `vmin` : (`number` or `None`) -- to be passed to imshow. If `None`,
-	    global minimum over the frame sequence is used.
-	  - `vmax` : (`number` or `None`) -- to be passed to imshow. If `None`,
-	    global maximum over the frame sequence is used.
-	  - `**kwargs`: other arguments that will be passed to `imshow`
-
-	Returns:
-	  - a list of names for the created files
-	
-	"""
-        import  sys
-        import matplotlib.pyplot as plt
-        lib.ensure_dir(path)
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111)
-        if stop is None or stop == -1:
-            stop = len(self)
-	if hasattr(self, 'data'):
-	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
-	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
-	else:
-	    vmin = ifnot(vmin, np.min(map(np.min, self.frames())))
-	    vmax = ifnot(vmax, np.min(map(np.max, self.frames())))
-        kwargs.update({'vmin':vmin, 'vmax':vmax})
-	print path+base
-        L = min(stop-start, len(self))
-	fnames = []
-        for i,frame in enumerate(self):
-            if i < start: continue
-            if i > stop: break
-            ax.cla()
-            ax.imshow(frame, aspect='equal', **kwargs)
-            fname =  path + base + '%06d.png'%i
-	    fnames.append(fname)
-            if show_title:
-                zscale = tuple(self.meta['axes'][0])
-                ax.set_title('frame %06d (%3.3f %s)'%zscale)
-            fig.savefig(fname)
-            sys.stderr.write('\r saving frame %06d of %06d'%(i+1, L))
-        plt.close()
-	return fnames
+        return FStackM_arr(out, meta=newmeta)
     
-    def export_movie_anim(self, video_name, fps=None, start=0, stop=None,
-                          show_title=True, fig_size=(4,4),
-                          bitrate=-1,
-                          writer = 'avconv',
-                          codec = None,
-                          frame_on = False,
-                          marker_idx = None,
-                          vmin=None, vmax=None,**kwargs):
-        """
-        Create an mpg  movie from the frame sequence using mencoder.
-        and mpl.Animation
-
-	Parameters:
-	  - `video_name`: (`str`) -- a name (without extension) for the movie to
-	    be created
-	  - `fps`: (`number`) -- frames per second.
-             If None, use 10/self.meta['axes'][0][0]
-          - `marker_idx`: (`array_like`) -- indices when to show a marker
-            (e.g. for stimulation)
-	  - `**kwargs` : keyword arguments to be passed to `self.export_png`
-	"""
-        warnings.warn("export_movie_anim is deprecated and will be removed in the future releases")
-        import matplotlib as mpl
-        mpl.use('Agg')
-        from matplotlib import animation
-        import matplotlib.pyplot as plt
-        dz,zunits = tuple(self.meta['axes'][0])
-        if fps is None:
-            fps = max(1., 10./dz)
-        if marker_idx is None:
-            marker_idx = []
-
-        if stop is None or stop == -1:
-            stop = len(self)
-
-	if hasattr(self, 'data'):
-	    vmin = ifnot(vmin, self.data_percentile(1)) # for scale
-	    vmax = ifnot(vmax, self.data_percentile(99)) # for scale
-	else:
-	    vmin = ifnot(vmin, np.min(map(np.min, self)))
-	    vmax = ifnot(vmax, np.min(map(np.max, self)))
-
-        kwargs.update({'vmin':vmin, 'vmax':vmax})
-        L = min(stop-start, len(self))
-
-        fig,ax = plt.subplots(1,1,figsize=fig_size)
-
-        if np.ndim(self[start]) > 2:
-            vmin = np.min(vmin)
-            vmax = np.max(vmax)
-            #lutfn = lambda f: np.clip(f, vmin,vmax)/vmax
-            def lutfn(f): return np.clip((f-vmin)/(vmax-vmin), 0, 1)
-        else:
-            def lutfn(f): return f
-
-
-        plh = ax.imshow(lutfn(self[start]), 
-                        aspect='equal', **kwargs)
-        if not frame_on:
-            plt.setp(ax, frame_on=False, xticks=[],yticks=[])
-        mytitle = ax.set_title('')
-        marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
-        ax.add_patch(marker)
-        
-        def _animate(framecount):
-            tstr = ''
-            k = framecount+start
-            plh.set_data(lutfn(self[k]))
-            if show_title:
-                if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                    tstr = ', time: %0.3f %s' %(k*dz,zunits)
-                mytitle.set_text('frame: %04d'%k +tstr)
-            if k in marker_idx:
-                plt.setp(marker, visible=True)
-            else:
-                plt.setp(marker, visible=False)
-            return plh,
-        
-        #anim = animation.FuncAnimation(fig, _animate, init_func=_init, frames=L, blit=True)
-        anim = animation.FuncAnimation(fig, _animate, frames=L, blit=True)
-        mencoder_extra_args=['-ovc', 'lavc', '-lavcopts', 'vcodec=mpeg4']
-        if writer in animation.writers.list():
-            # Set up formatting for the movie files
-            Writer = animation.writers.avail[writer]
-            w = Writer(fps=fps,bitrate=bitrate)#, metadata=dict(artist='Me'), bitrate=1800)
-            anim.save(video_name, writer=w)
-        else:
-            anim.save(video_name+'.avi', writer='mencoder',
-                      fps=fps, extra_args=mencoder_extra_args)
-        
-        #plt.close(anim._fig)
-        plt.close(fig)
-        #del anim, plh, ax # 
-        return 
-
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
 _x2=[(1,'sec'), (2,'um'), (3,'um')] # plist
@@ -519,10 +335,8 @@ def _empty_axes_meta(size=3):
     return x
 
 
-
-
-class FSeq_arr(FrameSequence):
-    """A FrameSequence class as a wrapper around a `3D` Numpy array
+class FStackM_arr(FrameStackMono):
+    """A FrameStackMono class as a wrapper around a `3D` Numpy array
     """
     def __init__(self, arr, fns = None, meta=None):
         self.data = arr
@@ -549,22 +363,14 @@ class FSeq_arr(FrameSequence):
                 raise IndexError("Requested frame number out of bounds")
             return fn(self.data[int(val)])
 
-    def data_percentile(self, p):
-        sh = self.shape()
-        arr = self.data
-        if len(sh) == 2:
-            return  np.percentile(arr,p)
-        else:
-            return [np.percentile(arr[...,k],p) for k in range(sh[2])]
-
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
-	"Iterator over time signals from each pixel (FSeq_arr)"
+	"Iterator over time signals from each pixel (FSM_arr)"
         if not self.fns:
             for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
 	        v = self.data[:,row,col].copy()
 		yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    base = super(FSeq_arr,self)
+	    base = super(FStackM_arr,self)
 	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand,dtype=dtype):
 		yield a
 
@@ -573,9 +379,8 @@ class FSeq_arr(FrameSequence):
 	Return iterator over frames.
 
 	The composition of functions in `self.fns` list is applied to each
-	frame. By default, this list is empty.  Examples of function"hooks"
-	to put into `self.fns` are ``imfun.lib.DFoSD``,
-	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	frame. By default, this list is empty.  Examples of function "hooks"
+	to put into `self.fns` are filters from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
         return itt.imap(fn, self.data)
@@ -601,14 +406,12 @@ def img_getter(frame, ch):
     :returns: 2D matrix with intensity values
     """
     if len(frame.shape) > 2:
-        if ch == 'all': ch=None
-        out = frame[:,:,ch]
+        return frame[:,:,ch]
     else:
-        out = frame
-    return out
+        return frame
 
 
-def fseq_from_glob(pattern, ch=None, loadfn=np.load):
+def fseq_from_glob(pattern, ch=0, loadfn=np.load):
     """Return sequence of frames from filenames matching a glob.
 
     Parameters:
@@ -617,17 +420,12 @@ def fseq_from_glob(pattern, ch=None, loadfn=np.load):
       - loadfn: (`func`) -- a function to load data from a file by its name [`np.load`].
 
     Returns:
-      - iterator over frames. `2D` if `ch` is `int`, `3D` if ch is `None`
+      - iterator over frames. (`2D`)
     """
-    if ch not in (None, 'all'):
-	return itt.imap(lambda frame: img_getter(frame, ch),
-			iter_files(pattern, loadfn))
-    else:
-	return iter_files(pattern, loadfn)
+    return itt.imap(lambda frame: img_getter(frame, ch), iter_files(pattern, loadfn))
 
-
-class FSeq_glob(FrameSequence):
-    """A FrameSequence class as a wrapper around a set of files matching a
+class FStackM_glob(FrameStackMono):
+    """A FrameStackMono class as a wrapper around a set of files matching a
     glob-like pattern"""
     def __init__(self, pattern, ch=0, fns=None,
                  meta = None):
@@ -642,7 +440,7 @@ class FSeq_glob(FrameSequence):
     def __len__(self):
 	return len(self.file_names)
             
-    def frames(self, ch = None):
+    def frames(self):
 	"""
 	Return iterator over frames.
 
@@ -652,32 +450,29 @@ class FSeq_glob(FrameSequence):
 	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
-        return itt.imap(fn, fseq_from_glob(self.pattern,
-					   ifnot(ch, self.ch), self.loadfn))
+        return itt.imap(fn, fseq_from_glob(self.pattern, self.ch, self.loadfn))
+    
     def __getitem__(self, val):
 	fn = self.pipeline()
         if isinstance(val, slice)  or np.ndim(val) > 0:
-            seq =  map(self.loadfn, self.file_names[val])
-	    if self.ch not in (None, 'all'):
-		seq = (img_getter(f, self.ch) for f in seq)
+            seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names[val])
             return map(fn, seq)
         else:
             if val > len(self):
                 raise IndexError("Requested frame number out of bounds")
 	    frame = self.loadfn(self.file_names[val])
-	    if self.ch not in (None, 'all'):
-		frame = img_getter(frame, self.ch)
+            frame = img_getter(frame, self.ch)
 	    return fn(frame)
             
-class FSeq_img(FSeq_glob):
-    """FrameSequence around a set of image files"""
+class FStackM_img(FStackM_glob):
+    """FrameStackMono around a set of image files"""
     def loadfn(self,y): return imread(y)
 
-class FSeq_txt(FSeq_glob):
-    """FrameSequence around a set of text-image files"""
+class FStackM_txt(FStackM_glob):
+    """FrameStackMono around a set of text-image files"""
     def loadfn(self,y): return np.loadtxt(y)
 
-class FSeq_ageom(FSeq_glob):
+class FStackM_ageom(FStackM_glob):
     def loadfn(self, name):
         fid =open(name,'rb')
         sh = np.fromfile(fid, np.int32, 2); 
@@ -686,18 +481,27 @@ class FSeq_ageom(FSeq_glob):
         return v.reshape(sh)
 
 ## TODO: but npy can be just one array
-class FSeq_npy(FSeq_glob):
+class FStackM_npy_glob(FStackM_glob):
     """FrameSequence around a set of npy files"""
     def loadfn(self, y): return np.load(y)
 
-class FSeq_imgleic(FSeq_img):
+class FStackM_npy(FStackM_arr):
+    def __init__(self, name, fns = None, meta=None):
+        self.data = np.load(name)
+        self.fns = ifnot(fns, [])
+        if meta is None:
+            self.set_default_meta(self)
+        else:
+            self.meta = meta.copy()
+
+class FStackM_imgleic(FStackM_img):
     """FrameSequence around the image files created by LeicaSoftware.
-    It is just a wrapper around FSeq_img, only it also looks for an xml
+    It is just a wrapper around FStackM_img, only it also looks for an xml
     file in Leica's format with the Job description
     """
     def __init__(self, pattern, ch=0, fns=None, xmlname = None,
                  meta=None):
-        FSeq_glob.__init__(self, pattern, ch=ch, meta=meta)
+        FStackM_glob.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
             xmlname = pattern
         self.fns = ifnot(fns, [])
@@ -721,14 +525,15 @@ class FSeq_imgleic(FSeq_img):
 #from imfun.MLFImage import MLF_Image
 import ioraw
 
-class FSeq_plsi(FrameSequence):
-    "FrameSequence class for LaserSpeckle multi-frame images"
+class FStackM_plsi(FrameStackMono):
+    "FrameStackMono class for LaserSpeckle multi-frame images"
     def __init__(self, fname, fns = None):
         self.plsimg = ioraw.PLSI(fname)
         self.set_default_meta()
         dt = self.plsimg.dt/1000.0
         self.meta['axes'][0] = (dt, 'sec')
         self.fns = ifnot(fns, [])
+
     def frames(self,):
 	"""
 	Return iterator over frames.
@@ -741,6 +546,7 @@ class FSeq_plsi(FrameSequence):
 	
         fn = lib.flcompose(identity, *self.fns)
         return itt.imap(fn,self.plsimg.frame_iter())
+
     def __getitem__(self, val):
 	#L = self.length()
 	fn = self.pipeline()
@@ -764,68 +570,76 @@ class FSeq_plsi(FrameSequence):
 		v = self.plsimg.read_timeslice((row,col))
 		yield np.asarray(v, dtype=dtype), row, col
 	else:
-	    base = super(FSeq_plsi,self)
+	    base = super(FStackM_plsi,self)
 	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand, dtype=dtype):
 		yield a
-		
-import matplotlib.image as mpl_img
-try:
-    import PIL.Image as Image
-    class FSeq_multiff(FrameSequence):
-        "Class for multi-frame tiff files"
-        def __init__(self, fname, fns = None, meta=None):
-            self.set_default_meta()
-            self.fns = ifnot(fns, [])
-            self.im = Image.open(fname)
-        def frames(self, count=0):
-            """
-            Return iterator over frames.
+
+
+## --- TIFF files ---
+## Beause there is skimage.io, and I have skimage as a dependency, there is no point
+## in not using it
+
+
+## import matplotlib.image as mpl_img
+## try:
+##     import PIL.Image as Image
+##     class FSeq_multiff(FrameStackMono):
+##         "Class for multi-frame tiff files"
+##         def __init__(self, fname, fns = None, meta=None):
+##             self.set_default_meta()
+##             self.fns = ifnot(fns, [])
+##             self.im = Image.open(fname)
+##         def frames(self, count=0):
+##             """
+##             Return iterator over frames.
             
-            The composition of functions in `self.fns`
-            list is applied to each frame. By default, this list is empty. Examples
-            of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
-            """
-            fn = self.pipeline()
-            while True:
-                try:
-                    self.im.seek(count)
-                    count += 1
-                    yield fn(mpl_img.pil_to_array(self.im))
-                except EOFError:
-                    break
-except ImportError:
-    print "Cant define FSeq_multiff because can't import PIL"
+##             The composition of functions in `self.fns`
+##             list is applied to each frame. By default, this list is empty. Examples
+##             of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
+##             """
+##             fn = self.pipeline()
+##             while True:
+##                 try:
+##                     self.im.seek(count)
+##                     count += 1
+##                     yield fn(mpl_img.pil_to_array(self.im))
+##                 except EOFError:
+##                     break
+## except ImportError:
+##     print "Cant define FSeq_multiff because can't import PIL"
                     
-class FSeq_tiff_2(FSeq_arr):
-    "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
-    def __init__(self, fname, ch=None, flipv = False, fliph = False, **kwargs):
-	import tiffile
-	x = tiffile.imread(fname)
-	parent = super(FSeq_tiff_2, self)
-	parent.__init__(x, **kwargs)
-        if isinstance(ch, basestring) and ch != 'all':
-            ch = np.where([ch in s for s in 'rgb'])[0][()]
-        if ch not in (None, 'all') and self.data.ndim > 3:
-            self.data = np.squeeze(self.data[:,:,:,ch])
-        if flipv:
-            self.data = self.data[:,::-1,...]
-        if fliph:
-            self.data = self.data[:,:,::-1,...]
+## class FSeq_tiff_2(FStackM_arr):
+##     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
+##     def __init__(self, fname, ch=None, flipv = False, fliph = False, **kwargs):
+## 	import tiffile
+## 	x = tiffile.imread(fname)
+## 	parent = super(FSeq_tiff_2, self)
+## 	parent.__init__(x, **kwargs)
+##         if isinstance(ch, basestring) and ch != 'all':
+##             ch = np.where([ch in s for s in 'rgb'])[0][()]
+##         if ch not in (None, 'all') and self.data.ndim > 3:
+##             self.data = np.squeeze(self.data[:,:,:,ch])
+##         if flipv:
+##             self.data = self.data[:,::-1,...]
+##         if fliph:
+##             self.data = self.data[:,:,::-1,...]
+
+
 
 
 
 ## -- MES files --
 import mes
 
-class FSeq_mes(FSeq_arr):
-    def __init__(self, fname, record=None, ch=None, fns=None, verbose=False,
+class FStackM_mes(FStackM_arr):
+    def __init__(self, fname, record=None, ch='r', fns=None, verbose=False,
                  autocrop = True):
         """
         The following format is assumed:
         the mes file contains descriptions in fields like "Df0001",
         and actual images in fields like 'If0001_001', 'If0001_002'.
         These fields contain data for the red and green channel, accordingly
-        The timelapse images are stored as NXM arrays, where N is one side of an image,
+        The timelapse images are stored as NxM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
         self.fns = ifnot(fns, [])
@@ -851,10 +665,68 @@ class FSeq_mes(FSeq_arr):
             nrows = self.data.shape[1]
             self.data = self.data[:,:,:nrows,...]
 
-        
-
-
 ## -- End of MES files --        
+
+
+class FStackColl(object):
+    "Class for a collection (container) of single-channel frame stacks. E.g. Multichannel data"
+    def __init__(self, stacks):
+        self.stacks = list(stacks)
+        # TODO: harmonize metadata
+        self.meta = stacks[0].meta
+    @property
+    def nCh(self):
+        return len(self.stacks)
+    def append(self, stack):
+        self.stacks.append(stack)
+    def pop(self, n=-1):
+        return self.stacks.pop(n)
+    def _propagate_call(self, call, *args, **kwargs):
+        out = [getattr(s,call)(*args, **kwargs) for s in self.stakcs]
+        return np.stack(out,-1)
+    def mean_frame(self,*args,**kwargs):
+        mfs = [s.mean_frame(*args,**kwargs) for s in self.stacks]
+        return np.stack(mfs, -1)
+    def time_project(self,*args,**kwargs):
+        projs = [s.time_project(*args,**kwargs) for s in self.stacks]
+        return np.stack(projs,-1)
+    def __len__(self):
+        return np.min(map(len, self.stacks))
+    def __getitem__(self,val):
+        x =  np.array([s[val] for s in self.stacks])
+        return np.stack(x,-1)
+
+
+from skimage import io as skio
+from skimage.external import tifffile
+
+def from_tiff(path, *args,**kwargs):
+    data = tifffile.imread(path)
+    sh = data.shape
+    if np.ndim(data)>3: #(Multichannel)
+        # smallest dimension is the number of channels
+        k = np.argmin(sh)
+        nch = sh[k]
+        channels = map(np.squeeze, np.split(data, nch, k))
+        stacks = [FStackM_arr(c, *args, **kwargs) for c in channels]
+        return FStackColl(stacks)
+    else:
+        return FStackM_arr(data, *args,**kwargs)
+
+def from_leica_exported(path, *args, **kwargs):
+    from imfun import leica
+    xml_try = leica.get_xmljob(path)
+    if 'xmlname' in kwargs or xml_try:
+        handler =  FStackM_imgleic
+    else:
+        handler =  FStackM_img
+    stacks = [handler(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
+    return FStackColl(stacks)
+        
+        
+    
+    
+
 
 
 import inspect
@@ -872,29 +744,29 @@ def open_seq(path, *args, **kwargs):
     """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
     if isinstance(path, np.ndarray):
-	return FSeq_arr(path, *args, **kwargs)
-    if isinstance(path, FrameSequence):
+	return FStackM_arr(path, *args, **kwargs)
+    if isinstance(path, FrameStackMono):
         return path
     ending = re.findall('[^*\.]+', path)[-1].lower()
     if ending == 'txt':
-        handler = FSeq_txt
+        handler = FStackM_txt
     elif ending == 'mes':
-        handler = FSeq_mes
+        handler = FStackM_mes
     elif ending in ('mlf', 'pls'):
-        handler = FSeq_plsi
+        handler = FStackM_plsi
     elif ending == 'npy':
-        handler =  FSeq_npy
+        handler =  FStackM_npy
     elif ending == 'h5':
-        handler = FSeq_hdf5
+        handler = FStackM_hdf5
     elif ending in images:  # A collection of images or a big tiff
         if '*' in path: # many files
             from imfun import leica
             xml_try = leica.get_xmljob(path)
             print '*******', path,     xml_try
             if 'xmlname' in kwargs or xml_try:
-                handler =  FSeq_imgleic
+                handler =  FStackM_imgleic
             else:
-                handler =  FSeq_img
+                handler =  FStackM_img
         elif ending in ('tif', 'tiff'): # single multi-frame tiff
             handler = FSeq_tiff_2
     spec = inspect.getargspec(handler.__init__)
@@ -911,7 +783,7 @@ def open_seq(path, *args, **kwargs):
 try:
     import h5py
 
-    class FSeq_hdf5(FSeq_arr):
+    class FStackM_hdf5(FStackM_arr):
         "Base class for hdf5 files"
         def __init__(self, fname, dataset=None,**kwargs):
             parent = super(FSeq_hdf5, self)
@@ -932,7 +804,7 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
 
-    class FSeq_hdf5_lsc(FSeq_arr):
+    class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
         def __init__(self, fname, fns = None):
             parent = super(FSeq_hdf5_lsc, self)
@@ -945,7 +817,7 @@ try:
             self.h5file = f # just in case we need it later
             parent.__init__(f['lsc'], fns=fns,meta=meta)
 
-    def fseq2h5(seqlist, name,compress_level=-1,verbose=False):
+    def fstack_to_h5(seqlist, name, compress_level=-1,verbose=False):
         # todo: add metadata, such as time and spatial scales
         if os.path.exists(name):
             if verbose:
@@ -1046,12 +918,12 @@ except ImportError as e:
 
 
 def to_movie(fslist, video_name, fps=25, start=0,stop=None,
-                    ncols = None,
-                    figsize=None, figscale=4,
-                    with_header=True, titles = None,
-                    writer='avconv', bitrate=2500,
-                    frame_on=False, marker_idx=None,
-                    clim = None, **kwargs):
+             ncols = None,
+             figsize=None, figscale=4,
+             with_header=True, titles = None,
+             writer='avconv', bitrate=2500,
+             frame_on=False, marker_idx=None,
+             clim = None, **kwargs):
     """
     Create an video file from the frame sequence using avconv or other writer.
     and mpl.Animation
@@ -1080,7 +952,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
 
     plt_interactive = plt.isinteractive()
     plt.ioff() # make animations in non-interactive mode
-    if isinstance(fslist, FrameSequence):
+    if isinstance(fslist, FrameStackMono):
         fslist = [fslist]
     
     marker_idx = ifnot(marker_idx, [])

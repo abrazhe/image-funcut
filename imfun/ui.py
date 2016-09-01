@@ -1,3 +1,6 @@
+from __future__ import division # a/b will always return float
+
+
 import itertools as itt
 import os
 from functools import partial
@@ -308,10 +311,9 @@ class DraggableObj(object):
         self.connect()
         self.pressed = None
         self.tag = obj.get_label() # obj must support this
-        if hasattr(parent, 'fseq'):
-            fseq = self.parent.fseq
-            self.axes = fseq.meta['axes']
-            #self.dy,self.dx, self.scale_setp = fseq.get_scale()
+        if hasattr(parent, 'frame_coll'):
+            frame_coll = self.parent.frame_coll
+            self.axes = frame_coll.meta['axes']
         self.set_tagtext()
         self.canvas = obj.axes.figure.canvas
         return
@@ -508,17 +510,17 @@ class LineScan(DraggableObj):
 		hwidth = caller.fso.linescan_width # overrides argument
 		half_scope = caller.fso.linescan_scope
 		if half_scope <= 0:
-		    frames = lambda : self.parent.fseq.frames()
+		    frames = lambda : self.parent.active_stack
 		else:
 		    fi = caller.frame_index
 		    fstart = max(0,fi-half_scope)
-		    fstop = min(len(self.parent.fseq),fi+half_scope)
+		    fstop = min(len(self.parent.active_stack),fi+half_scope)
 		    frange = slice(fstart,fstop)
-		    frames = lambda : self.parent.fseq[frange]
+		    frames = lambda : self.parent.active_stack[frange]
 	    else:
-		frames = lambda : self.parent.fseq.frames()
+		frames = lambda : self.parent.active_stack
 	else:
-	    frames = lambda : self.parent.fseq[frange]
+	    frames = lambda : self.parent.active_stack[frange]
 	tv = np.reshape(translate(*points),-1) # translation vector
 	#timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
         timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
@@ -531,7 +533,7 @@ class LineScan(DraggableObj):
 	    out = timeview(points)
         return np.rot90(out),points
 
-    def get_full_projection(self, fn = np.mean,axis=1,
+    def _get_full_projection(self, fn = np.mean,axis=1,
 			    mode='constant',
 			    output = 'result'):
 	"""
@@ -548,7 +550,7 @@ class LineScan(DraggableObj):
 	    rot = np.ma.masked_less_equal(rot, 0)
 	    return np.array(fn(rot, axis=axis))
 	if output=='result':
-	    return _(self.parent.fseq.as3darray())
+            return _(self.parent.frame_coll[:])
 	elif output == 'function':
 	    return _
 	
@@ -559,12 +561,12 @@ class LineScan(DraggableObj):
                     
         if timeview is not None:
             data = [timeview]
-            fseq = self.parent.fseq
+            frame_coll = self.parent.frame_coll
             fig, ax = plt.subplots()
             plt.subplots_adjust(bottom=0.2)
 
             # TODO: work out if sx differs from sy
-            (dz,zunits), (dx,xunits) = fseq.meta['axes'][:2]
+            (dz,zunits), (dx,xunits) = frame_coll.meta['axes'][:2]
             x_extent = (0,dz*timeview.shape[1])
             if mpl.rcParams['image.origin'] == 'lower':
                lowp = 1
@@ -733,13 +735,13 @@ class CircleROI(DraggableObj):
 
 	"""
         
-        fullshape = self.parent.fseq.shape()
+        fullshape = self.parent.active_stack.frame_shape
         sh = fullshape[:2]
-        v = self.parent.fseq.mask_reduce(self.in_circle(sh))
+        v = self.parent.active_stack.mask_reduce(self.in_circle(sh))
         #print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
-        if len(fullshape)>2 and hasattr(self.parent.fseq, 'ch') \
-           and (self.parent.fseq.ch is not None):
-            v = v[:,self.parent.fseq.ch]
+        if len(fullshape)>2 and hasattr(self.parent.active_stack, 'ch') \
+           and (self.parent.active_stack.ch is not None):
+            v = v[:,self.parent.active_stack.ch]
         if normp:
 	    if callable(normp):
 		return normp(v)
@@ -1004,13 +1006,22 @@ Keyboard:
   - press `/` or '-' or 'r' with mouse over Line ROI to get z-reslice
 """
 
+from imfun import fseq
+
 class Picker (object):
     _verbose = False
-    def __init__(self, fseq,verbose=False):
+    def __init__(self, frames, home_frame = True, verbose=False, ):
         self._corrfn = 'pearson'
         self.cw = color_walker()
         self._show_legend=False
-        self.fseq = fseq
+        if isinstance(frames, fseq.FStackColl):
+            frame_coll = frames
+        elif isinstance(frames, fseq.FrameStackMono):
+            frame_coll = fseq.FStackColl(frames)
+        else:
+            print "Unrecognized frame stack format. Must be either derived from fseq.FrameStackMono or fseq.FStackColl"
+            return
+        self.frame_coll = frame_coll
         self._Nf = None
         self.roi_coloring_model = 'groupvar' # {allrandom | groupsame | groupvar}
         self.roi_objs = {}
@@ -1024,18 +1035,144 @@ class Picker (object):
         #self.widgetcolor = 'lightyellow'
         self.frame_slider = None
         self._verbose=verbose
-        return 
+
+        self._init_ccmap()
+        f = self._init_home_frame(home_frame)
+
+        ## set lut color limits
+        # -- omitting  vmin,vmax, or clim arguments for now
+        splitted = np.split(f, frame_coll.nCh,-1)
+        clims = [(np.min(_x),np.max(_x)) for _x in splitted]
+        self.clims = clims    
+	self.home_frame = f
+
+        return
+
+    def _init_home_frame(self, home_frame):
+        ## set home_frame
+        dtype = self.frame_coll[0].dtype
+        if isinstance(home_frame,  np.ndarray):
+	    f = home_frame
+        elif callable(home_frame):
+            f = self.frame_coll.time_project(home_frame)
+            f = f.astype(dtype)
+            pass
+	elif home_frame == 'mean' or (isinstance(home_frame, bool) and home_frame):
+            f = self.frame_coll.mean_frame().astype(dtype)
+        else:
+            f = self.frame_coll[0]
+
+        return f
+
+    def _init_ccmap(self):
+        self._ccmap = {key:None for key in 'irgb'}
+        nCh = self.frame_coll.nCh
+        if nCh == 1:
+            self._ccmap['i'] = 0
+        else:
+            for k,c in zip(range(nCh),'rgb'):
+                self._ccmap[c] = k
+
+    def _lut_controls(self,event=None):
+        """
+        Simple gui to control a mapping between RGB color display channels and
+        data streams/channels
+        """
+        fig = plt.figure(figsize=(1,5))
+
+        channels = 'rgbi'
+        channel_names = ['Red','Green','Blue','Grayscale']
+        nCh = self.frame_coll.nCh
+        self.channel_ctrls = {k:None for k in channels}
+
+
+        spacing =0.05
+        el_h = (1-(1+len(channels))*spacing)/len(channels)
+
+        def _update_choices(event):
+            for key,val in self.channel_ctrls.items():
+                selected = val.value_selected
+                if selected == '--' or selected is None:
+                    ch = None
+                else:
+                    ch = int(selected)
+                    if key is 'i':
+                        self.ach_setter.set_active(ch)
+                self._ccmap[key] = ch
+            pass
+        
+        for k,c in enumerate(channels):
+            ax = fig.add_axes([0.1,  1 - (k+1)*(el_h +spacing), 0.8, el_h ])
+            ax.set_title(channel_names[k],size='small',color= (c!='i') and c or 'k')
+            active = (k+1)%4
+            if k > nCh: active = 0
+            channel_selector = mw.RadioButtons(ax, ['--'] + range(nCh), active = active)
+            channel_selector.on_clicked(_update_choices)
+            self.channel_ctrls[c] = channel_selector
+        plt.subplots_adjust(left=0.05,right=0.95,bottom=0.05,top=0.95)
+
+    def _levels_controls(self,event=None):
+        fig = plt.figure(figsize=(5,3))
+        spacing = 0.03
+        wspacing = 0.1
+        nCh = self.frame_coll.nCh
+        #el_h = 0.05
+        el_h = (1 - (1+2*nCh)*spacing)/(2*nCh)
+        el_w = 0.5
+        self.level_controls = {}
+        def _update_levels(event):
+            for k in range(nCh):
+                low,high = self.level_controls[k]
+                self.clims[k] = (low.val, high.val)
+            pass
+        for k,stack in enumerate(self.frame_coll.stacks):
+            ax_high = fig.add_axes([0.2, 1- (2*k+1)*(el_h+spacing), el_w, el_h],axisbg=_widgetcolor)
+            ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],axisbg=_widgetcolor)
+            
+            lmin,lmax = stack.data_range()
+            low,high = self.clims[k]
+            low_slider = mw.Slider(ax_low, '%d low'%k, lmin,lmax,valinit=low)
+            high_slider = mw.Slider(ax_high, '%d high'%k, lmin,lmax,valinit=high)
+            
+            low_slider.on_changed(_update_levels)
+            high_slider.on_changed(_update_levels)
+            self.level_controls[k] = (low_slider,high_slider)
+        plt.subplots_adjust(left=0.05,right=0.95,bottom=0.05,top=0.95)
+        
+
+    def _init_active_channel_setter(self):
+        """
+        Sets which color channel is active for ROI interaction
+        """
+        corners = self.ax1.get_position().get_points()
+        height = 0.15
+        width = 0.1
+        left = 0.03
+        bottom = corners[1,1]-height
+
+        ax_active = self.fig.add_axes([left,bottom,width,height], axisbg=_widgetcolor)
+        ax_active.set_title('Active channel',size='small')
+
+        self.active_stack = self.frame_coll.stacks[0]
+        self.ach_setter = mw.RadioButtons(ax_active, range(self.frame_coll.nCh))
+        def _update_active(event):
+            ind = int(self.ach_setter.value_selected)
+            #print 'active stack updated to ', ind 
+            self.active_stack = self.frame_coll.stacks[ind]
+            
+        self.ach_setter.on_clicked(_update_active)
+        pass
 
     def start(self, roi_objs={}, ax=None, legend_type = 'figlegend',
-              home_frame =True,
               **imshow_args):
         "Start picking up ROIs"
         self.tagger = tags_iter()
         #self.drcs = {}
         self.frame_hooks = {}
         self.frame_slider = None
-        Nf = len(self.fseq)
+        Nf = len(self.frame_coll)
 	if ax is None:
+            
             self.fig, self.ax1 = plt.subplots()
             plt.subplots_adjust(left=0.2, bottom=0.2)
             corners = self.ax1.get_position().get_points()
@@ -1044,56 +1181,31 @@ class Picker (object):
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf-1, valinit=0,
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
+            self._init_active_channel_setter()
+            bax_lut = self.fig.add_axes([0.03, corners[1,1]-0.25, 0.1, 0.05])
+            self.lut_but = mw.Button(bax_lut, 'Colors', color=_widgetcolor)
+            self.lut_but.on_clicked(self._lut_controls)
+            self.lut_but.label.set_fontsize('small')
+                                        
 	else:
 	    self.ax1 = ax
 	    self.fig = self.ax1.figure
         self.legtype = legend_type
         self.pressed = None
 
-        axes = self.fseq.meta['axes']
-        (dy,yunits), (dx,xunits) = axes[1:3]
-	sy,sx = self.fseq.shape()[:2]
+        if 'cmap' not in imshow_args:
+            imshow_args['cmap'] = 'gray'
         
-        if 'cmap' not in imshow_args: imshow_args['cmap'] = 'gray' 
-        if 'interpolation' not in imshow_args: imshow_args['interpolation'] = 'nearest'
 
-        # clim overrides vmin and vmax
-        if imshow_args.get('clim', None) is not None:
-            imshow_args['vmin'],imshow_args['vmax']= imshow_args['clim']
+        ## setup axes and show home frame
+        axes = self.frame_coll.meta['axes']
+        (dy,yunits), (dx,xunits) = axes[1:3]
+	sy,sx = self.frame_coll[0].shape[:2]
 
-        if (imshow_args.get('vmin',None) is None) or (imshow_args.get('vmax',None) is None):
-            #avmin,avmax = self.fseq.data_range()
-            if hasattr(self.fseq, 'data'):
-                res = self.fseq.data_percentile((0.05, 99.5))
-            else:
-                res = self.fseq.data_range()
-            avmin,avmax = np.amin(res), np.amax(res)
-            if imshow_args.get('vmin',None) is None : imshow_args.update(vmin=avmin)
-            if imshow_args.get('vmax',None) is None : imshow_args.update(vmax=avmax)
-
-        # TODO: better take care of LUTs here
-        self.clim = imshow_args['vmin'], imshow_args['vmax']
-
-        if hasattr(self.fseq, 'ch') and self.fseq.ch is not None:
-            self.ax1.set_title("Channel: %s" % ('red', 'green','blue')[self.fseq.ch] )
-
-        dtype = self.fseq[0].dtype
-        if isinstance(home_frame,  np.ndarray):
-	    f = home_frame
-        elif callable(home_frame):
-            f = self.fseq.time_project(home_frame)
-            f = f.astype(dtype)
-            pass
-	elif home_frame == 'mean' or (isinstance(home_frame, bool) and home_frame):
-            f = self.fseq.mean_frame().astype(dtype)
-        else:
-            f = self.fseq.frames().next()
-
-        f = self._lutconv(f)
-	self.home_frame = f
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
-        self.plh = self.ax1.imshow(f,
+
+        self.plh = self.ax1.imshow(self._lutconv(self.home_frame),
                                   extent = (0, sx*dx)+(0, sy*dy)[::lowp],
                                   aspect='equal',
                                   **imshow_args)
@@ -1110,7 +1222,7 @@ class Picker (object):
 
     def length(self):
         if self._Nf is None:
-            self._Nf = len(self.fseq)
+            self._Nf = len(self.frame_coll)
         return self._Nf
     
 
@@ -1206,7 +1318,7 @@ class Picker (object):
            not self.shift_on:
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
-            dx,xunits = self.fseq.meta['axes'][1]
+            dx,xunits = self.frame_coll.meta['axes'][1]
             #color = self.cw.next()
             color = self.new_color()
             c = plt.Circle((x,y), self.default_circle_rad*dx,
@@ -1235,10 +1347,11 @@ class Picker (object):
 
     def lasso_callback(self, verts):
         "from Lasso widget, get a mask, which is 1 inside the Lasso"
+        # TODO! update to usage of FStackColl
         p = path.Path(verts)
-        sh = self.fseq.shape()
+        sh = self.active_stack.frame_shape
         locs = list(itt.product(*map(xrange, sh[::-1])))
-        dy,dx = self.fseq.meta['axes']['scale'][1:3]
+        dy,dx = self.active_stack.meta['axes']['scale'][1:3]
         out = np.zeros(sh)
         xys = np.array(locs, 'float')
         xys[:,0] *= dy
@@ -1386,25 +1499,35 @@ class Picker (object):
         return out
 
     def _lutconv(self, frame):
-        vmin,vmax = self.clim
-        if np.ndim(frame)>2 and frame.max()>1:
-            return np.clip(frame, vmin,vmax)/vmax
+        ccmap = self._ccmap
+        if ccmap['i'] is not None:
+            i = ccmap['i']
+            vmin,vmax = self.clims[i]
+            out_frame = (frame[...,i]- 1.0*vmin)/(vmax-vmin)
         else:
-            return np.clip(frame, vmin,vmax)
+            out_frame = np.zeros(frame.shape[:2] + (3,), dtype=np.float32)
+            for k,c in enumerate('rgb'):
+                if ccmap[c] is not None:
+                    i = ccmap[c]
+                    f = frame[...,i]
+                    vmin,vmax = self.clims[i]
+                    out_frame[...,k] = (f - 1.0*vmin)/(vmax-vmin)
+        return np.clip(out_frame, 0,1)
+    
     def add_frameshow_hook(self, fn, label):
         self.frame_hooks[label] = fn
 
     def set_frame_index(self,n):
-        Nf = len(self.fseq)
+        Nf = len(self.frame_coll)
 	fi = int(n)%Nf
         self.frame_index = fi
-        dz,zunits = self.fseq.meta['axes'][0]
+        dz,zunits = self.frame_coll.meta['axes'][0]
         if zunits == '':
             tstr = ''
         else:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
-        show_f = self._lutconv(self.fseq[fi])
+        show_f = self._lutconv(self.frame_coll[fi])
         
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
@@ -1417,8 +1540,9 @@ class Picker (object):
         self.fig.canvas.draw()
 
     def show_home_frame(self):
-        show_f = self.home_frame
+        f = self.home_frame
         _title = "Home frame"
+        show_f = self._lutconv(f)
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         self.fig.canvas.draw()
@@ -1524,14 +1648,14 @@ class Picker (object):
         def _dict_copy_no_nones(d):
             return {k:(v if v is not None else 'None') for k,v in d.items()}
         all_rois = self.roi_tags()
-        tv = self.fseq.frame_idx()
+        tv = self.active_stack.frame_idx()
         if format in ['csv', 'tab']:
             # only save 1D signals to csv and tab
             all_rois = filter(self.isAreaROI, all_rois)
         
         all_zv = {t:self.roi_objs[t].get_zview() for t in all_rois}
         if format in ['mat', 'pickle', 'hdf']:
-            all_zv['meta'] = _dict_copy_no_nones(self.fseq.meta)
+            all_zv['meta'] = _dict_copy_no_nones(self.frame_coll.meta)
             all_zv['roi_props'] = map(_dict_copy_no_nones, self.export_rois())
             #print all_zv['roi_props']
         if format == 'mat':
@@ -1558,7 +1682,7 @@ class Picker (object):
     def show_zview(self, rois = None, **kwargs):
 	print 'in Picker.show_zview()'
 
-        tx = self.fseq.frame_idx()
+        tx = self.active_stack.frame_idx()
         t0 = tx[self.frame_index]
 
         if rois is None: rois = self.roi_tags()        
@@ -1649,7 +1773,7 @@ class Picker (object):
                 ncols = int(np.ceil(len(slices)/5.))
                 lib.group_maps(map(self._lutconv, slices),
                                ncols=ncols, titles = roi_tgroup,
-                               single_colorbar=(np.ndim(self.fseq[0])<2))
+                               single_colorbar=(np.ndim(self.active_stack[0])<2))
                 figs.append(plt.gcf())
             else:
                 print 'ui.Picker.show_zview: unknown roi type, %s'%roi_type
@@ -1660,7 +1784,7 @@ class Picker (object):
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
-        freqs = np.fft.fftfreq(int(L), self.fseq.meta['axes'][0][0])[1:L/2]
+        freqs = np.fft.fftfreq(int(L), self.frame_coll.meta['axes'][0][0])[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
             y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
@@ -1670,7 +1794,7 @@ class Picker (object):
                       **kwargs):
         roi =  self.roi_objs[roitag]
         signal = self.get_timeseries([roitag],normp=False)[0]
-        xcmap = fnmap.xcorrmap(self.fseq, signal, corrfn=self._corrfn,**kwargs)
+        xcmap = fnmap.xcorrmap(self.active_stack, signal, corrfn=self._corrfn,**kwargs)
         mask = roi.in_circle(xcmap.shape)
         xshow = np.ma.masked_where(mask,xcmap)
         fig = plt.figure(figsize=figsize)
@@ -1689,7 +1813,7 @@ class Picker (object):
                           normp= True,
                           **keywords):
         keywords.update({'rois':rois, 'normp':normp})
-        dt = self.fseq.meta['axes'][0][0]
+        dt = self.active_stack.meta['axes'][0][0]
         f_s = 1.0/dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
@@ -1714,11 +1838,11 @@ class Picker (object):
             return
         signal = self.get_timeseries([roitag],normp=lib.DFoSD)[0]
         Ns = len(signal)
-        dz,zunits = self.fseq.meta['axes'][0]
+        dz,zunits = self.active_stack.meta['axes'][0]
         f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roitag)
-        tvec = self.fseq.frame_idx()
+        tvec = self.active_stack.frame_idx()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
         lc = self.roi_objs[roitag].get_color()
@@ -1740,7 +1864,7 @@ class Picker (object):
                   **keywords):
         "show mean wavelet power spectra"
         keywords.update({'rois':rois, 'normp':True})
-        dz,zunits = self.fseq.meta['axes'][0]
+        dz,zunits = self.active_stack.meta['axes'][0]
         fs = 1.0/dz
         freqs = ifnot(freqs, self.default_freqs())
         for x,tag,roi,ax in self.roi_show_iterator_subplots(**keywords):
@@ -1750,7 +1874,7 @@ class Picker (object):
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        dz,zunits = self.fseq.meta['axes'][0]
+        dz,zunits = self.active_stack.meta['axes'][0]
         return np.linspace(4.0/(self.length()*dz),
                            0.5/dz, num=nfreqs)
 
@@ -1775,7 +1899,7 @@ class Picker (object):
 	    else:
 		x,points = roi.get_zview(**kwargs)
 	    if i == L-1:
-                dz,zunits = self.fseq.meta['axes'][0]
+                dz,zunits = self.active_stack.meta['axes'][0]
                 if zunits != '':
                     ax.set_xlabel("time, %s"%zunits)
                 else:
@@ -1800,7 +1924,7 @@ class Picker (object):
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROIs"
         freqs = ifnot(freqs, self.default_freqs())
-        dz,zunints = self.fseq.meta['axes'][0]
+        dz,zunints = self.active_stack.meta['axes'][0]
         self.extent=[0,self.length()*dz, freqs[0], freqs[-1]]
 
         if not (self.isAreaROI(tag1) and self.isAreaROI(tag2)):
@@ -1812,7 +1936,7 @@ class Picker (object):
 
         res = func(s1,s2, freqs,1.0/dz,wavelet)
 
-        t = self.fseq.frame_idx()
+        t = self.active_stack.frame_idx()
 
         plt.figure();
         ax1= plt.subplot(211);
@@ -1832,7 +1956,7 @@ class Picker (object):
 	    corrfn = fnmap.stats.pearsonr
 	rois = sorted(filter(self.isAreaROI, self.roi_objs.keys()))
 	ts = self.get_timeseries(normp=normp)
-        t = self.fseq.frame_idx()
+        t = self.active_stack.frame_idx()
 	nrois = len(rois)
 	if nrois < 2:
 	    print "not enough rois, pick more"
