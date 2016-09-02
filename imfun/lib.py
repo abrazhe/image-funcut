@@ -29,6 +29,12 @@ _dtype_ = np.float64
 def rezip(a):
     return zip(*a)
 
+def pair_to_scale(pair):
+    names = ("scale", "units")
+    formats = ('float', "S10")
+    return np.array(pair, dtype=dict(names=names, formats=formats))
+
+    
 def alist_to_scale(alist):
     names = ("scale", "units")
     formats = ('float', "S10")
