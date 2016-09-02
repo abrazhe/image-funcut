@@ -324,8 +324,8 @@ class FrameStackMono(object):
     
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
-_x2=[(1,'sec'), (2,'um'), (3,'um')] # plist
-_x3=[1, 'sec', 2, 'um', 3, 'um'] # alist
+_x2=[(1,'sec'), (2,'um'), (3,'um')] # alist
+_x3=[1, 'sec', 2, 'um', 3, 'um'] # plist
 
 def _empty_axes_meta(size=3):
     names = ("scale", "units")
