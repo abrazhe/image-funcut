@@ -1102,7 +1102,7 @@ class Picker (object):
             pass
         
         for k,c in enumerate(channels):
-            ax = fig.add_axes([0.1,  1 - (k+1)*(el_h +spacing), 0.8, el_h ])
+            ax = fig.add_axes([0.1,  1 - (k+1)*(el_h +spacing), 0.8, el_h ], aspect='equal')
             ax.set_title(channel_names[k],size='small',color= (c!='i') and c or 'k')
             active = (k+1)%4
             if k > nCh: active = 0
@@ -1126,8 +1126,10 @@ class Picker (object):
                 self.clims[k] = (low.val, high.val)
             pass
         for k,stack in enumerate(self.frame_coll.stacks):
-            ax_high = fig.add_axes([0.2, 1- (2*k+1)*(el_h+spacing), el_w, el_h],axisbg=_widgetcolor)
-            ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],axisbg=_widgetcolor)
+            ax_high = fig.add_axes([0.2, 1- (2*k+1)*(el_h+spacing)-spacing, el_w, el_h],
+                                   aspect='auto', axisbg=_widgetcolor)
+            ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],
+                                  aspect='auto', axisbg=_widgetcolor)
             
             lmin,lmax = stack.data_range()
             low,high = self.clims[k]
@@ -1150,7 +1152,8 @@ class Picker (object):
         left = 0.03
         bottom = corners[1,1]-height
 
-        ax_active = self.fig.add_axes([left,bottom,width,height], axisbg=_widgetcolor)
+        ax_active = self.fig.add_axes([left,bottom,width,height],
+                                      aspect='equal',axisbg=_widgetcolor)
         ax_active.set_title('Active channel',size='small')
 
         self.active_stack = self.frame_coll.stacks[0]
@@ -1182,11 +1185,18 @@ class Picker (object):
                                           valfmt=u'%d')
             self.frame_slider.on_changed(self.set_frame_index)
             self._init_active_channel_setter()
-            bax_lut = self.fig.add_axes([0.03, corners[1,1]-0.25, 0.1, 0.05])
+
+            bax_lut = self.fig.add_axes([0.03, corners[1,1]-0.25, 0.1, 0.05],)
             self.lut_but = mw.Button(bax_lut, 'Colors', color=_widgetcolor)
             self.lut_but.on_clicked(self._lut_controls)
             self.lut_but.label.set_fontsize('small')
-                                        
+
+            bax_lev = self.fig.add_axes([0.03, corners[1,1]-0.35, 0.1, 0.05])
+            self.lev_but = mw.Button(bax_lev, 'Levels', color=_widgetcolor)
+            self.lev_but.on_clicked(self._levels_controls)
+            self.lev_but.label.set_fontsize('small')
+
+            
 	else:
 	    self.ax1 = ax
 	    self.fig = self.ax1.figure
