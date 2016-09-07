@@ -34,6 +34,11 @@ def pair_to_scale(pair):
     formats = ('float', "S10")
     return np.array(pair, dtype=dict(names=names, formats=formats))
 
+def quantity_to_pair(q):
+    return q.value, str(q.unit)
+
+def quantity_to_scale(q):
+    return pair_to_scale(quantity_to_pair(q))
     
 def alist_to_scale(alist):
     names = ("scale", "units")

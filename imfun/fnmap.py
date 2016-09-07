@@ -61,7 +61,9 @@ def cwt_iter(fseq,
     pixel_counter = 0
     npix = min(npix, max_pixels)
     cwtf = pycwt.cwt_f
-    dt, tunits = fseq.meta['axes'][0]
+    dt = fseq.meta['axes'][0]
+    dt = dt.to('s').value
+    #tunits = dt.unit
     for s,i,j in pixel_iter:
 	# todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
@@ -97,7 +99,8 @@ def cwtmap(fseq,
     subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
 
-    dt, tunits = fseq.meta['axes'][0]
+    dt = fseq.meta['axes'][0]
+    dt = dt.to('s').value
 
     tstarts = map(lambda x: int(x[0]/dt), tranges)
     tstops = map(lambda x: int(x[1]/dt), tranges)
@@ -364,7 +367,8 @@ def fftmap(fseq, frange, func=np.mean,
         total = shape[0]*shape[1]
         out = np.ones(shape, np.float64)
         k = 0
-        dt,tunits = fseq.meta['axes'][0]
+        dt = fseq.meta['axes'][0]
+        dt = dt.to('s').value
         freqs = np.fft.fftfreq(L, dt)
         pix_iter = fseq.pix_iter(**kwargs)
         normL = ifnot(normL, L)

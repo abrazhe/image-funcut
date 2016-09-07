@@ -38,7 +38,7 @@ from imfun import track
 
 ifnot = lib.ifnot
 in_circle = lib.in_circle
-
+from lib import quantity_to_pair, quantity_to_scale
 
 
 
@@ -495,12 +495,13 @@ class LineScan(DraggableObj):
 
     def transform_point(self, p):
         "convert Figure coordinates to pixels"
-        dx,dy = self.axes[1:3]['scale']
-        return p[0]/dx, p[1]/dy
+        dx,dy = self.axes[1:3]
+        return p[0]/dx.value, p[1]/dy.value
 
     def get_zview(self,hwidth=2,frange=None):
         points = map(self.transform_point, self.check_endpoints())
-        dx,dy = self.axes[1:3]['scale']
+        dx,dy = [_x.value for _x in self.axes[1:3]]
+        #((dx,xunits), (dy,yunits)) = map(quantity_to_pair, self.axes[1:3])
         print 'points:', points[0][0], points[0][1],
         print 'points:', points[0][0]*dx, points[0][1]*dy
         print 'points type is:', map(type, points)
@@ -566,18 +567,24 @@ class LineScan(DraggableObj):
             plt.subplots_adjust(bottom=0.2)
 
             # TODO: work out if sx differs from sy
-            (dz,zunits), (dx,xunits) = frame_coll.meta['axes'][:2]
-            x_extent = (0,dz*timeview.shape[1])
+            
+            #(dz,zunits), (dx,xunits) = frame_coll.meta['axes'][:2]
+            dz,dx,dy = frame_coll.meta['axes'] 
+            x_extent = (0,dz.value*timeview.shape[1])
             if mpl.rcParams['image.origin'] == 'lower':
                lowp = 1
             else:
                lowp = -1
             ax.imshow(timeview,
-                      extent=x_extent + (0, dx*timeview.shape[0]),
+                      extent=x_extent + (0, dx.value*timeview.shape[0]),
                       interpolation='nearest',
                       aspect='auto')
-            ylabel = (xunits !='') and xunits or 'pixels'
-            xlabel = (zunits !='')  and zunits or 'frames'
+            
+            #xlabel = hasattr(dz, 'unit') and dx.unit or 'frames'
+            #ylabel = hasattr(dx, 'unit') and dx.unit or 'pixels'
+            xlabel = dz.unit.is_dimensionless and 'frames' or dz.unit
+            ylabel = dx.unit.is_dimensionless and 'pixels' or dx.unit
+            
 
             ax.set_ylabel(ylabel)
             ax.set_xlabel(xlabel)
@@ -717,7 +724,8 @@ class CircleROI(DraggableObj):
 
     def in_circle(self, shape):
         roi = self.obj
-        dx,dy = self.axes[1:3]['scale']
+
+        dx,dy = [x.value for x in self.axes[1:3]]
         c = roi.center[0]/dx, roi.center[1]/dy
         fn = lib.in_circle(c, roi.radius/dx)
         X,Y = np.meshgrid(*map(range, shape[::-1]))
@@ -1017,7 +1025,7 @@ class Picker (object):
         if isinstance(frames, fseq.FStackColl):
             frame_coll = frames
         elif isinstance(frames, fseq.FrameStackMono):
-            frame_coll = fseq.FStackColl(frames)
+            frame_coll = fseq.FStackColl([frames])
         else:
             print "Unrecognized frame stack format. Must be either derived from fseq.FrameStackMono or fseq.FStackColl"
             return
@@ -1209,18 +1217,20 @@ class Picker (object):
 
         ## setup axes and show home frame
         axes = self.frame_coll.meta['axes']
-        (dy,yunits), (dx,xunits) = axes[1:3]
+
+        dy,dx = axes[1:3]
+        yunits, xunits = (str(x.unit) for x in (dy,dx))
 	sy,sx = self.frame_coll[0].shape[:2]
 
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
 
         self.plh = self.ax1.imshow(self._lutconv(self.home_frame),
-                                  extent = (0, sx*dx)+(0, sy*dy)[::lowp],
+                                  extent = (0, sx*dx.value)+(0, sy*dy.value)[::lowp],
                                   aspect='equal',
                                   **imshow_args)
-        self.ax1.set_xlabel(yunits)
-        self.ax1.set_ylabel(xunits)
+        self.ax1.set_xlabel(str(yunits))
+        self.ax1.set_ylabel(str(xunits))
 
         self.disconnect()
         self.connect()
@@ -1328,10 +1338,11 @@ class Picker (object):
            not self.shift_on:
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
-            dx,xunits = self.frame_coll.meta['axes'][1]
+            dx,dy = self.frame_coll.meta['axes'][1:3]
+            
             #color = self.cw.next()
             color = self.new_color()
-            c = plt.Circle((x,y), self.default_circle_rad*dx,
+            c = plt.Circle((x,y), self.default_circle_rad*dx.value,
                            label = label,
                            linewidth = 1.5,
                            facecolor=color+[0.5],
@@ -1361,11 +1372,11 @@ class Picker (object):
         p = path.Path(verts)
         sh = self.active_stack.frame_shape
         locs = list(itt.product(*map(xrange, sh[::-1])))
-        dy,dx = self.active_stack.meta['axes']['scale'][1:3]
+        dy,dx = self.active_stack.meta['axes'][1:3]
         out = np.zeros(sh)
         xys = np.array(locs, 'float')
-        xys[:,0] *= dy
-        xys[:,1] *= dx # coordinates with scale
+        xys[:,0] *= dy.value
+        xys[:,1] *= dx.value # coordinates with scale
         ind = p.contains_points(xys)
         for loc,i in itt.izip(locs, ind):
             if i : out[loc[::-1]] = 1
@@ -1531,8 +1542,10 @@ class Picker (object):
         Nf = len(self.frame_coll)
 	fi = int(n)%Nf
         self.frame_index = fi
-        dz,zunits = self.frame_coll.meta['axes'][0]
-        if zunits == '':
+
+        dz,zunits = quantity_to_pair(self.frame_coll.meta['axes'][0])
+
+        if zunits == '_':
             tstr = ''
         else:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
@@ -1794,7 +1807,8 @@ class Picker (object):
 	    
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
-        freqs = np.fft.fftfreq(int(L), self.frame_coll.meta['axes'][0][0])[1:L/2]
+        dt = self.frame_coll.meta['axes'][0]
+        freqs = np.fft.fftfreq(int(L),dt)[1:L/2]
         for x,tag,roi,ax in self.roi_show_iterator_subplots(rois, **keywords):
             y = abs(np.fft.fft(x))[1:L/2]
             ax.plot(freqs, y**2)
@@ -1823,7 +1837,7 @@ class Picker (object):
                           normp= True,
                           **keywords):
         keywords.update({'rois':rois, 'normp':normp})
-        dt = self.active_stack.meta['axes'][0][0]
+        dt = self.active_stack.meta['axes'][0]
         f_s = 1.0/dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
@@ -1848,7 +1862,7 @@ class Picker (object):
             return
         signal = self.get_timeseries([roitag],normp=lib.DFoSD)[0]
         Ns = len(signal)
-        dz,zunits = self.active_stack.meta['axes'][0]
+        dz = self.active_stack.meta['axes'][0]
         f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roitag)
@@ -1862,7 +1876,9 @@ class Picker (object):
 			       wavelet=wavelet,
 			       cax = axlist[2])
         axlist[0].set_title(title_string)
-        if zunits != '':
+        #zunits = hasattr(dz, 'unit') and dz.unit or ''
+        zunits = str(dz.unit)
+        if zunits != '_':
             axlist[1].set_xlabel('time, %s'%zunits)
             axlist[0].set_ylabel('Frequency, Hz')
         return fig
@@ -1874,8 +1890,8 @@ class Picker (object):
                   **keywords):
         "show mean wavelet power spectra"
         keywords.update({'rois':rois, 'normp':True})
-        dz,zunits = self.active_stack.meta['axes'][0]
-        fs = 1.0/dz
+        dz = self.active_stack.meta['axes'][0]
+        fs = 1.0/dz.value
         freqs = ifnot(freqs, self.default_freqs())
         for x,tag,roi,ax in self.roi_show_iterator_subplots(**keywords):
             cwt = pycwt.cwt_f(x, freqs, fs, wavelet, 'zpd')
@@ -1884,9 +1900,9 @@ class Picker (object):
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        dz,zunits = self.active_stack.meta['axes'][0]
+        dz = self.active_stack.meta['axes'][0]
         return np.linspace(4.0/(self.length()*dz),
-                           0.5/dz, num=nfreqs)
+                           0.5/dz.value, num=nfreqs)
 
     def roi_show_iterator_subplots(self, rois = None,
                               **kwargs):
@@ -1909,9 +1925,9 @@ class Picker (object):
 	    else:
 		x,points = roi.get_zview(**kwargs)
 	    if i == L-1:
-                dz,zunits = self.active_stack.meta['axes'][0]
-                if zunits != '':
-                    ax.set_xlabel("time, %s"%zunits)
+                dz = self.active_stack.meta['axes'][0]
+                if dz.unit != '_':
+                    ax.set_xlabel("time, %s"%dz.unit)
                 else:
                     ax.set_xlabel('frames')
             if L == 1:
@@ -1934,8 +1950,8 @@ class Picker (object):
                      wavelet = pycwt.Morlet()):
         "show cross wavelet spectrum or wavelet coherence for two ROIs"
         freqs = ifnot(freqs, self.default_freqs())
-        dz,zunints = self.active_stack.meta['axes'][0]
-        self.extent=[0,self.length()*dz, freqs[0], freqs[-1]]
+        dz = self.active_stack.meta['axes'][0]
+        self.extent=[0,self.length()*dz.value, freqs[0], freqs[-1]]
 
         if not (self.isAreaROI(tag1) and self.isAreaROI(tag2)):
             print "Both tags should be for area-type ROIs"
