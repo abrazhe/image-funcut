@@ -8,6 +8,8 @@ from scipy import io
 import lib
 import fnutils as fu
 
+from external.physics import Q
+
 
 def guess_format(file_name):
     """given file name, return either 'mat' or 'h5' depending on whether the
@@ -43,7 +45,7 @@ def load_file_info(file_name):
     records = [handler(file_name, v) for v in vars]
     return records
 
-def load_record(file_name, recordName, ch):
+def load_record(file_name, recordName):
     """Given file name and a record name, load the record data dispatching on
     the correct file format and record type, i.e. Zstack or Timelapse
 
@@ -64,11 +66,11 @@ def load_record(file_name, recordName, ch):
                 'h5Z':ZStack_h5,
                 'h5T':Timelapse_h5}
     r = r[0]
-    key = r.variant+r.get_kind()
+    key = r.variant+r.kind
 
     #print key
     if not 'U' in key:
-        obj = handlers[key](file_name, recordName, ch)
+        obj = handlers[key](file_name, recordName)
     else:
         print "Unknown type of file or record"
         obj = None
@@ -92,11 +94,12 @@ class MES_Record:
     def __repr__(self):
         tstamp = self.timestamps[0].replace(' ','.')
         tstamp = ':'.join(tstamp.split(':')[:-1])
-        kind = self.get_kind()
+        kind = self.kind
         return '<%s '%self.record + ' '.join((kind,tstamp))+'>'
     def is_supported(self):
         return self.is_zstack() or self.is_timelapse()
-    def get_kind(self):
+    @property
+    def kind(self):
         kind = 'U'
         if self.is_zstack():
             kind = 'Z'
@@ -107,9 +110,9 @@ class MES_Record:
 
 class MAT_Record(MES_Record):
     """Base functions to read entries from MES-related MATv7 files"""
-    def __init__(self, file_name, recordName, ch):
+    def __init__(self, file_name, recordName):
         self.variant = 'mat'
-        self.ch = ch
+        #self.ch = ch
         self.record = recordName
         self.entry = io.loadmat(file_name, variable_names=[recordName])[recordName]
         self.contexts = self.entry["Context"]
@@ -119,6 +122,7 @@ class MAT_Record(MES_Record):
                            if np.prod(x[0].shape)>0 ]
         self.img_names = map(self.get_field, self.entry['ImageName'])
         self.channels = [self.get_field(x).lower() for x in self.entry['Channel']]
+        self.nchannels = len(np.unique(self.channels))
 
     def _get_stream(self, name):
         rec = io.loadmat(self.file_name,variable_names=[name],appendmat=False)
@@ -139,9 +143,9 @@ class MAT_Record(MES_Record):
 
 class H5_Record(MES_Record):
     "Base functions to read entries from MES-related HDF5 MAT files"
-    def __init__(self, file_name, recordName,ch):
+    def __init__(self, file_name, recordName):
         self.variant = 'h5'
-        self.ch = ch
+        #self.ch = ch
         self.h5file = h5py.File(file_name)
         tkeyf = self._get_str_field
         nkeyf = self._get_num_field
@@ -173,11 +177,11 @@ class ZStack:
     "Common class to deal with Zstack data"
     kind = 'Zstack'
     def _read_frame(self, num, ch):
-        if ch is None: ch = self.ch
+        #if ch is None: ch = self.ch
         k =  num*self.nchannels
         pipeline = fu.flcompose(self._get_stream, lambda a: 1.0*np.array(a),
                                 lib.rescale)
-        names = self.img_names[k:k+self.nchannels][self._ch2ind(self.ch)]
+        names = self.img_names[k:k+self.nchannels][self._ch2ind(ch)]
 
         cstack = np.array(map(pipeline, names))
         return np.squeeze(np.dstack(cstack))
@@ -198,11 +202,10 @@ class ZStack:
         return out
                           
     def load_data(self, ch):
-        if ch is None: ch = self.ch
+        #if ch is None: ch = self.ch
         #outmeta = {'ch':ch}
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
-        outmeta['axes'] = lib.alist_to_scale([(self.dz, 'um'),
-                                              (self.dx, 'um')])
+        outmeta['axes'] = (Q(self.dz, 'um'),Q(self.dx, 'um'), Q(self.dx, 'um'))
         var_names = self.img_names
         nchannels = self.nchannels
 
@@ -230,8 +233,9 @@ class ZStack:
         return data, outmeta
 
 class ZStack_mat(ZStack, MAT_Record):
-    def __init__(self, file_name, recordName, ch):
-        MAT_Record.__init__(self, file_name, recordName, ch)
+    def __init__(self, file_name, recordName):
+        MAT_Record.__init__(self, file_name, recordName)
+        #self.ch = ch
         self.dz = self._get_zstep()
         self.nframes = len(self.entry)
         self.frame_shape = tuple(self.get_field(self.entry[0]['DIMS']))
@@ -244,8 +248,9 @@ class ZStack_mat(ZStack, MAT_Record):
 
 
 class ZStack_h5(ZStack, H5_Record):
-    def __init__(self,file_name, recordName, ch):
-        H5_Record.__init__(self, file_name, recordName, ch)
+    def __init__(self,file_name, recordName):
+        H5_Record.__init__(self, file_name, recordName)
+        #self.ch = ch
         self.dz = self._get_zstep()
         self.nframes = len(self.img_names)
         self.frame_shape = self.dims[0]
@@ -260,9 +265,10 @@ class Timelapse:
     "Common class to deal with timelapse images"
     kind='Timelapse'
     def load_data(self,ch):
-        if ch == None: ch = self.ch
+        #if ch == None: ch = self.ch
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
-        outmeta['axes'] = lib.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
+        #outmeta['axes'] = lib.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
+        outmeta['axes'] = [Q(self.dt, 's'), Q(self.dx, 'um'), Q(self.dx, 'um')]
         nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
         base_shape = map(np.int, (nframes-1, nlines, line_len))
         streams = self._load_streams(ch=ch)
@@ -282,7 +288,7 @@ class Timelapse:
         self.outmeta = outmeta
         return  data, outmeta
     def _load_streams(self,ch):
-        if ch is None: ch = self.ch
+        #if ch is None: ch = self.ch
         var_names = self.img_names
         if not (ch is None or ch=='all'):
             if isinstance(ch, int):
@@ -297,13 +303,14 @@ class Timelapse:
         return streams
 
 class  Timelapse_mat(Timelapse, MAT_Record):
-    def __init__(self, file_name, recordName, ch):
-        MAT_Record.__init__(self, file_name, recordName, ch)
+    def __init__(self, file_name, recordName):
+        MAT_Record.__init__(self, file_name, recordName)
+        #self.ch = ch
         self.measures = only_measures_mat(self.entry)
         self.dt = self.get_sampling_interval()
         nframes, (line_len, nlines) = self.get_xyt_shape()
         self.img_names = [x[0] for x in self.measures['ImageName']]
-        self.channels = [x[0] for x in self.measures['Channel']]
+        self.channels = [x[0].lower() for x in self.measures['Channel']]
     def _reshape_frames(self, stream):
         nlines,nframes = map(int, (self.nlines, self.nframes))
         return (stream[:,k*nlines:(k+1)*nlines].T for k in xrange(1,nframes))
@@ -325,8 +332,8 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         return first_measure_mat(self.entry)['FoldedFrameInfo'][0]
 
 class Timelapse_h5(Timelapse, H5_Record):
-    def __init__(self, file_name, recordName, ch):
-        H5_Record.__init__(self, file_name, recordName, ch)
+    def __init__(self, file_name, recordName):
+        H5_Record.__init__(self, file_name, recordName)
         self.img_names = self.img_names[[self.contexts=='Measure']]
         self.line_length = self.dims[0,0]
         ffi = get_ffi_h5(self.h5file, recordName)
