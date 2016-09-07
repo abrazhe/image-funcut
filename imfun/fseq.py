@@ -10,6 +10,8 @@ import re
 import glob
 import itertools as itt
 
+from imfun.external.physics import Q
+
 import warnings
 
 import numpy as np
@@ -33,8 +35,8 @@ class FrameStackMono(object):
     "Base class for a stack {stream, sequence} of single-channel frames"
     def set_default_meta(self,ndim=None):
         self.meta = dict()
-        scales = lib.alist_to_scale([(1,'')])
-        self.meta['axes'] = scales
+        #scales = lib.alist_to_scale([(1,'')])
+        self.meta['axes'] = [Q(1,'_') for i in range(3)]
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
@@ -67,8 +69,8 @@ class FrameStackMono(object):
         """Return a vector of time stamps, if frame sequence is timelapse and
         dt is set, or just `arange(nframes)`"""
         L = len(self)
-        scale, unit = self.meta['axes'][0]
-        if unit == '': scale=1
+        scale = self.meta['axes'][0].value
+        #if unit == '': scale=1
         return np.arange(0, (L+2)*scale, scale)[:L]
 
     def mask_reduce(self, mask, fn=np.mean):
@@ -277,7 +279,8 @@ class FrameStackMono(object):
 	    dtype = kwargs['dtype']
 	else:
 	    dtype = _dtype_
-	dt = self.meta['axes'][0]['scale'] # todo: always convert to seconds
+	dt = self.meta['axes'][0]
+        dt = dt.to('s')
 	arr = self.as3darray(**kwargs)
 	sigma = tau/dt
 	smooth =  ndimage.gaussian_filter1d(arr, sigma, axis=0)
@@ -508,13 +511,13 @@ class FStackM_imgleic(FStackM_img):
         try:
             from imfun import leica
             self.lp = leica.LeicaProps(xmlname)
-            self.meta['axes'][1:3] = [(self.lp.dx,'um'), (self.lp.dy,'um')]
+            self.meta['axes'][1:3] = [Q(self.lp.dx,'um'), Q(self.lp.dy,'um')]
             if hasattr(self.lp, 'dt'):
-                zscale = (self.lp.dt, 's')
+                zscale = Q(self.lp.dt, 's')
             elif hasattr(self.lp, 'dz'):
-                zscale = (self.lp.dz, 'um')
+                zscale = Q(self.lp.dz, 'um')
             else:
-                zscale = (1, '')
+                zscale = Q(1, '_')
             self.meta['axes'][0] = zscale
 
         except Exception as e:
@@ -531,7 +534,7 @@ class FStackM_plsi(FrameStackMono):
         self.plsimg = ioraw.PLSI(fname)
         self.set_default_meta()
         dt = self.plsimg.dt/1000.0
-        self.meta['axes'][0] = (dt, 'sec')
+        self.meta['axes'][0] = Q(dt, 's')
         self.fns = ifnot(fns, [])
 
     def frames(self,):
@@ -632,7 +635,7 @@ class FStackM_plsi(FrameStackMono):
 import mes
 
 class FStackM_mes(FStackM_arr):
-    def __init__(self, fname, record=None, ch='r', fns=None, verbose=False,
+    def __init__(self, fname, record, ch='r', fns=None, verbose=False,
                  autocrop = True):
         """
         The following format is assumed:
@@ -645,22 +648,10 @@ class FStackM_mes(FStackM_arr):
         self.fns = ifnot(fns, [])
         self._verbose=verbose
 
-        if record is None:
-            vars = filter(lambda v: v.is_supported, mes.load_file_info(fname))
-            if len(vars):
-                record = vars[0].record
-            else:
-                print "FSeq_mes: Can't find loadable records"
-        elif isinstance(record,int):
-            record = 'Df%04d'%record
-        elif isinstance(record,str):
-            if not ('Df' in record):
-                record = 'Df%04d'%int(record)
-        else:
-            print "FSeq_mes: Unknown record definition format"
 
-        self.mesrec = mes.load_record(fname, record, ch)
-        self.data, self.meta = self.mesrec.load_data()
+        self.mesrec = mes.load_record(fname, record)
+        self.ch = ch
+        self.data, self.meta = self.mesrec.load_data(ch)
         if autocrop :
             nrows = self.data.shape[1]
             self.data = self.data[:,:,:nrows,...]
@@ -722,12 +713,29 @@ def from_leica_exported(path, *args, **kwargs):
         handler =  FStackM_img
     stacks = [handler(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
     return FStackColl(stacks)
-        
-        
-    
-    
 
+def from_images(path,*args,**kwargs):
+    stacks = [FStackM_img(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
+    return FStackColl(stacks)
 
+def from_mes(path, record=None, **kwargs):
+    if record is None:
+        vars = filter(lambda v: v.is_supported, mes.load_file_info(path))
+        if len(vars):
+            record = vars[0].record
+        else:
+            print "FSeq_mes: Can't find loadable records"
+    elif isinstance(record,int):
+        record = 'Df%04d'%record
+    elif isinstance(record,str):
+        if not ('Df' in record):
+            record = 'Df%04d'%int(record)
+    else:
+        print "FSeq_mes: Unknown record definition format"
+
+    mesrec = mes.load_record(path, record)
+    stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in mesrec.channels]
+    return FStackColl(stacks)
 
 import inspect
 
@@ -882,7 +890,7 @@ try:
                 continue
             out.append(frame_fn(image))
         fs = open_seq(np.array(out), **kwargs)
-        fs.meta['axes'][0] = (1./framerate, 's')
+        fs.meta['axes'][0] = Q(1./framerate, 's')
         return fs
 
     def mp4_to_hdf5(name, framerate=25., frame_fn=None, **kwargs):
@@ -931,7 +939,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     Parameters:
       - `fslist`: a FrameSequence object or a list of such objects
       - `video_name`: (`str`) -- name of the movie to be created
-      - `fps`: (`number`) -- frames per second; If None, use 10/self.meta['axes'][0][0]
+      - `fps`: (`number`) -- frames per second; If None, use 10/self.meta['axes'][0]
       - `start`: start export at this frame count
       - `stop`: stop export at this frame count
       - `ncols`: number of columns in a grid to use when exporting several FrameSequence objects
@@ -959,7 +967,8 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     stop = ifnot(stop, np.min(map(len, fslist)))
     L = stop-start
     print 'number of frames:', L
-    dz,zunits = tuple(fslist[0].meta['axes'][0]) # units of the first frame sequence are used
+    dz = fslist[0].meta['axes'][0] # units of the first frame sequence are used
+    zunits = dz.unit
 
     lutfns = []
     for fs in fslist:
