@@ -14,6 +14,7 @@ from . import atrous, bwmorph, cluster, fseq, fnmap, fnutils, lib
 from . import ioraw
 from . import mmt, multiscale, mvm
 from . import opflowreg, pica, track, ui
+from . import external
 
 ## import lib
 ## import fseq
