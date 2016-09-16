@@ -97,6 +97,11 @@ def line_from_points(p1,p2):
     b = p1[1] - p1[0]*k
     return k, b
 
+
+def rot_vector(v, alpha):
+    sina,cosa = sin(alpha),cos(alpha)
+    return dot([[cosa, -sina], [sina, cosa]], v)
+
 def translate(p1,p2):
     """returns translation vector used to
     ||-translate line segment p1,p2 in an orthogonal direction"""
@@ -363,8 +368,9 @@ class DraggableObj(object):
     def disconnect(self):
         map(self.obj.axes.figure.canvas.mpl_disconnect,
             self.cid.values())
-        
-    def get_color(self):
+
+    @property
+    def color(self):
         return self.obj.get_edgecolor()    
 
 class ThresholdLine(DraggableObj):
@@ -398,7 +404,7 @@ class LineScan(DraggableObj):
         self.name_tag = ax.text(ep_start[0],ep_start[1], self.obj.get_label(),
                                   size = 'small',
                                   color = self.obj.get_color())
-        
+        self.labels = [self.length_tag, self.name_tag]
         print "%2.2f"%self.length()
         self.update_tags()
         self.parent.legend()
@@ -485,10 +491,9 @@ class LineScan(DraggableObj):
         if self.tag in self.parent.roi_objs:
             self.parent.roi_objs.pop(self.tag)
         self.disconnect()
-        self.length_tag.set_alpha(0)
-        self.length_tag.remove()
-        self.name_tag.set_alpha(0)
-        self.name_tag.remove()
+        for l in self.labels:
+            l.set_alpha(0)
+            l.remove()
         self.obj.remove()
         self.parent.legend()
         self.redraw()
@@ -498,33 +503,16 @@ class LineScan(DraggableObj):
         dx,dy = self.axes[1:3]
         return p[0]/dx.value, p[1]/dy.value
 
-    def get_zview(self,hwidth=2,frange=None):
+    def get_zview_at_frames(self, frames, hwidth=2):
         points = map(self.transform_point, self.check_endpoints())
         dx,dy = [_x.value for _x in self.axes[1:3]]
         #((dx,xunits), (dy,yunits)) = map(quantity_to_pair, self.axes[1:3])
-        print 'points:', points[0][0], points[0][1],
-        print 'points:', points[0][0]*dx, points[0][1]*dy
-        print 'points type is:', map(type, points)
-	if frange is None:
-	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
-		caller = self.parent.caller
-		hwidth = caller.fso.linescan_width # overrides argument
-		half_scope = caller.fso.linescan_scope
-		if half_scope <= 0:
-		    frames = lambda : self.parent.active_stack
-		else:
-		    fi = caller.frame_index
-		    fstart = max(0,fi-half_scope)
-		    fstop = min(len(self.parent.active_stack),fi+half_scope)
-		    frange = slice(fstart,fstop)
-		    frames = lambda : self.parent.active_stack[frange]
-	    else:
-		frames = lambda : self.parent.active_stack
-	else:
-	    frames = lambda : self.parent.active_stack[frange]
+        #print 'points:', points[0][0], points[0][1],
+        #print 'points:', points[0][0]*dx, points[0][1]*dy
+        #print 'points type is:', map(type, points)
 	tv = np.reshape(translate(*points),-1) # translation vector
 	#timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
-        timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
+        timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames])
         
 	if hwidth > 0:
 	    plist = [points]
@@ -532,7 +520,28 @@ class LineScan(DraggableObj):
 	    out = np.mean(map(timeview, plist), axis=0)
 	else:
 	    out = timeview(points)
-        return np.rot90(out),points
+        return np.squeeze(np.rot90(out)),points
+        
+
+    def get_zview(self,hwidth=2,frange=None):
+	if frange is None:
+	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
+		caller = self.parent.caller
+		hwidth = caller.fso.linescan_width # overrides argument
+		half_scope = caller.fso.linescan_scope
+		if half_scope <= 0:
+		    frames = self.parent.active_stack
+		else:
+		    fi = caller.frame_index
+		    fstart = max(0,fi-half_scope)
+		    fstop = min(len(self.parent.active_stack),fi+half_scope)
+		    frange = slice(fstart,fstop)
+		    frames = self.parent.active_stack[frange]
+	    else:
+		frames = self.parent.active_stack
+	else:
+	    frames = self.parent.active_stack[frange]
+        return self.get_zview_at_frames(frames, hwidth=hwidth)
 
     def _get_full_projection(self, fn = np.mean,axis=1,
 			    mode='constant',
@@ -619,7 +628,8 @@ class LineScan(DraggableObj):
 
         return btn_diam
 
-    def get_color(self):
+    @property
+    def color(self):
         return self.obj.get_color()
 	    
 
@@ -678,9 +688,9 @@ class CircleROI(DraggableObj):
         
     def destroy(self):
         p = self.parent.roi_objs.pop(self.tag)
+        self.disconnect()
         self.obj.remove()
         self.tagtext.remove()
-        self.disconnect()
         self.redraw()
 
     def move(self, p):
@@ -718,7 +728,7 @@ class CircleROI(DraggableObj):
                                    verticalalignment=va,
                                    horizontalalignment=ha,
                                    size = 'small',
-                                   color = self.get_color())
+                                   color = self.color)
         else:
             self.tagtext.set_position((x,y))
 
@@ -1090,6 +1100,9 @@ class Picker (object):
 
         channels = 'rgbi'
         channel_names = ['Red','Green','Blue','Grayscale']
+        streams = [s.meta['channel'] for s in self.frame_coll.stacks]
+        stream_idx = {s:k for k,s in enumerate(streams)}
+        
         nCh = self.frame_coll.nCh
         self.channel_ctrls = {k:None for k in channels}
 
@@ -1103,7 +1116,7 @@ class Picker (object):
                 if selected == '--' or selected is None:
                     ch = None
                 else:
-                    ch = int(selected)
+                    ch = stream_idx[selected]
                     if key is 'i':
                         self.ach_setter.set_active(ch)
                 self._ccmap[key] = ch
@@ -1114,7 +1127,7 @@ class Picker (object):
             ax.set_title(channel_names[k],size='small',color= (c!='i') and c or 'k')
             active = (k+1)%4
             if k > nCh: active = 0
-            channel_selector = mw.RadioButtons(ax, ['--'] + range(nCh), active = active)
+            channel_selector = mw.RadioButtons(ax, ['--'] + streams, active = active)
             channel_selector.on_clicked(_update_choices)
             self.channel_ctrls[c] = channel_selector
         plt.subplots_adjust(left=0.05,right=0.95,bottom=0.05,top=0.95)
@@ -1162,12 +1175,16 @@ class Picker (object):
 
         ax_active = self.fig.add_axes([left,bottom,width,height],
                                       aspect='equal',axisbg=_widgetcolor)
+
         ax_active.set_title('Active channel',size='small')
 
+        streams = [s.meta['channel'] for s in self.frame_coll.stacks]
+        stream_idx = {s:k for k,s in enumerate(streams)}
+        
         self.active_stack = self.frame_coll.stacks[0]
-        self.ach_setter = mw.RadioButtons(ax_active, range(self.frame_coll.nCh))
+        self.ach_setter = mw.RadioButtons(ax_active, streams)
         def _update_active(event):
-            ind = int(self.ach_setter.value_selected)
+            ind = stream_idx[self.ach_setter.value_selected]
             #print 'active stack updated to ', ind 
             self.active_stack = self.frame_coll.stacks[ind]
             
@@ -1747,7 +1764,7 @@ class Picker (object):
                     matching_tags = [t for t in roi_tgroup if t.startswith(prefix)]
                     for t in matching_tags:
                         roi = self.roi_objs[t]
-                        color = roi.get_color()
+                        color = roi.color
                         signal = roi.get_zview(**kwargs)
                         if np.ndim(signal) < 2:
                             signal = signal[:,None]
@@ -1869,7 +1886,7 @@ class Picker (object):
         tvec = self.active_stack.frame_idx()
         L = min(Ns,len(tvec))
         tvec,signal = tvec[:L],signal[:L]
-        lc = self.roi_objs[roitag].get_color()
+        lc = self.roi_objs[roitag].color
         fig,axlist = swu.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
@@ -1931,10 +1948,10 @@ class Picker (object):
                 else:
                     ax.set_xlabel('frames')
             if L == 1:
-                ax.set_title(roi_label, color=roi.get_color(),
+                ax.set_title(roi_label, color=roi.color,
                              backgroundcolor='w', size='large')
             else:
-                ax.set_ylabel(roi_label, color=roi.get_color(),size='large')
+                ax.set_ylabel(roi_label, color=roi.color,size='large')
 	    yield x, roi_label, roi, ax
 
     def roi_prefixes(self, tags=None):
@@ -1967,8 +1984,8 @@ class Picker (object):
         plt.figure();
         ax1= plt.subplot(211);
         roi1,roi2 = self.roi_objs[tag1], self.roi_objs[tag2]
-        plt.plot(t,s1,color=roi1.get_color(), label=tag1)
-        plt.plot(t,s2,color=roi2.get_color(), label = tag2)
+        plt.plot(t,s1,color=roi1.color, label=tag1)
+        plt.plot(t,s2,color=roi2.color, label = tag2)
         #legend()
         ax2 = plt.subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
