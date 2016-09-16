@@ -15,7 +15,14 @@ from imfun.external.physics import Q
 import warnings
 
 import numpy as np
+from scipy import ndimage
 #import tempfile as tmpf
+
+try:
+    from numba import jit
+except ImportError:
+    def jit(fn):
+        return fn
 
 
 _dtype_ = np.float64
@@ -37,6 +44,7 @@ class FrameStackMono(object):
         self.meta = dict()
         #scales = lib.alist_to_scale([(1,'')])
         self.meta['axes'] = [Q(1,'_') for i in range(3)]
+        self.meta['channel'] = None
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
@@ -122,14 +130,14 @@ class FrameStackMono(object):
         Returns:
 	  - `2D` `array` -- a projected frame
 	"""
-        sh = self.frame_shape(crop)
+        sh = self.get_frame_shape(crop)
 	out = np.zeros(sh)
         if callable(fslice):
             fn = fslice
             fslice = None
         #if len(sh)>2:
         #    fn = lambda a: np.mean(a, axis=0)
-	for v,r,c in self.pix_iter(fslice=fslice,crop=crop):
+	for v,r,c in self.pix_iter(fslice=fslice):
 	    out[r,c] = fn(v)
 	return out
 
@@ -192,7 +200,7 @@ class FrameStackMono(object):
 	"""
         if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
-        shape = self.shape(crop)
+        shape = self.get_frame_shape(crop)
 	newshape = (len(self),) + shape
         out = lib.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(self, *fslice)):
@@ -219,7 +227,7 @@ class FrameStackMono(object):
 	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
 	
 	"""
-	sh = self.shape(crop)
+	sh = self.get_frame_shape(crop)
         pmask = ifnot(pmask, np.ones(sh[:2], np.bool))
         nrows, ncols = sh[:2]
         rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
@@ -267,14 +275,13 @@ class FrameStackMono(object):
         else:
             return self._length
 
-    @property
-    def frame_shape(self, crop=None):
+    def get_frame_shape(self, crop=None):
         "Return the shape of frames in the sequence"
         return self.frame_slices(crop).next().shape
+    frame_shape = property(get_frame_shape)
 
     def _norm_mavg(self, tau=90., **kwargs):
 	"Return normalized and temporally smoothed frame sequence"
-	from scipy import ndimage
 	if 'dtype' in kwargs:
 	    dtype = kwargs['dtype']
 	else:
@@ -324,6 +331,17 @@ class FrameStackMono(object):
         else:
             newmeta = self.meta.copy() 
         return FStackM_arr(out, meta=newmeta)
+
+    def zoom(self, scales):
+        """Zoom in or out so self.meta['axes'] match provided scales"""
+        data = self[:]
+        scales0 = self.meta['axes']
+        scales = [s.to(s0.unit) for s0,s in zip(scales0,scales)]
+        zoom_factors = [s0/s for s0,s in zip(scales0,scales)]
+        new_data = ndimage.zoom(data, zoom_factors)
+        new_fs = FStackM_arr(new_data, meta=self.meta)
+        new_fs.meta['axes'] = scales
+        return new_fs
     
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
@@ -652,6 +670,7 @@ class FStackM_mes(FStackM_arr):
         self.mesrec = mes.load_record(fname, record)
         self.ch = ch
         self.data, self.meta = self.mesrec.load_data(ch)
+        self.meta['channel'] = ch
         if autocrop :
             nrows = self.data.shape[1]
             self.data = self.data[:,:,:nrows,...]
@@ -659,25 +678,42 @@ class FStackM_mes(FStackM_arr):
 ## -- End of MES files --        
 
 
+
 class FStackColl(object):
     "Class for a collection (container) of single-channel frame stacks. E.g. Multichannel data"
     def __init__(self, stacks):
         self.stacks = list(stacks)
+        for k,s in enumerate(self.stacks):
+            if not s.meta['channel']:
+                s.meta['channel'] = str(k)
         # TODO: harmonize metadata
-        self.meta = stacks[0].meta
+        self.meta = stacks[0].meta.copy()
     @property
     def nCh(self):
         return len(self.stacks)
-    def append(self, stack):
-        self.stacks.append(stack)
+    def append(self, stream):
+        if not stream.meta['channel']:
+            stream_names = [s.meta['channel'] for s in self.stacks]
+            for k in xrange(1000):
+                if str(k) not in stream_names:
+                    stream.meta['channel'] = str(k)
+                    break
+        self.stacks.append(stream)
     def pop(self, n=-1):
         return self.stacks.pop(n)
     def _propagate_call(self, call, *args, **kwargs):
-        out = [getattr(s,call)(*args, **kwargs) for s in self.stakcs]
+        out = [getattr(s,call)(*args, **kwargs) for s in self.stacks]
         return np.stack(out,-1)
+    def zoom(self,scales):
+        zoomed_stacks = [s.zoom(scales) for s in self.stacks]
+        out =  FStackColl(zoomed_stacks)
+        out.meta = zoomed_stacks[0].meta
+        return out
     def mean_frame(self,*args,**kwargs):
         mfs = [s.mean_frame(*args,**kwargs) for s in self.stacks]
         return np.stack(mfs, -1)
+    def max_project(self,*args,**kwargs):
+        return self._propagate_call('max_project',*args,**kwargs)
     def time_project(self,*args,**kwargs):
         projs = [s.time_project(*args,**kwargs) for s in self.stacks]
         return np.stack(projs,-1)
@@ -737,6 +773,19 @@ def from_mes(path, record=None, **kwargs):
     stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in mesrec.channels]
     return FStackColl(stacks)
 
+def from_olympus_tiff(path, *args,**kwargs):
+    from imfun import olympus
+    coll = from_tiff(path, *args, **kwargs)
+    path_base, ext = os.path.splitext(path)
+    meta = olympus.parse_meta_general(path_base+'.txt')
+    coll.meta = meta
+    channels = sorted([k for k in meta.keys() if 'Channel' in k])
+    dye_names = [meta[c]['Dye Name'][0] for c in channels]
+    for stream,dye in zip(coll.stacks,dye_names):
+        stream.meta = meta.copy()
+        stream.meta['channel'] = dye
+    return coll
+
 import inspect
 
 def open_seq(path, *args, **kwargs):
@@ -755,7 +804,8 @@ def open_seq(path, *args, **kwargs):
 	return FStackM_arr(path, *args, **kwargs)
     if isinstance(path, FrameStackMono):
         return path
-    ending = re.findall('[^*\.]+', path)[-1].lower()
+    #ending = re.findall('[^*\.]+', path)[-1].lower()
+    _,ending = os.path.splitext(path).lower()
     if ending == 'txt':
         handler = FStackM_txt
     elif ending == 'mes':
