@@ -48,7 +48,7 @@ class FrameStackMono(object):
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
-	return lib.flcompose(identity, *self.fns)
+	return lib.flcompose(__identity, *self.fns)
 
     def std(self, axis=None):
 	"""get standard deviation of the data"""
@@ -68,7 +68,7 @@ class FrameStackMono(object):
 	Parameters:
 	  - `p` : float in range of [0,100] (or sequence of floats)
 	     Percentile to compute which must be between 0 and 100 inclusive.
-	  
+
 	"""
         arr = self[:]
         return  np.percentile(arr,p)
@@ -108,7 +108,7 @@ class FrameStackMono(object):
 
     def frame_slices(self, crop=None):
         """Return iterator over subframes (slices defined by `crop` parameter).
-	When `crop` is `None`, full frames are returned 
+	When `crop` is `None`, full frames are returned
 	"""
         if crop is None:
             return self.frames()
@@ -121,7 +121,7 @@ class FrameStackMono(object):
 	This is a more general (and sometimes faster) function than
 	`self.mean_frame` or `self.max_project`. However, it requires more
 	memory as it makes a call to self.as3darray, while the other two don't
-	
+
 	Parameters:
 	  - `fslice`: (`int`, `tuple-like` or `None`) --
           [start,] stop [, step] go through these frames
@@ -156,7 +156,7 @@ class FrameStackMono(object):
             res += frame
 	    count += 1
         return res/(count)
-    
+
     def max_project(self, fslice=None):
 	"""Return max-projection image over a number of frames
         (all by default).
@@ -173,7 +173,7 @@ class FrameStackMono(object):
 
     def asiter(self, fslice=None, crop=None):
         """Return an iterator over the frames taking frames from fslice and
-	``f[crop]`` for each frame 
+	``f[crop]`` for each frame
 	"""
         fiter = self.frame_slices(crop)
         if isinstance(fslice, int):
@@ -186,7 +186,7 @@ class FrameStackMono(object):
 
 	//An alternative way is to use the __getitem__ interface:
 	//``data = np.asarray(fs[10:100])``
-	
+
 
 	Parameters:
 	  - `fslice`: (`int`, `tuple-like` or `None`) --
@@ -210,10 +210,10 @@ class FrameStackMono(object):
             out.flush()
         return out
 
-    
-    
+
+
     def loc_iter(self, pmask=None, fslice=None, rand=False,  crop=None):
-        """Return iterator over pixel locations, which are True in `pmask` 
+        """Return iterator over pixel locations, which are True in `pmask`
 
 	Parameters:
 	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
@@ -225,7 +225,7 @@ class FrameStackMono(object):
 
 	Yields:
 	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
-	
+
 	"""
 	sh = self.get_frame_shape(crop)
         pmask = ifnot(pmask, np.ones(sh[:2], np.bool))
@@ -246,7 +246,7 @@ class FrameStackMono(object):
 
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,  dtype=_dtype_):
         """Return iterator over time signals from each pixel.
-        
+
 	Parameters:
 	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
@@ -263,7 +263,7 @@ class FrameStackMono(object):
             yield np.asarray(arr[:,row,col],dtype=dtype), row, col
         del arr
 	return
-    
+
     def __len__(self):
         """Return number of frames in the sequence"""
         if not hasattr(self,'_length'):
@@ -296,7 +296,7 @@ class FrameStackMono(object):
 	out[zi] = 0
         newmeta = self.meta.copy()
 	return FStackM_arr(out, meta=newmeta)
-	
+
 
     def pw_transform(self, pwfn, verbose=False, **kwargs):
         """Spawn another frame sequence, pixelwise applying a user-provided
@@ -329,7 +329,7 @@ class FrameStackMono(object):
         if 'meta' in kwargs:
             newmeta = kwargs['meta'].copy()
         else:
-            newmeta = self.meta.copy() 
+            newmeta = self.meta.copy()
         return FStackM_arr(out, meta=newmeta)
 
     def zoom(self, scales):
@@ -342,7 +342,7 @@ class FrameStackMono(object):
         new_fs = FStackM_arr(new_data, meta=self.meta)
         new_fs.meta['axes'] = scales
         return new_fs
-    
+
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
 _x2=[(1,'sec'), (2,'um'), (3,'um')] # alist
@@ -407,7 +407,7 @@ class FStackM_arr(FrameStackMono):
         return itt.imap(fn, self.data)
 
 
-def identity(x):
+def __identity(x):
     return x
 
 def sorted_file_names(pattern):
@@ -432,11 +432,11 @@ def img_getter(frame, ch):
         return frame
 
 
-def fseq_from_glob(pattern, ch=0, loadfn=np.load):
+def __fseq_from_glob(pattern, ch=0, loadfn=np.load):
     """Return sequence of frames from filenames matching a glob.
 
     Parameters:
-      - pattern: (`str`) -- glob-style pattern for file names. 
+      - pattern: (`str`) -- glob-style pattern for file names.
       - ch: (`int` or `None`) -- color channel to extract if a number, all colors if `None`.
       - loadfn: (`func`) -- a function to load data from a file by its name [`np.load`].
 
@@ -445,22 +445,25 @@ def fseq_from_glob(pattern, ch=0, loadfn=np.load):
     """
     return itt.imap(lambda frame: img_getter(frame, ch), iter_files(pattern, loadfn))
 
-class FStackM_glob(FrameStackMono):
-    """A FrameStackMono class as a wrapper around a set of files matching a
-    glob-like pattern"""
-    def __init__(self, pattern, ch=0, fns=None,
+class FStackM_collection(FrameStackMono):
+    """A FrameStackMono class as a wrapper around a set of files
+    provided as a collection of file names or a glob-like pattern"""
+    def __init__(self, names, ch=0, fns=None,
                  meta = None):
-        self.pattern = pattern
+        #self.pattern = pattern
         self.ch = ch
         self.fns = ifnot(fns, [])
-	self.file_names = sorted_file_names(pattern)
+        if isinstance(names, basestring):
+            self.file_names = sorted_file_names(names)
+        else:
+            self.file_names = names[:] # don't automatically sort
         if meta is None:
             self.set_default_meta()
         else:
             self.meta = meta.copy()
     def __len__(self):
 	return len(self.file_names)
-            
+
     def frames(self):
 	"""
 	Return iterator over frames.
@@ -471,8 +474,9 @@ class FStackM_glob(FrameStackMono):
 	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
-        return itt.imap(fn, fseq_from_glob(self.pattern, self.ch, self.loadfn))
-    
+        seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names)
+        return itt.imap(fn, seq)
+
     def __getitem__(self, val):
 	fn = self.pipeline()
         if isinstance(val, slice)  or np.ndim(val) > 0:
@@ -484,25 +488,25 @@ class FStackM_glob(FrameStackMono):
 	    frame = self.loadfn(self.file_names[val])
             frame = img_getter(frame, self.ch)
 	    return fn(frame)
-            
-class FStackM_img(FStackM_glob):
+
+class FStackM_img(FStackM_collection):
     """FrameStackMono around a set of image files"""
     def loadfn(self,y): return imread(y)
 
-class FStackM_txt(FStackM_glob):
+class FStackM_txt(FStackM_collection):
     """FrameStackMono around a set of text-image files"""
     def loadfn(self,y): return np.loadtxt(y)
 
-class FStackM_ageom(FStackM_glob):
+class FStackM_ageom(FStackM_collection):
     def loadfn(self, name):
         fid =open(name,'rb')
-        sh = np.fromfile(fid, np.int32, 2); 
+        sh = np.fromfile(fid, np.int32, 2);
         v = np.fromfile(fid, np.float32, np.int(np.prod(sh)))
         fid.close()
         return v.reshape(sh)
 
 ## TODO: but npy can be just one array
-class FStackM_npy_glob(FStackM_glob):
+class FStackM_npy_collection(FStackM_collection):
     """FrameSequence around a set of npy files"""
     def loadfn(self, y): return np.load(y)
 
@@ -522,7 +526,7 @@ class FStackM_imgleic(FStackM_img):
     """
     def __init__(self, pattern, ch=0, fns=None, xmlname = None,
                  meta=None):
-        FStackM_glob.__init__(self, pattern, ch=ch, meta=meta)
+        FStackM_collection.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
             xmlname = pattern
         self.fns = ifnot(fns, [])
@@ -564,8 +568,8 @@ class FStackM_plsi(FrameStackMono):
 	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
 	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
 	"""
-	
-        fn = lib.flcompose(identity, *self.fns)
+
+        fn = lib.flcompose(__identity, *self.fns)
         return itt.imap(fn,self.plsimg.frame_iter())
 
     def __getitem__(self, val):
@@ -613,7 +617,7 @@ class FStackM_plsi(FrameStackMono):
 ##         def frames(self, count=0):
 ##             """
 ##             Return iterator over frames.
-            
+
 ##             The composition of functions in `self.fns`
 ##             list is applied to each frame. By default, this list is empty. Examples
 ##             of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
@@ -628,7 +632,7 @@ class FStackM_plsi(FrameStackMono):
 ##                     break
 ## except ImportError:
 ##     print "Cant define FSeq_multiff because can't import PIL"
-                    
+
 ## class FSeq_tiff_2(FStackM_arr):
 ##     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
 ##     def __init__(self, fname, ch=None, flipv = False, fliph = False, **kwargs):
@@ -675,7 +679,7 @@ class FStackM_mes(FStackM_arr):
             nrows = self.data.shape[1]
             self.data = self.data[:,:,:nrows,...]
 
-## -- End of MES files --        
+## -- End of MES files --
 
 
 
@@ -727,20 +731,34 @@ class FStackColl(object):
 from skimage import io as skio
 from skimage.external import tifffile
 
-def from_tiff(path, *args,**kwargs):
-    data = tifffile.imread(path)
-    sh = data.shape
-    if np.ndim(data)>3: #(Multichannel)
-        # smallest dimension is the number of channels
-        k = np.argmin(sh)
-        nch = sh[k]
-        channels = map(np.squeeze, np.split(data, nch, k))
-        stacks = [FStackM_arr(c, *args, **kwargs) for c in channels]
-        return FStackColl(stacks)
-    else:
-        return FStackM_arr(data, *args,**kwargs)
 
-def from_leica_exported(path, *args, **kwargs):
+def from_images(path,*args,**kwargs):
+    stacks = [FStackM_img(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
+    return FStackColl(stacks)
+
+from imfun import leica
+def attach_leica_metadata(obj, path, xmlname=None):
+    if not xmlname:
+        xmlname = leica.get_xmljob(path)
+    if xmlname:
+        lp = leica.LeicaProps(xmlname)
+        obj.lp = lp
+        obj.meta['axes'][1:3] =   [Q(lp.dx,'um'), Q(lp.dy,'um')]
+        if hasattr(lp, 'dt'):
+            zscale = Q(lp.dt, 's')
+        elif hasattr(lp, 'dz'):
+            zscale = Q(lp.dz, 'um')
+        else:
+            zscale = Q(1, '_')
+        self.meta['axes'][0] = zscale
+        colors = 'rgb'
+        if isinstance(obj, FStackColl):
+            for k,stream in enumerate(obj.stacks):
+                stream.meta = self.meta.copy()
+                stream.meta['channel'] = colors[k]
+
+
+def from_images_leica(path, *args, **kwargs):
     from imfun import leica
     xml_try = leica.get_xmljob(path)
     if 'xmlname' in kwargs or xml_try:
@@ -750,9 +768,6 @@ def from_leica_exported(path, *args, **kwargs):
     stacks = [handler(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
     return FStackColl(stacks)
 
-def from_images(path,*args,**kwargs):
-    stacks = [FStackM_img(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
-    return FStackColl(stacks)
 
 def from_mes(path, record=None, **kwargs):
     if record is None:
@@ -773,20 +788,102 @@ def from_mes(path, record=None, **kwargs):
     stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in mesrec.channels]
     return FStackColl(stacks)
 
-def from_olympus_tiff(path, *args,**kwargs):
+def from_plsi(path, *args, **kwargs):
+    """Load LaserSpeckle frame stack.
+    For arguments, see FStackM_plsi constructor
+    """
+    return FStackM_plsi(path, *args, **kwargs)
+
+def from_h5(path, *args, **kwargs):
+    "Load frame stack from a generic HDF5 file"
+    return FStackM_hdf5(path, *args, **kwargs)
+
+def from_array(data, *args, **kwargs):
+    sh = data.shape
+    if np.ndim(data)>3: #(Multichannel)
+        #assume smallest dimension is the number of channels
+        k = np.argmin(sh)
+        nch = sh[k]
+        channels = map(np.squeeze, np.split(data, nch, k))
+        stacks = [FStackM_arr(c, *args, **kwargs) for c in channels]
+        return FStackColl(stacks)
+    else:
+        return FStackM_arr(data, *args,**kwargs)
+
+def from_npy(path, *args, **kwargs):
+    data = np.load(path)
+    return from_ndarray(data, *args, **kwargs)
+
+def from_tiff(path, *args,**kwargs):
+    data = tifffile.imread(path)
+    return from_ndarray(data, *args, **kwargs)
+
+def attach_olympus_metadata(obj, path):
     from imfun import olympus
-    coll = from_tiff(path, *args, **kwargs)
     path_base, ext = os.path.splitext(path)
     meta = olympus.parse_meta_general(path_base+'.txt')
-    coll.meta = meta
+    obj.meta = meta
     channels = sorted([k for k in meta.keys() if 'Channel' in k])
     dye_names = [meta[c]['Dye Name'][0] for c in channels]
-    for stream,dye in zip(coll.stacks,dye_names):
+    for stream,dye in zip(obj.stacks,dye_names):
         stream.meta = meta.copy()
         stream.meta['channel'] = dye
-    return coll
+    return obj
 
 import inspect
+
+def _is_glob_or_names(path):
+    "return True if path is a glob-like string or a collection of strings"
+    if isinstance(path, basestring):
+        return '*' in path
+    else:
+        return bool(iterable(path))
+
+def open(path, *args, **kwargs):
+    """Dispatch to an appropriate class constructor depending on the file name
+    Should cover aroun 90% of usecases. For the remaining 10%, use direct constructors
+    """
+    images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
+    if isinstance(path, (FrameStackMono, FStackColl)):
+        return path
+    if isinstance(path, np.ndarray):
+        handler =  from_array
+    elif _is_glob_or_names(path):
+        handler = from_images
+        xml_try = leica.get_xmljob(path)
+        if xml_try and not 'flavor' in kwargs:
+            kwargs['flavor'] = 'leica'
+    elif isinstance(path, basestring):
+        _,ending = os.path.splitext(path)
+        ending = ending.lower()[1:]
+        handler_dict = {
+        'npy': from_npy,
+        'h5':  from_h5,
+        'tif': from_tiff,
+        'tiff':from_tiff,
+        'mlf': from_plsi,
+        'pls': from_plsi,
+        'mes': from_mes,
+        }
+        if not ending in handler_dict:
+            raise TypeError("Can't dispatch the file with ending %s \
+            onto a supported FrameStack format"%ending)
+        handler = handler_dict[ending]
+        #spec = inspect.getargspec(handler.__init__)
+        #clean_kwargs = {k:kwargs[k] for k in kwargs if k in spec[0]}
+        for k in kwargs.keys():
+            if k not in spec[0]:
+                kwargs.pop(k) # skip arguments the __init__ doesn't know about
+        obj =  handler(path, *args, **clean_kwargs)
+        if 'flavor' in kwargs:
+            if flavor is 'olympus':
+                attach_olympus_metadata(obj,path)
+            elif flavor is 'leica':
+                attach_leica_metadata(obj,path)
+    else:
+        raise TypeError("Can't dispatch the `path` onto a supported FrameStack format")
+
+
 
 def open_seq(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
@@ -835,7 +932,7 @@ def open_seq(path, *args, **kwargs):
 
 
 
-    
+
 ## HDF5-related stuff
 
 try:
@@ -903,23 +1000,23 @@ try:
                 dset[k,...] = f
                 if verbose:
                     sys.stderr.write('\r writing frame %02d out of %03d'%(k,L))
-                k += 1    
+                k += 1
         fid.close()
         return name
 
 
 except ImportError as e: # couln't import h5py
     print "Import Error", e
-        
-        
-        
-            
-## -- Load video from mp4 -- 
+
+
+
+
+## -- Load video from mp4 --
 ## requires cv2
 
 try:
     import cv2
-    def load_mp4(name, framerate=25., start_frame = None, end_frame=None, 
+    def load_mp4(name, framerate=25., start_frame = None, end_frame=None,
                  frame_fn = None,
                  **kwargs):
         vidcap = cv2.VideoCapture(name)
@@ -965,7 +1062,7 @@ try:
             success, image = vidcap.read()
             image = frame_fn(image)
             if success:
-                frame_count += 1                
+                frame_count += 1
                 data.resize(frame_count+1,0)
             else:
                 break
@@ -1012,7 +1109,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     plt.ioff() # make animations in non-interactive mode
     if isinstance(fslist, FrameStackMono):
         fslist = [fslist]
-    
+
     marker_idx = ifnot(marker_idx, [])
     stop = ifnot(stop, np.min(map(len, fslist)))
     L = stop-start
@@ -1041,7 +1138,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     sh = fslist[0].shape()
     aspect = float(sh[0])/sh[1]
     header_add = 0.5
-    figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add)) 
+    figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add))
 
     fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
 
@@ -1063,8 +1160,8 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
             plt.setp(ax,frame_on=False,xticks=[],yticks=[])
         marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
         ax.add_patch(marker)
-        
-    
+
+
     header = plt.suptitle('')
     plt.tight_layout()
 
@@ -1097,7 +1194,3 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     if plt_interactive:
         plt.ion()
     return
-    
-
-    
-    
