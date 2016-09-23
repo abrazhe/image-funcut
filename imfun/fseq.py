@@ -726,7 +726,15 @@ class FStackColl(object):
     def __getitem__(self,val):
         x =  np.array([s[val] for s in self.stacks])
         return np.stack(x,-1)
-
+    def order_stacks(self, name_order):
+        ordered_stacks = []
+        for name in name_order:
+            match = [s for s in self.stacks if s.meta['channel'].lower() in name]
+            if match :
+                ordered_stacks.append(match[0])
+        other_stacks = [s for s in self.stacks if s not in ordered_stacks]
+        self.stacks = ordered_stacks + other_stacks
+    
 
 from skimage import io as skio
 from skimage.external import tifffile
@@ -777,6 +785,7 @@ def attach_leica_metadata(obj, path, xmlname=None):
 
 
 def from_mes(path, record=None, ch=None, **kwargs):
+    channel_order = ['pmtur', 'pmtug', 'pmtub']
     if record is None:
         vars = filter(lambda v: v.is_supported, mes.load_file_info(path))
         if len(vars):
@@ -795,7 +804,9 @@ def from_mes(path, record=None, ch=None, **kwargs):
     channels = np.unique(mesrec.channels)    
     if ch is None:
         stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in channels]
-        return FStackColl(stacks)
+        obj =  FStackColl(stacks)
+        obj.order_stacks(channel_order)
+        return obj
     else:
         return FStackM_mes(path, record, ch=ch,**kwargs)
         
@@ -844,14 +855,10 @@ def attach_olympus_metadata(obj, path):
     for stream,dye in zip(obj.stacks,dye_names):
         stream.meta = meta.copy()
         stream.meta['channel'] = dye
-    ordered_stacks = []
-    for dye in dye_order:
-        match = [s for s in obj.stacks if s.meta['channel'].lower() in dye]
-        if match :
-            ordered_stacks.append(match[0])
-    other_stacks = [s for s in obj.stacks if s not in ordered_stacks]
-    obj.stacks = ordered_stacks + other_stacks
+    obj.order_stacks(dye_order)
     return obj
+
+
 
 import inspect
 
