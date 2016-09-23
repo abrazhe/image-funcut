@@ -48,7 +48,7 @@ class FrameStackMono(object):
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
-	return lib.flcompose(__identity, *self.fns)
+	return lib.flcompose(_identity, *self.fns)
 
     def std(self, axis=None):
 	"""get standard deviation of the data"""
@@ -407,7 +407,7 @@ class FStackM_arr(FrameStackMono):
         return itt.imap(fn, self.data)
 
 
-def __identity(x):
+def _identity(x):
     return x
 
 def sorted_file_names(pattern):
@@ -569,7 +569,7 @@ class FStackM_plsi(FrameStackMono):
 	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
 	"""
 
-        fn = lib.flcompose(__identity, *self.fns)
+        fn = lib.flcompose(_identity, *self.fns)
         return itt.imap(fn,self.plsimg.frame_iter())
 
     def __getitem__(self, val):
@@ -732,9 +732,16 @@ from skimage import io as skio
 from skimage.external import tifffile
 
 
-def from_images(path,*args,**kwargs):
-    stacks = [FStackM_img(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
-    return FStackColl(stacks)
+def from_images(path,flavor=None,**kwargs):
+    """Load a Multichannel FStack collection from a collection of images.
+    When `flavor` is set to 'leica', try to load Leica XML metadata
+    """
+    stacks = [FStackM_img(path, ch=channel,**kwargs) for channel in (0,1,2)]
+    obj =  FStackColl(stacks)
+    if isinstance(flavor, basestring) and  flavor.lower() == 'leica':
+        attach_leica_metadata(obj, path)
+    return obj
+    
 
 from imfun import leica
 def attach_leica_metadata(obj, path, xmlname=None):
@@ -750,26 +757,26 @@ def attach_leica_metadata(obj, path, xmlname=None):
             zscale = Q(lp.dz, 'um')
         else:
             zscale = Q(1, '_')
-        self.meta['axes'][0] = zscale
+        obj.meta['axes'][0] = zscale
         colors = 'rgb'
         if isinstance(obj, FStackColl):
             for k,stream in enumerate(obj.stacks):
-                stream.meta = self.meta.copy()
+                stream.meta = obj.meta.copy()
                 stream.meta['channel'] = colors[k]
 
 
-def from_images_leica(path, *args, **kwargs):
-    from imfun import leica
-    xml_try = leica.get_xmljob(path)
-    if 'xmlname' in kwargs or xml_try:
-        handler =  FStackM_imgleic
-    else:
-        handler =  FStackM_img
-    stacks = [handler(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
-    return FStackColl(stacks)
+# def from_images_leica(path, *args, **kwargs):
+#     from imfun import leica
+#     xml_try = leica.get_xmljob(path)
+#     if 'xmlname' in kwargs or xml_try:
+#         handler =  FStackM_imgleic
+#     else:
+#         handler =  FStackM_img
+#     stacks = [handler(path, ch=channel,*args,**kwargs) for channel in (0,1,2)]
+#     return FStackColl(stacks)
 
 
-def from_mes(path, record=None, **kwargs):
+def from_mes(path, record=None, ch=None, **kwargs):
     if record is None:
         vars = filter(lambda v: v.is_supported, mes.load_file_info(path))
         if len(vars):
@@ -785,8 +792,13 @@ def from_mes(path, record=None, **kwargs):
         print "FSeq_mes: Unknown record definition format"
 
     mesrec = mes.load_record(path, record)
-    stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in mesrec.channels]
-    return FStackColl(stacks)
+    channels = np.unique(mesrec.channels)    
+    if ch is None:
+        stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in channels]
+        return FStackColl(stacks)
+    else:
+        return FStackM_mes(path, record, ch=ch,**kwargs)
+        
 
 def from_plsi(path, *args, **kwargs):
     """Load LaserSpeckle frame stack.
@@ -812,14 +824,18 @@ def from_array(data, *args, **kwargs):
 
 def from_npy(path, *args, **kwargs):
     data = np.load(path)
-    return from_ndarray(data, *args, **kwargs)
+    return from_array(data, *args, **kwargs)
 
-def from_tiff(path, *args,**kwargs):
+def from_tiff(path, flavor=None, **kwargs):
     data = tifffile.imread(path)
-    return from_ndarray(data, *args, **kwargs)
+    obj = from_array(data, **kwargs)
+    if isinstance(flavor, basestring) and  flavor.lower() == 'olympus':
+        attach_olympus_metadata(obj, path)
+    return obj
 
 def attach_olympus_metadata(obj, path):
     from imfun import olympus
+    dye_order = ['dsred','ogb','trict']
     path_base, ext = os.path.splitext(path)
     meta = olympus.parse_meta_general(path_base+'.txt')
     obj.meta = meta
@@ -828,6 +844,13 @@ def attach_olympus_metadata(obj, path):
     for stream,dye in zip(obj.stacks,dye_names):
         stream.meta = meta.copy()
         stream.meta['channel'] = dye
+    ordered_stacks = []
+    for dye in dye_order:
+        match = [s for s in obj.stacks if s.meta['channel'].lower() in dye]
+        if match :
+            ordered_stacks.append(match[0])
+    other_stacks = [s for s in obj.stacks if s not in ordered_stacks]
+    obj.stacks = ordered_stacks + other_stacks
     return obj
 
 import inspect
@@ -839,7 +862,7 @@ def _is_glob_or_names(path):
     else:
         return bool(iterable(path))
 
-def open(path, *args, **kwargs):
+def from_any(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
     Should cover aroun 90% of usecases. For the remaining 10%, use direct constructors
     """
@@ -869,24 +892,19 @@ def open(path, *args, **kwargs):
             raise TypeError("Can't dispatch the file with ending %s \
             onto a supported FrameStack format"%ending)
         handler = handler_dict[ending]
-        #spec = inspect.getargspec(handler.__init__)
-        #clean_kwargs = {k:kwargs[k] for k in kwargs if k in spec[0]}
-        for k in kwargs.keys():
-            if k not in spec[0]:
-                kwargs.pop(k) # skip arguments the __init__ doesn't know about
-        obj =  handler(path, *args, **clean_kwargs)
-        if 'flavor' in kwargs:
-            if flavor is 'olympus':
-                attach_olympus_metadata(obj,path)
-            elif flavor is 'leica':
-                attach_leica_metadata(obj,path)
     else:
         raise TypeError("Can't dispatch the `path` onto a supported FrameStack format")
+    obj =  handler(path, *args, **kwargs)
+    return obj
 
 
 
-def open_seq(path, *args, **kwargs):
-    """Dispatch to an appropriate class constructor depending on the file name
+
+
+def _open_seq(path, *args, **kwargs):
+    """
+    **  Deprecated and broken ** 
+    Dispatch to an appropriate class constructor depending on the file name
 
     Parameters:
       - path: (`str`) -- path to load data from. Can be a glob-style pattern or
@@ -941,7 +959,7 @@ try:
     class FStackM_hdf5(FStackM_arr):
         "Base class for hdf5 files"
         def __init__(self, fname, dataset=None,**kwargs):
-            parent = super(FSeq_hdf5, self)
+            parent = super(FStackM_hdf5, self)
             f = h5py.File(fname, 'r')
             print "The file %s has the following data sets:"%fname, f.keys()
 
@@ -962,7 +980,7 @@ try:
     class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
         def __init__(self, fname, fns = None):
-            parent = super(FSeq_hdf5_lsc, self)
+            parent = super(FStackM_hdf5_lsc, self)
             #parent.__init__()
             f = h5py.File(fname, 'r')
             t = f['tstamps']
