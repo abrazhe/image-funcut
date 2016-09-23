@@ -1141,12 +1141,15 @@ class Picker (object):
         el_h = (1 - (1+2*nCh)*spacing)/(2*nCh)
         el_w = 0.5
         self.level_controls = {}
+        streams = [s.meta['channel'] for s in self.frame_coll.stacks]
+        stream_idx = {s:k for k,s in enumerate(streams)}
         def _update_levels(event):
             for k in range(nCh):
                 low,high = self.level_controls[k]
                 self.clims[k] = (low.val, high.val)
             pass
         for k,stack in enumerate(self.frame_coll.stacks):
+            channel_name = stack.meta['channel']
             ax_high = fig.add_axes([0.2, 1- (2*k+1)*(el_h+spacing)-spacing, el_w, el_h],
                                    aspect='auto', axisbg=_widgetcolor)
             ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],
@@ -1154,8 +1157,8 @@ class Picker (object):
             
             lmin,lmax = stack.data_range()
             low,high = self.clims[k]
-            low_slider = mw.Slider(ax_low, '%d low'%k, lmin,lmax,valinit=low)
-            high_slider = mw.Slider(ax_high, '%d high'%k, lmin,lmax,valinit=high)
+            low_slider = mw.Slider(ax_low, '%s low'%channel_name, lmin,lmax,valinit=low)
+            high_slider = mw.Slider(ax_high, '%s high'%channel_name, lmin,lmax,valinit=high)
             
             low_slider.on_changed(_update_levels)
             high_slider.on_changed(_update_levels)
