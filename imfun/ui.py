@@ -449,6 +449,12 @@ class LineScan(DraggableObj):
         iord = np.argsort(np.linalg.norm(pts,axis=1))
         return pts[iord[0]],pts[iord[1]]
 
+    def shift(self, vec):
+        ep = self.endpoints()
+        vec = np.array(vec)
+        self.obj.set_data((ep + vec).T)
+        self.update_tags()
+
     def move(self, p):
         ep = self.endpoints()
         cp = np.array(self.centerpoint())
@@ -458,11 +464,16 @@ class LineScan(DraggableObj):
         d = p-anchor
         if k == 0: # closer to center point than to any end
             epnew = ep + d
+            if self.parent.roi_layout_freeze:
+                for roi in self.parent.roi_objs.values():
+                    if not roi == self:
+                        roi.shift(d)
         elif k == 1:
             epnew = np.array([ep[0]+d, ep[1]])
         elif k == 2:
             epnew = np.array([ep[0], ep[1]+d])
 
+        
         self.obj.set_data(epnew.T)
         self.update_tags()
 
@@ -693,12 +704,25 @@ class CircleROI(DraggableObj):
         self.tagtext.remove()
         self.redraw()
 
+    def shift(self, vec):
+        self.obj.center += np.array(vec)
+        self.set_tagtext()
+        self.redraw()
+
     def move(self, p):
         "Move the ROI when the mouse is pressed over it"
         xp,yp, x, y = self.pressed
         dx = p[0] - xp
         dy = p[1] - yp
-        self.obj.center = (x+dx, y+dy)
+        new_center = np.array((x+dx, y+dy))
+        shift =  new_center - self.obj.center
+        self.obj.center = new_center
+    
+        if self.parent.roi_layout_freeze:
+            # drag all other ROIs along
+            for roi in self.parent.roi_objs.values():
+                if not roi == self:
+                    roi.shift(shift)
         self.set_tagtext()
         self.redraw()
 
@@ -1050,6 +1074,7 @@ class Picker (object):
         self.min_length = 5
 	self.frame_index = 0
         self.shift_on = False
+        self.roi_layout_freeze = False
         #self.widgetcolor = 'lightyellow'
         self.frame_slider = None
         self._verbose=verbose
@@ -1202,6 +1227,13 @@ class Picker (object):
         self.frame_hooks = {}
         self.frame_slider = None
         Nf = len(self.frame_coll)
+
+        button_hmargin = 0.03
+        button_vmargin = 0.01
+        button_width = 0.1
+        button_height = 0.05
+        self.ui_buttons = {}
+        
 	if ax is None:
             
             self.fig, self.ax1 = plt.subplots()
@@ -1214,17 +1246,41 @@ class Picker (object):
             self.frame_slider.on_changed(self.set_frame_index)
             self._init_active_channel_setter()
 
-            bax_lut = self.fig.add_axes([0.03, corners[1,1]-0.25, 0.1, 0.05],)
-            self.lut_but = mw.Button(bax_lut, 'Colors', color=_widgetcolor)
-            self.lut_but.on_clicked(self._lut_controls)
-            self.lut_but.label.set_fontsize('small')
+            yloc = corners[1,1] - 3*(2*button_vmargin+button_height)
+            bax_lut = self.fig.add_axes([button_hmargin,
+                                         yloc,
+                                         button_width, button_height],)
+            lut_but = mw.Button(bax_lut, 'Colors', color=_widgetcolor)
+            lut_but.on_clicked(self._lut_controls)
+            self.ui_buttons['lut'] = lut_but
 
-            bax_lev = self.fig.add_axes([0.03, corners[1,1]-0.35, 0.1, 0.05])
-            self.lev_but = mw.Button(bax_lev, 'Levels', color=_widgetcolor)
-            self.lev_but.on_clicked(self._levels_controls)
-            self.lev_but.label.set_fontsize('small')
-
+            yloc -= (button_vmargin+button_height)
+            bax_lev = self.fig.add_axes([button_hmargin, yloc, button_width, button_height])
+            lev_but = mw.Button(bax_lev, 'Levels', color=_widgetcolor)
+            lev_but.on_clicked(self._levels_controls)
+            self.ui_buttons['levels'] = lev_but
             
+            yloc -= (button_vmargin+button_height)
+            bax_freeze = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
+            freeze_but = mw.Button(bax_freeze, 'Freeze ROIs',color=_widgetcolor)
+            def _freeze_control(event):
+                if self.roi_layout_freeze:
+                    freeze_but.color = _widgetcolor
+                    self.roi_layout_freeze = False
+                else:
+                    freeze_but.color = 'pink'
+                    self.roi_layout_freeze = True
+            freeze_but.on_clicked(_freeze_control)
+            self.ui_buttons['freeze'] = freeze_but
+                
+            yloc -= (button_vmargin + button_height)
+            bax_drop = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
+            drop_but = mw.Button(bax_drop, 'Drop ROIs',color=_widgetcolor)
+            drop_but.on_clicked(self.drop_all_rois)
+            self.ui_buttons['drop'] = drop_but
+
+            for button in self.ui_buttons.values():
+                button.label.set_fontsize('small')
 	else:
 	    self.ax1 = ax
 	    self.fig = self.ax1.figure
@@ -1355,7 +1411,8 @@ class Picker (object):
         x,y = event.xdata, event.ydata # do I really need to round?
         if event.button is 1 and \
            not self.any_roi_contains(event) and \
-           not self.shift_on:
+           not self.shift_on and \
+           not self.roi_layout_freeze:
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
             dx,dy = self.frame_coll.meta['axes'][1:3]
@@ -1371,7 +1428,9 @@ class Picker (object):
             c.figure = self.fig
             self.ax1.add_patch(c)
             self.roi_objs[label]= CircleROI(c, self)
-        elif event.button == 3 and not self.shift_on:
+        elif event.button == 3 and \
+             not self.shift_on and \
+             not self.roi_layout_freeze:
             self.pressed = event.xdata, event.ydata
             axrange = self.ax1.axis()
             self.curr_line_handle = self.init_line_handle()
@@ -1491,7 +1550,7 @@ class Picker (object):
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
-    def drop_all_rois(self):
+    def drop_all_rois(self,event):
         for roi in self.roi_objs.values():
             roi.destroy()
 
