@@ -414,17 +414,6 @@ def by_chunks(seq, n=2):
 ### Some general utility functions:
 ### --------------------------------------------------------------------------------------
 
-def gauss_kern(xsize, ysize=None):
-    """ Returns a normalized 2D gauss kernel for convolutions """
-    xsize = int(xsize)
-    ysize = ysize and int(ysize) or xsize
-    x, y = mgrid[-xsize:xsize+1, -ysize:ysize+1]
-    g = np.exp(-(x**2/float(xsize) + y**2/float(ysize)))
-    return g / g.sum()
-
-def gauss_blur(X,size=1.5):
-    return signal.convolve2d(X,gauss_kern(size),'same')
-
 def reshape_from_movie(mov):
     l,w,h = mov.shape
     return mov.reshape(l,w*h)
@@ -444,26 +433,6 @@ def sptemp_concat(filters, signals, mu):
     return out / np.sqrt(1-2*mu+2*mu**2)
 
 
-def DFoF(X):
-    """
-    Delta F / mean F normalization for each pixel
-    """
-    xmean = X.mean(axis=1).reshape(-1,1)
-    xmean_z = where(xmean==0)
-    xmean[xmean_z] = 1.0
-    out =  X/xmean - 1
-    out[xmean_z,:] = 0
-    return out
-
-def DFoSD(X, tslice = None):
-    """
-    Delta F / S.D.(F) normalization
-    """
-    if not isinstance(tslice, slice):
-        tslice = tslice and slice(*tslice) or slice(None)
-    xsd = X[:,tslice].std(axis=1).reshape(-1,1)
-    xmean = X[:,tslice].mean(axis=1).reshape(-1,1)
-    return (X-xmean)/xsd
 
 def winvhalf(X):
     "raise matrix to power -1/2"
