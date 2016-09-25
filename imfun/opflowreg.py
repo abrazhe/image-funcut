@@ -15,11 +15,12 @@ from scipy.interpolate import RectBivariateSpline
 
 from skimage import feature as skfeature
 
+_boundary_mode='nearest'
 
 from imfun import atrous,lib, fseq
 #from cluster import euclidean
 
-try: 
+try:
     # https://github.com/pyimreg/imreg
     import imreg.register
     import imreg.model
@@ -72,7 +73,7 @@ class RegistrationInterfaces:
 
         if not 'maxiter' in fnargs:
             fnargs['maxiter'] = 25
-            
+
         res, p = aligner(image, template, p0x,p0y, **fnargs)
         def _regfn(coordinates):
             sh = coordinates[0].shape
@@ -87,9 +88,9 @@ class RegistrationInterfaces:
     def softmesh(image, template, wsize=25, **fnargs):
         sh = image.shape
         mstride=wsize//3
-        
+
         #granges = [range(wsize//2, shi-wsize//2+1, mstride) for shi in sh[:2]]
-        granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]] 
+        granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]]
         mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
         aligner = LKP_image_aligner(mesh, wsize)
         _,p = aligner(image,template, **fnargs)
@@ -97,7 +98,7 @@ class RegistrationInterfaces:
             shifts = aligner.grid_shift_coords(p, sh[::-1])
             return [c-s for c,s in zip(coordinates, shifts[::-1])]
         return _regfn
-        
+
 
 
 
@@ -105,7 +106,7 @@ class RegistrationInterfaces:
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
               calc_eig=False, weigh_by_eig = False):
     """
-    Optical flow estimation in a set of points using Lucas-Kanade algorithm    
+    Optical flow estimation in a set of points using Lucas-Kanade algorithm
     """
     if zeromean:
         im1 = im1-np.mean(im1)
@@ -123,7 +124,7 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
         Ixw,Iyw = Ix[window].ravel(),Iy[window].ravel()
         Itw = It[window].reshape(-1,1)
         AT = np.vstack((Ixw,Iyw))
-        
+
         ATA = AT.dot(AT.T)
         #V = pinv(ATA).dot(AT).dot(Itw)
         V  = linalg.lstsq(ATA, AT.dot(Itw))[0]
@@ -172,8 +173,8 @@ class LKP_image_aligner ():
         mesh = self.mesh
         xi,yi = np.arange(outshape[1]), np.arange(outshape[0])
         xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
-        #print '---[grid_shift_coords] outshape', outshape        
-        #print '---[grid_shift_coords] vfields.shape', vfields.shape        
+        #print '---[grid_shift_coords] outshape', outshape
+        #print '---[grid_shift_coords] vfields.shape', vfields.shape
         dxsampler,dysampler = [RectBivariateSpline(ygrid, xgrid, vfields[dim]) for dim in 1,0]
         dx = dxsampler(yi,xi)
         dy = dysampler(yi,xi)
@@ -194,41 +195,41 @@ class GK_image_aligner:
     Align two images using Lucas-Canade algorithm and Greenberg-Kerr parametrization model
     """
     def __call__(self, img, template, p0x, p0y, maxiter=100, damping=1,
-                    constraint = 10., # max allowed shift in px
-                    corr_threshold = 0.99, 
+                    constraint = 10., # max allowed shift in
+                    corr_threshold = 0.99,
                     dp_threshold = 1e-3):
         #for iterc in range(maxiter):
-        
+
         n = len(p0x)
         blocksize,remd = self.get_blocksize(n,img.shape)
         dDdp = self.calc_dDdp(n, img.shape)
-        
+
         px,py = p0x,p0y
-        
+
         acc =  defaultdict(lambda:list())
-        
+
         for niter in range(maxiter):
-            T = self.warp_image(template,px,py) 
+            T = self.warp_image(template,px,py)
             gTy,gTx = map(np.ravel, np.gradient(T))
-            
-            dDdp2 = np.vstack([dDdp*gTx, dDdp*gTy])    
-        
+
+            dDdp2 = np.vstack([dDdp*gTx, dDdp*gTy])
+
             diff_img = (img - T).ravel()
             C = (dDdp2 * diff_img).sum(-1)
-  
+
             H = np.zeros((n*2,n*2))
             for i in np.arange(n-1):
                 tsl = slice(i*blocksize,(i+1)*blocksize)
                 for ia,ib in itt.product(*[(i, i+1, i+n, i+n+1)]*2):
                     H[ia,ib] += (dDdp2[ia,tsl]*dDdp2[ib,tsl]).sum(-1)
-             
+
             H = sparse.csr_matrix(H)
             dp = sparse.linalg.spsolve(H,C)
             #dp = linalg.lstsq(H,C)[0]  # can do wierd things in last parameters
             #dp = linalg.solve(H,C)     # bad result
             #dp = linalg.pinv(H).dot(C)  # best result so far
             dpx,dpy = dp[:n],dp[n:]
-            
+
             acc['d'].append(sum(diff_img**2))
             acc['rho'].append(stats.pearsonr(img.ravel(), T.ravel())[0])
             mdp = np.amax(abs(dp))
@@ -238,16 +239,16 @@ class GK_image_aligner:
             px = np.clip(px, -constraint, constraint)
             py = np.clip(py, -constraint, constraint)
             #damping *= damping
-            
+
             if (acc['rho'][-1] > corr_threshold) or (mdp < dp_threshold):
                 break
-        
+
         return acc, (px,py)
-    
+
     def get_blocksize(self, nparams, shape):
         N = np.prod(shape)
         return N//(nparams-1), N%(nparams-1)
-        
+
     def wcoords_from_params1d(self,p, shape):
         Npx = np.prod(shape)
         D = np.zeros(Npx)
@@ -267,7 +268,7 @@ class GK_image_aligner:
         return map_coordinates(img, [yi+ dy, xi+dx], mode=mode)
 
         return self.warp_image(img,dx,dy)
-        
+
     def calc_dDdp(self, nparams, shape):
         #todo: sparse matrices
         Npx = np.prod(shape)
@@ -276,14 +277,14 @@ class GK_image_aligner:
         tv = np.arange(Npx)/blocksize
         for k in np.arange(nparams-1):
             tkp1 = k + 1
-            if k >= nparams-2: 
+            if k >= nparams-2:
                 tkp1+=remd/blocksize
             tk = k
             trange = ((tk <= tv)*(tv < tkp1))>0
             dDdp[k,:] += (1 - (tv-tk))*trange
             dDdp[k+1,:] += (tv-tk)*trange
         return dDdp
-   
+
 # ------------ registration wrappers ------------
 
 #from multiprocessing import Pool
@@ -299,23 +300,32 @@ import dill
 #from pathos.multiprocessing import ProcessingPool
 from pathos.pools import ProcessPool
 
-def parametric_warp(img, fn,mode='constant'):
+def apply_warp(img, warp ,mode='constant'):
     """Given an image and a function to warp coordinates,
+    or a pair (u,v) of horizontal and vertical flows
     warp image to the new coordinates.
     In case of a multicolor image, run this function for each color"""
     sh = img.shape
     if np.ndim(img) == 2:
         start_coordinates = np.meshgrid(*map(np.arange, sh[:2][::-1]))[::-1]
+        if callable(warp):
+            new_coordinates = warp(start_coordinates)
+        elif isinstance(warp, np.ndarray):
+            new_coordinates = [c+f for c,f in zip(start_coordinates, warp[::-1])]
+        else:
+            raise ValueError("warp can be either a function or an array")
         return map_coordinates(img, fn(start_coordinates),mode=mode)
     elif np.ndim(img) > 2:
-        return np.dstack([parametric_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
+        return np.dstack([apply_fn_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
     else:
         raise ValueError("Can't handle image of such shape: {}".format(sh))
 
-def parametric_flow(fn, sh):
+
+
+def flow_from_fn(fn, sh):
     start_coordinates = np.meshgrid(*map(np.arange, sh))[::-1]
     return np.array(start_coordinates) - fn(start_coordinates)
-    
+
 
 def apply_warps(warps, frames, njobs=4):
     """
@@ -323,11 +333,11 @@ def apply_warps(warps, frames, njobs=4):
     """
     if njobs > 1 :
         pool = ProcessPool(nodes=njobs)
-        out = pool.map(parametric_warp, frames, warps)
+        out = pool.map(apply_fn_warp, frames, warps)
         #pool.close()
         out = np.array(out)
     else:
-        out = np.array([parametric_warp(f,w) for f,w in itt.izip(frames, warps)])
+        out = np.array([apply_fn_warp(f,w) for f,w in itt.izip(frames, warps)])
     if isinstance(frames, fseq.FrameSequence):
         out = fseq.open_seq(out)
         out.meta = frames.meta
@@ -335,12 +345,12 @@ def apply_warps(warps, frames, njobs=4):
 
 def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
     """
-    Given stack of frames (or a FSeq obj) and a template image, 
+    Given stack of frames (or a FSeq obj) and a template image,
     align every frame to template and return a list of functions,
     which take an image and return warped image, aligned to template.
     """
     if njobs > 1:
-        pool = ProcessPool(nodes=njobs) 
+        pool = ProcessPool(nodes=njobs)
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
         #pool.close()
     else:
@@ -349,9 +359,9 @@ def register_stack_to_template(frames, template, regfn, njobs=4, **fnargs):
 
 def register_stack_recursive(frames, regfn):
     """
-    Given stack of frames, 
+    Given stack of frames,
     align frames recursively and return a mean frame of the aligned stack and
-    a list of functions, each of which takes an image and return warped image, 
+    a list of functions, each of which takes an image and return warped image,
     aligned to this mean frame.
     """
     #import sys
@@ -363,7 +373,7 @@ def register_stack_recursive(frames, regfn):
         mf_l, warps_left = register_stack_recursive(frames[:L/2], regfn)
         mf_r, warps_right = register_stack_recursive(frames[L/2:], regfn)
         fn = regfn(mf_l, mf_r)
-        fm = 0.5*(parametric_warp(mf_l,fn) + mf_r)
+        fm = 0.5*(apply_fn_warp(mf_l,fn) + mf_r)
         return fm, [lib.flcompose(fx,fn) for fx in warps_left] + warps_right
         #return fm, [fnutils.flcompose2(fn,fx) for fx in fn1] + fn2
 
