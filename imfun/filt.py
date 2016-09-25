@@ -4,7 +4,7 @@ import numpy as np
 from scipy import signal
 from scipy import ndimage
 
-#from numba import jit
+from numba import jit
 
 import itertools as itt
 
@@ -57,7 +57,7 @@ def gauss_smooth(sig, sigma=1., dt = 1.0, order=0):
     See also:
       Uses functions scipy.ndimage.gaussian_filter and
       scipy.ndimage.gaussian_filter1d
-    
+
     """
     sigma = sigma/dt
     ndim = np.ndim(sig)
@@ -77,8 +77,8 @@ def mavg_DFoF(v, tau=90., dt=1.):
       - `dt`: sampling interval
 
     Returns:
-      - v/smooth(v) - 1 
-    
+      - v/smooth(v) - 1
+
     """
     baseline = gauss_smooth(v, tau, dt)
     zi = np.where(np.abs(baseline) < 1e-6)
@@ -97,7 +97,7 @@ def mavg_DFoSD(v, tau=90., dt=1.):
 
     Returns: Standard score
       - (v-smooth(v))/S.D.(smooth(v))
-    
+
     """
     baseline = gauss_smooth(v, tau, dt)
     vd = v - baseline
@@ -118,7 +118,7 @@ def bspline_smooth(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
 
     see `imfun.atrous.smooth` and `imfun.atrous.wavelet_denoise` for more variants
     """
-    L = len(sig) 
+    L = len(sig)
     padlen = len(phi)
     assert L > padlen
     indices = map(lambda i: _mirrorpd(i, L),
@@ -150,16 +150,48 @@ def adaptive_medianf(arr, k = 2):
                    (arr[row,col] < m- k*sd):
                 out[row, col] = np.median(arr[sl])
     return out
-    
+
 def adaptive_medianf2(arr, k=3, s=1):
     import atrous
     sh = arr.shape
     approx = ndimage.median_filter(arr, 2*s+1)
     ns = atrous.estimate_sigma_mad(arr)
     d = arr-approx
-    d[np.abs(d) > k*ns] = 0 
+    d[np.abs(d) > k*ns] = 0
     return d + approx
-    
+
+
+@jit
+def mirrorpd(i,N):
+    "mirror boundary/padding conditions"
+    if i < 0: return -i%N
+    elif i>=N: return N-2-i%N
+    else: return i
+
+@jit
+def nearestpd(i,N):
+    "nearest boundary/padding conditions"
+    if i < 0: return 0
+    elif i>=N: return N-1
+    else: return i
+
+
+@jit
+def filt2d(u, kern):
+    uout = np.zeros_like(u)
+    (Nr,Nc),(kern_r,kern_c) = u.shape,kern.shape
+    ind_r = arange(kern_r)-kern_r//2 + (kern_r+1)%2
+    ind_c = arange(kern_c)-kern_c//2 + (kern_c+1)%2
+    for i in xrange(Nr):
+        for j in xrange(Nc):
+            uout[i,j] = 0   # just in case :)
+            for k in xrange(kern_r):
+                ki = mirror(i + ind_r[k], Nr)
+                for l in xrange(kern_c):
+                    li = mirror(j + ind_c[l], Nc)
+                    uout[i,j] += kern[k,l]*u[ki,li]
+    return uout
+
 
 def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05, fn=lambda f:f):
     """Kalman stack filter similar to that of Imagej
@@ -178,7 +210,7 @@ def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05, fn=lambda f:f):
     Output:
     -------
       - new frames, an nframes x nrows x ncolumns array with filtered frames
-    
+
     """
     if seed is 'mean' or None:
         seed = np.mean(frames,axis=0)
@@ -196,7 +228,7 @@ def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05, fn=lambda f:f):
         out[k] = corrected
         predicted = fn(out[k])
     return out
-    
+
 
 _bclose = ndimage.binary_closing
 _bopen = ndimage.binary_opening
