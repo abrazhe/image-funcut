@@ -1,6 +1,7 @@
 ## Mulstiscal decomposition and reconstruction routins
 
 import numpy as np
+from scipy import ndimage
 
 import atrous
 import mmt
@@ -66,10 +67,10 @@ def merge_supports(supp1, supp2):
     for k in range(nlevels):
         if k < l1:
             out[k] += supp1[k]
-        if k < l2: 
+        if k < l2:
             out[k] += supp2[k]
     return out
-    
+
 
 def represent_support(supp):
     """Create a graphical representation of the support"""
@@ -121,6 +122,27 @@ def simple_rec_iterative(coefs, supp=None, niter=5,
             out.append(Xn)
     if not fullout:
         out = Xn
+    return out
+
+
+def pyramid_from_atrous(img, nscales=4,shift=0):
+    coefs = atrous.decompose(img, nscales-1 + shift)
+    out = []
+    approx = coefs[-1]
+    for k in range(nscales-1+shift,shift,-1):
+        sub = approx[::2**(k-shift),::2**(k-shift)]
+        out.append(sub)
+        approx += coefs[k-1]
+    out.append(approx)
+    return out[::-1]
+
+def pyramid_from_zoom(img,nscales=3, scale_factor=0.5, mode=_boundary_mode):
+    out = [img]
+    sigma_0 = 0.6
+    for i in range(nscales-1):
+        sigma_zoom = sigma_0*(1.0/scale_factor**2 - 1)**0.5
+        im = ndimage.gaussian_filter(out[-1], sigma_zoom)
+        out.append(ndimage.zoom(im,scale_factor,mode=_boundary_mode))
     return out
 
 
