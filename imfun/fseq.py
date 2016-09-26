@@ -193,7 +193,7 @@ class FrameStackMono(object):
           [start,] stop [, step] to go through frames
 	  - `crop`: (`slice` or `None`) -- a crop (tuple of slices) to take from each frame
 	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
-
+        
 	Returns:
 	  `3D` array `d`, where frames are stored in higher dimensions, such
 	  that ``d[0]`` is the first frame, etc.
@@ -1140,7 +1140,8 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
     L = stop-start
     print 'number of frames:', L
     dz = fslist[0].meta['axes'][0] # units of the first frame sequence are used
-    zunits = dz.unit
+    zunits = str(dz.unit)
+    #dz = dz.value
 
     lutfns = []
     for fs in fslist:
@@ -1160,7 +1161,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
         nrows, ncols = lib.guess_gridshape(len(fslist))
     else:
         nrows = int(np.ceil(len(fslist)/ncols))
-    sh = fslist[0].shape()
+    sh = fslist[0].frame_shape
     aspect = float(sh[0])/sh[1]
     header_add = 0.5
     figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add))
@@ -1198,7 +1199,7 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
             view.set_data(lut(fs[k]))
         if with_header:
             if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                tstr = ', time: %0.3f %s' %(k*dz,zunits) #TODO: use in py3 way
+                tstr = ', time: %0.3f %s' %(k*dz.value, zunits) #TODO: use in py3 way
             header.set_text('frame %04d'%k + tstr)
         if k in marker_idx:
             plt.setp(marker, visible=True)
