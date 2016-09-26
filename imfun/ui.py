@@ -1052,9 +1052,15 @@ from imfun import fseq
 
 class Picker (object):
     _verbose = False
-    def __init__(self, frames, home_frame = True, verbose=False, ):
+    def __init__(self, frames, home_frame = True, verbose=False,
+                 roi_coloring_model='groupvar',
+                 suptitle = None,
+                 roi_prefix = 'r',
+                 default_circle_rad = 5.,
+                 min_linescan_length = 1.):
         self._corrfn = 'pearson'
         self.cw = color_walker()
+        self.suptitle = suptitle
         self._show_legend=False
         if isinstance(frames, fseq.FStackColl):
             frame_coll = frames
@@ -1065,13 +1071,14 @@ class Picker (object):
             return
         self.frame_coll = frame_coll
         self._Nf = None
-        self.roi_coloring_model = 'groupvar' # {allrandom | groupsame | groupvar}
+        #self.roi_coloring_model = 'groupvar' # {allrandom | groupsame | groupvar}
+        self.roi_coloring_model = roi_coloring_model
         self.roi_objs = {}
         self._tag_pallette = {}
-        self.roi_prefix = 'r'
+        self.roi_prefix = roi_prefix
         self.current_color = self.cw.next()
-        self.default_circle_rad = 5
-        self.min_length = 5
+        self.default_circle_rad = default_circle_rad
+        self.min_length = min_linescan_length
 	self.frame_index = 0
         self.shift_on = False
         self.roi_layout_freeze = False
@@ -1237,6 +1244,8 @@ class Picker (object):
 	if ax is None:
             
             self.fig, self.ax1 = plt.subplots()
+            if self.suptitle:
+                self.fig.suptitle(self.suptitle)
             plt.subplots_adjust(left=0.2, bottom=0.2)
             corners = self.ax1.get_position().get_points()
             #print corners
