@@ -2,13 +2,13 @@ from __future__ import division
 
 import numpy as np
 
-from scipy.ndimage.interpolation import map_coordinates
 from skimage import feature as skfeature
 
 _boundary_mode='nearest'
 
 from . import lkp as lkpmod
 from . import gk
+from . import warps
 
 try:
     # https://github.com/pyimreg/imreg
@@ -20,7 +20,7 @@ except ImportError:
     print "Can't load imreg package, affine and homography registrations won't work"
     _with_imreg = False
 
-    
+
 
 def shifts(image, template):
     shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
@@ -73,40 +73,21 @@ def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
 
 def softmesh(image, template, wsize=25, **fnargs):
     sh = image.shape
-    mstride=wsize//3
 
-    #granges = [range(wsize//2, shi-wsize//2+1, mstride) for shi in sh[:2]]
-    granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]]
-    mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
-    aligner = lkpmod.LKP_image_aligner(mesh, wsize)
+    aligner = lkpmod.LKP_image_aligner(wsize)
     _,p = aligner(image,template, **fnargs)
     def _regfn(coordinates):
         shifts = aligner.grid_shift_coords(p, sh)
         return [c-s for c,s in zip(coordinates, shifts)]
     return _regfn
 
+def mslkp(image, template, nl=3, wsize=25,**fnargs):
+    aligner = lkpmod.MSLKP_image_aligner()
+    w = aligner(image,template, **fnargs)
+    def _regfn(coordinates):
+        return [c-s for c,s in zip(coordinates, w)]
+    return _regfn
 
-def flow_from_fn(fn, sh):
-    start_coordinates = np.meshgrid(*map(np.arange, sh[::-1]))
-    return -(fn(start_coordinates)-np.array(start_coordinates))
 
-def apply_warp(img, warp ,mode='constant'):
-    """Given an image and a function to warp coordinates,
-    or a pair (u,v) of horizontal and vertical flows
-    warp image to the new coordinates.
-    In case of a multicolor image, run this function for each color"""
-    sh = img.shape
-    if np.ndim(img) == 2:
-        start_coordinates = np.meshgrid(*map(np.arange, sh[:2][::-1]))[::-1]
-        if callable(warp):
-            new_coordinates = warp(start_coordinates)
-        elif isinstance(warp, np.ndarray):
-            new_coordinates = [c+f for c,f in zip(start_coordinates, warp[::-1])]
-        else:
-            raise ValueError("warp can be either a function or an array")
-        return map_coordinates(img, new_coordinates,mode=mode)
-    elif np.ndim(img) > 2:
-        return np.dstack([apply_fn_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
-    else:
-        raise ValueError("Can't handle image of such shape: {}".format(sh))
 
+#from warps import apply_warp, flow_from_fn

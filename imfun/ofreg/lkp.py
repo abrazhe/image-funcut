@@ -6,25 +6,35 @@ import numpy as np
 from numpy import linalg
 
 from scipy.interpolate import RectBivariateSpline
+from scipy import ndimage
 from scipy.ndimage.interpolation import map_coordinates
 
 from skimage import feature as skfeature
 
 from imfun import atrous, lib
 
+from warps import apply_warp
 
+_boundary_mode = 'nearest'
 
 class LKP_image_aligner ():
-    def __init__(self,mesh,wsize):
-        self.mesh = mesh
+    def __init__(self,wsize, mstride=None, mesh=None):
+        self.mstride = (mstride is None) and wsize//3 or mstride
         self.wsize = wsize
+        self.mesh = None
     def __call__(self, source, target, maxiter=10,
                  weigh_by_shitomasi = False,
                  smooth_vfield = 2):
 
+        sh = source.shape
+        wsize = self.wsize
+        if self.mesh is None:
+            mstride = self.mstride
+            granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]]
+            self.mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
+
         mesh = self.mesh
         xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
-
         gshape = (len(ygrid), len(xgrid))
         p = np.zeros((2,)+gshape)
         imx = source.copy()
@@ -67,6 +77,39 @@ class LKP_image_aligner ():
 
         return map_coordinates(im, [yii-dy, xii-dx],mode=mode)
 
+from imfun.multiscale import pyramid_from_zoom
+
+class MSLKP_image_aligner ():
+    def __init__(self, base_window=25, nl=3):
+        self.nl = nl
+        self.base_window = base_window
+    def __call__(self, source, target, nl=3, **fnargs):
+        pt = pyramid_from_zoom(target,nl)
+        ps = pyramid_from_zoom(source,nl)
+
+        u = [np.zeros_like(p) for p in pt]
+        v = [np.zeros_like(p) for p in pt]
+
+
+        for level in range(self.nl-1,-1,-1):
+            h = 2**level
+            wsize = int((self.base_window-1)/h + 1)
+
+            if level < self.nl-1:
+                psx = apply_warp(ps[level], (u[level],v[level]), mode=_boundary_mode)
+            else:
+                psx = ps[level]
+
+            aligner = LKP_image_aligner(wsize)
+            _,p = aligner(psx,pt[level],**fnargs)
+            ui,vi = aligner.grid_shift_coords(p,psx.shape)
+            u[level] -= ui#upscale_interpolating(u, h)*h
+            v[level] -= vi# upscale_interpolating(v,h)*h
+            if level > 0:
+                u[level-1] = ndimage.zoom(u[level],2, mode=_boundary_mode)*2
+                v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)*2
+        return (-u[0], -v[0])
+
 
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
               calc_eig=False, weigh_by_eig = False):
@@ -76,6 +119,8 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
     if zeromean:
         im1 = im1-np.mean(im1)
         im2 = im2-np.mean(im2)
+
+    # NB: calculate gradients the same way as in CLG!
     Ix,Iy = np.gradient(im1)
     if It is None:
         It = im1-im2 # reverse sign first order difference
@@ -101,5 +146,3 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
     if weigh_by_eig:
         out = out[:,:dim]*out[:,dim:]
     return out
-
-    
