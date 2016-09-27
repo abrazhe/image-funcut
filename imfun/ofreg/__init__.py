@@ -1,0 +1,112 @@
+from __future__ import division
+
+import numpy as np
+
+from scipy.ndimage.interpolation import map_coordinates
+from skimage import feature as skfeature
+
+_boundary_mode='nearest'
+
+from . import lkp as lkpmod
+from . import gk
+
+try:
+    # https://github.com/pyimreg/imreg
+    import imreg.register
+    import imreg.model
+    import imreg.sampler # do we really need that?
+    _with_imreg = True
+except ImportError:
+    print "Can't load imreg package, affine and homography registrations won't work"
+    _with_imreg = False
+
+    
+
+def shifts(image, template):
+    shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
+    def _regfn(coordinates):
+        return [c - p for c,p in zip(coordinates, shift[::-1])]
+    return _regfn
+
+def _imreg(image, template, tform):
+    if not _with_imreg:
+        raise NameError("Don't have imreg module")
+    aligner = imreg.register.Register()
+    template, image = map(imreg.register.RegisterData, (template,image))
+    step, search = aligner.register(image, template, tform)
+    def _regfn(coordinates):
+        ir_coords = imreg.model.Coordinates.fromTensor(coordinates)
+        out =  tform(step.p, ir_coords).tensor
+        print out.shape
+        return out
+    return _regfn
+
+
+def affine(image,template):
+    return _imreg(image, template, imreg.model.Affine())
+
+def homography(image,template):
+    return _imreg(image, template, imreg.model.Homography())
+
+
+def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
+    if transpose:
+        template = template.T
+        image = image.T
+    aligner = gk.GK_image_aligner()
+    shift = skfeature.register_translation(template, image, upsample_factor=4.)[0]
+    p0x,p0y = np.ones(nparam)*shift[1], np.ones(nparam)*shift[0]
+
+    if not 'maxiter' in fnargs:
+        fnargs['maxiter'] = 25
+
+    res, p = aligner(image, template, p0x,p0y, **fnargs)
+    def _regfn(coordinates):
+        sh = coordinates[0].shape
+        dx = aligner.wcoords_from_params1d(p[0], sh)
+        dy = aligner.wcoords_from_params1d(p[1], sh)
+        if transpose:
+            dx,dy = dy,dx
+        return [coordinates[0]-dx, coordinates[1]-dy]
+    return _regfn
+
+
+def softmesh(image, template, wsize=25, **fnargs):
+    sh = image.shape
+    mstride=wsize//3
+
+    #granges = [range(wsize//2, shi-wsize//2+1, mstride) for shi in sh[:2]]
+    granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]]
+    mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
+    aligner = lkpmod.LKP_image_aligner(mesh, wsize)
+    _,p = aligner(image,template, **fnargs)
+    def _regfn(coordinates):
+        shifts = aligner.grid_shift_coords(p, sh)
+        return [c-s for c,s in zip(coordinates, shifts)]
+    return _regfn
+
+
+def flow_from_fn(fn, sh):
+    start_coordinates = np.meshgrid(*map(np.arange, sh[::-1]))
+    return -(fn(start_coordinates)-np.array(start_coordinates))
+
+def apply_warp(img, warp ,mode='constant'):
+    """Given an image and a function to warp coordinates,
+    or a pair (u,v) of horizontal and vertical flows
+    warp image to the new coordinates.
+    In case of a multicolor image, run this function for each color"""
+    sh = img.shape
+    if np.ndim(img) == 2:
+        start_coordinates = np.meshgrid(*map(np.arange, sh[:2][::-1]))[::-1]
+        if callable(warp):
+            new_coordinates = warp(start_coordinates)
+        elif isinstance(warp, np.ndarray):
+            new_coordinates = [c+f for c,f in zip(start_coordinates, warp[::-1])]
+        else:
+            raise ValueError("warp can be either a function or an array")
+        return map_coordinates(img, new_coordinates,mode=mode)
+    elif np.ndim(img) > 2:
+        return np.dstack([apply_fn_warp(img[...,c],fn,mode) for c in range(img.shape[-1])])
+    else:
+        raise ValueError("Can't handle image of such shape: {}".format(sh))
+
