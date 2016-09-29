@@ -20,13 +20,13 @@ def version_from_git():
 
 setup(name='image-funcut',
       # version = version_from_git(), # I have problems with this so far
-      version = '0.2.34',
+      version = '0.3.dev',
       url = "https://github.com/abrazhe/image-funcut",
       author = "Alexey Brazhe",
       license = "GPL",
       description = "View, analyse and transform dynamic imaging data",
       scripts = ['scripts/funcut.py', 'scripts/stabilize-framesequence.py'],
-      package_dir = {'imfun':'imfun', 'imfun.external':'imfun/external'},
+      package_dir = {'imfun':'imfun'},
       packages = ['imfun', 'imfun.external', 'imfun.ofreg'],
       data_files = [('Examples/image-funcut',['scripts/stab-params-example.json'])],
       install_requires = ['numpy',
