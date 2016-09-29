@@ -180,15 +180,15 @@ def nearestpd(i,N):
 def filt2d(u, kern):
     uout = np.zeros_like(u)
     (Nr,Nc),(kern_r,kern_c) = u.shape,kern.shape
-    ind_r = arange(kern_r)-kern_r//2 + (kern_r+1)%2
-    ind_c = arange(kern_c)-kern_c//2 + (kern_c+1)%2
+    ind_r = np.arange(kern_r)-kern_r//2 + (kern_r+1)%2
+    ind_c = np.arange(kern_c)-kern_c//2 + (kern_c+1)%2
     for i in xrange(Nr):
         for j in xrange(Nc):
             uout[i,j] = 0   # just in case :)
             for k in xrange(kern_r):
-                ki = mirror(i + ind_r[k], Nr)
+                ki = mirrorpd(i + ind_r[k], Nr)
                 for l in xrange(kern_c):
-                    li = mirror(j + ind_c[l], Nc)
+                    li = mirrorpd(j + ind_c[l], Nc)
                     uout[i,j] += kern[k,l]*u[ki,li]
     return uout
 
