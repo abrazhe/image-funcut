@@ -80,8 +80,7 @@ class LKP_image_aligner ():
 from imfun.multiscale import pyramid_from_zoom
 
 class MSLKP_image_aligner ():
-    def __init__(self, base_window=25, nl=3):
-        self.nl = nl
+    def __init__(self, base_window=25):
         self.base_window = base_window
     def __call__(self, source, target, nl=3, **fnargs):
         pt = pyramid_from_zoom(target,nl)
@@ -91,11 +90,11 @@ class MSLKP_image_aligner ():
         v = [np.zeros_like(p) for p in pt]
 
 
-        for level in range(self.nl-1,-1,-1):
+        for level in range(nl-1,-1,-1):
             h = 2**level
             wsize = int((self.base_window-1)/h + 1)
 
-            if level < self.nl-1:
+            if level < nl-1:
                 psx = apply_warp(ps[level], (u[level],v[level]), mode=_boundary_mode)
             else:
                 psx = ps[level]
@@ -108,7 +107,7 @@ class MSLKP_image_aligner ():
             if level > 0:
                 u[level-1] = ndimage.zoom(u[level],2, mode=_boundary_mode)*2
                 v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)*2
-        return (-u[0], -v[0])
+        return (u[0], v[0])
 
 
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
