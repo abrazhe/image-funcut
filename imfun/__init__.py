@@ -15,6 +15,7 @@ from . import ioraw
 from . import mmt, multiscale, mvm
 from . import opflowreg, pica, track, ui
 from . import external
+from . import ofreg
 
 ## import lib
 ## import fseq
