@@ -50,7 +50,7 @@ class MSCLG(object):
         for level in xrange(nl-1,-1,-1):
             h = 2.0**level
             if level < nl-1:
-                psx = warps.apply_warp(ps[level], (u[level],v[level]), mode=_boundary_mode)
+                psx = warps.apply_warp((u[level],v[level]), ps[level], mode=_boundary_mode)
             else:
                 psx = ps[level]
 

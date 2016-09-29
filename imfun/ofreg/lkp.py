@@ -95,7 +95,7 @@ class MSLKP_image_aligner ():
             wsize = int((self.base_window-1)/h + 1)
 
             if level < nl-1:
-                psx = apply_warp(ps[level], (u[level],v[level]), mode=_boundary_mode)
+                psx = apply_warp((u[level],v[level]), ps[level], mode=_boundary_mode)
             else:
                 psx = ps[level]
 
@@ -109,6 +109,7 @@ class MSLKP_image_aligner ():
                 v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)*2
         return (u[0], v[0])
 
+from imfun.filt import filt2d
 
 def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
               calc_eig=False, weigh_by_eig = False):
@@ -120,7 +121,10 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
         im2 = im2-np.mean(im2)
 
     # NB: calculate gradients the same way as in CLG!
-    Ix,Iy = np.gradient(im1)
+    #Ix,Iy = np.gradient(im1)
+
+    kdx2 = np.array([[1,-8,0,8,-1]])/12.0
+    Iy,Ix = filt2d(im1,kdx2),filt2d(im1,kdx2.T,)
     if It is None:
         It = im1-im2 # reverse sign first order difference
     else:
