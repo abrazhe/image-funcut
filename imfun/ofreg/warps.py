@@ -1,4 +1,7 @@
 from __future__ import division
+import itertools as itt
+
+
 import numpy as np
 
 from scipy.ndimage.interpolation import map_coordinates
@@ -141,16 +144,29 @@ def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
             dct_dict.append(patch)
     return dct_dict
 
-def dct_encode(warp,upto=20):
-    D = make_dct_dict(warp[0].shape, upto)
-    coefs = np.concatenate([[np.sum(d*a) for d in D] for a in warp])
-    return coefs, warp[0].shape
+def dct_encode(flow,upto=20,D=None):
+    if D is None:
+        D = make_dct_dict(flow[0].shape, upto)
+    coefs = np.concatenate([[np.sum(d*a) for d in D] for a in flow])
+    return coefs, flow[0].shape
 
-import itertools as itt
-def dct_decode((coefs, shape)):
+def dct_decode((coefs, shape),D=None):
     upto = int(np.sqrt(len(coefs)//2))
-    D = make_dct_dict(shape, upto=upto)
+    if D is None:
+        D = make_dct_dict(shape, upto=upto)
     Ld = len(D)
     xflow = np.sum([k*el for k,el in itt.izip(coefs[:Ld],D)],0)
     yflow = np.sum([k*el for k,el in itt.izip(coefs[Ld:],D)],0)
     return np.array([xflow,yflow])
+
+
+def with_encoding(wf, harmonics=20, img_shape=None,D=None):
+    """
+    if warps are functions, must provide `img_shape` argument
+    """
+    def _ef(*args, **kwargs):
+        warp = wf(*args, **kwargs)
+        if callable(warp):
+            warp = flow_from_fn(warp,img_shape)
+        return dct_encode(warp, harmonics,D)
+    return _ef

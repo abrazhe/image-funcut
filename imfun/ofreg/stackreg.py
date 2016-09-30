@@ -22,8 +22,9 @@ OR
 def to_template(frames, template, regfn, njobs=4,  **fnargs):
     """
     Given stack of frames (or a FSeq obj) and a template image,
-    align every frame to template and return a list of functions,
-    which take an image and return warped image, aligned to template.
+    align every frame to template and return a collection of functions,
+    which take image coordinates and return warped coordinates, which whould align the
+    image to the template.
     """
     if njobs > 1 and _with_pathos_:
         pool = ProcessPool(nodes=njobs)
