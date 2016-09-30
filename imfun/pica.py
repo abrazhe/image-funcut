@@ -114,6 +114,20 @@ def whitenmat2(X):
     return pc_filters.T, pc_signals, s
 
 
+class PCA_frames():
+    def __init__(self,frames, npc=20, center=False):
+        self.npc = npc
+        self.sh = frames[0].shape
+        u,s,vh = np.linalg.svd(reshape_from_movie(frames), full_matrices=False)
+        self.u = u[:,:npc]
+        self.s = s[:npc]
+        self.vh = vh[:npc]
+    def project(self, frame):
+        return self.vh.dot(np.ravel(frame))
+    def approx(self, frame):
+        return self.project(frame).dot(self.vh).reshape(self.sh)
+    def rec_from_coefs(self,coefs):
+        return coefs.dot(self.vh).reshape(self.sh) 
 
 def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
