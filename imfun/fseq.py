@@ -708,6 +708,13 @@ class FStackColl(object):
     def _propagate_call(self, call, *args, **kwargs):
         out = [getattr(s,call)(*args, **kwargs) for s in self.stacks]
         return np.stack(out,-1)
+    def data_range(self, *args, **kwargs):
+        return self._propagate_call('data_range', *args,**kwargs)
+    def data_percentile(self, *args, **kwargs):
+        return self._propagate_call('data_percentile', *args,**kwargs)
+    @property
+    def frame_shape(self):
+        return self[0].shape
     def zoom(self,scales):
         zoomed_stacks = [s.zoom(scales) for s in self.stacks]
         out =  FStackColl(zoomed_stacks)
@@ -1148,7 +1155,11 @@ def to_movie(fslist, video_name, fps=25, start=0,stop=None,
         if clim is not None:
             vmin, vmax = clim
         else:
-            bounds = fs.data_percentile((1,99)) if hasattr(fs,'data') else fs.data_range()
+            if (isinstance(fs, FrameStackMono) and hasattr(fs, 'data')) or \
+               (isinstance(fs, FStackColl) and hasattr(fs.stacks[0], 'data')):
+                bounds = fs.data_percentile((1,99))
+            else:
+                bounds = fs.data_range()
             bounds = np.array(bounds).reshape(-1,2)
             vmin, vmax = np.min(bounds[:,0],0), np.max(bounds[:,1],0)
         #print vmin,vmax
