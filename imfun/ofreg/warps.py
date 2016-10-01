@@ -6,7 +6,7 @@ import numpy as np
 
 from scipy.ndimage.interpolation import map_coordinates
 
-from imfun import fseq
+from imfun import fseq, fnutils
 
 import pickle
 
@@ -20,6 +20,16 @@ def fn_from_flow(flow):
     def _regfn(coordinates):
         return [c + p for c,p in zip(coordinates, flow)]
     return _refn
+
+def compose_warps(w1,w2):
+    _pcalls = map(callable, (w1,w2))
+    if _pcalls[0] and _pcalls[1]:
+        return fnutils.flcompose(w1,w2)
+    elif not(_pcalls[0] or _pcalls[1]):
+        return w1 + w2 # should also work for dct_encoded frames
+    else:
+        raise TypeError('Incompatible warp types')
+
 
 def apply_warp(warp, img ,mode=_boundary_mode):
     """Given an image and a function to warp coordinates,
