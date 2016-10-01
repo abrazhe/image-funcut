@@ -1,21 +1,9 @@
-## Mulstiscal decomposition and reconstruction routins
 
 import numpy as np
 from scipy import ndimage
 
-import atrous
-import mmt
-
-_dtype_ = np.float32
-
-
-_boundary_mode = 'nearest'
-
-sigmaej_starlet = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
-                   [7.235e-01, 2.854e-01, 1.779e-01, 1.222e-01, 8.581e-02, 6.057e-02,  4.280e-02, 3.025e-02, 2.138e-02, 1.511e-02, 1.067e-02, 7.512e-03], #1D
-                   [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
-                   [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]]  # 3D
-
+from . import atrous
+from .constants import *
 
 def threshold_w(coefs, th, neg=False, modulus=True, soft=False, sigmaej=atrous.sigmaej):
     """Return support for wavelet coefficients that are larger than threshold.
@@ -147,10 +135,7 @@ def pyramid_from_zoom(img,nscales=3, scale_factor=0.5, mode=_boundary_mode):
         out.append(ndimage.zoom(im,scale_factor,mode=_boundary_mode))
     return out
 
-
 ## Default spline wavelet scaling function
-_phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
-
 def qmf(filt = _phi_):
     """Quadrature mirror relationship"""
     L = len(filt)

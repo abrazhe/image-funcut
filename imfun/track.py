@@ -3,7 +3,7 @@ import numpy as np
 import scipy.interpolate as ip
 
 
-import atrous
+from .multiscale import atrous
 
 def limit_bounds(vec, lbound, ubound):
    out = np.copy(vec)

@@ -10,14 +10,14 @@ except DistributionNotFound:
 else:
     VERSION = __version__
 
-from . import atrous, bwmorph, fseq, fnmap, fnutils, lib
+from . import bwmorph, fseq, fnmap, fnutils, lib
 from . import cluster
-#from . import ioraw
-from . import mmt, multiscale, mvm
-from . import opflowreg, pica, track, ui
 from . import external
-from . import ofreg
 from . import io
+from . import multiscale
+from . import pica, track, ui
+from . import ofreg
+
 
 ## import lib
 ## import fseq

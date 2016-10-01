@@ -13,8 +13,9 @@ from scipy.ndimage import convolve1d
 
 import itertools as itt
 
+from .constants import *
 
-_dtype_ = np.float32
+#_dtype_ = np.float32
 
 ## this is used for noise estimation and support calculation
 ## level =  1      2      3      4      5      6      7

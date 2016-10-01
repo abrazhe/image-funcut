@@ -6,8 +6,11 @@ import numpy as np
 from scipy import ndimage
 
 from imfun import lib
-from imfun import atrous
+from . import atrous, mmt
+from . import utils
 from imfun.cluster import metrics
+
+from .constants import *
 
 import sys
 
@@ -391,7 +394,7 @@ def just_denoise(arr, k=3, level=5, noise_std=None,
     return atrous.rec_with_support(coefs, new_supp)
     
 
-import mmt,multiscale    
+#import mmt,multiscale    
 
 ### This is one of the main functions ###
 #----------------------------------------
@@ -449,7 +452,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if dec_fn == mmt.decompose_mwt:
         sigmaej = mmt.sigmaej_mwts2
     if supp is None:
-        supp = multiscale.threshold_w(coefs, np.array(k,_dtype_)*noise_std,
+        supp = utils.threshold_w(coefs, np.array(k,_dtype_)*noise_std,
                                       modulus=modulus, sigmaej=sigmaej)
     if weights is None:
         weights  = np.ones(level)
@@ -473,12 +476,12 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     # we don't expect too many outliers and this way it's faster
     pipelines = [lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
-                               lambda x: multiscale.simple_rec(coefs, x),
+                               lambda x: utils.simple_rec(coefs, x),
                                embedding),
                  lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
                                lambda x:
-                               multiscale.simple_rec_iterative(coefs, x, 
+                               utils.simple_rec_iterative(coefs, x, 
                                                                positive_only=(not modulus)),
                                embedding)]
     recovered = (pipelines[rec_variant-1](obj, start_scale) for obj in objects)

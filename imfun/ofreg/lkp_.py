@@ -11,7 +11,8 @@ from scipy.ndimage.interpolation import map_coordinates
 
 from skimage import feature as skfeature
 
-from imfun import atrous, lib
+from .. import lib
+from ..multiscale import atrous
 
 from warps import apply_warp
 
