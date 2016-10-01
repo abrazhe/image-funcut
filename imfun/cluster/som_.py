@@ -1,7 +1,8 @@
 # Prototype of Kohonen's Self-Organizing Maps
 import numpy as np
 import itertools as itt
-from cluster import euclidean, cityblock, pearson, spearman, xcorrdist
+from . import metrics
+from .metrics import euclidean
 
 
 import sys
@@ -18,11 +19,11 @@ def voronoi_inds(patterns, maps, distance):
     return affiliations
 
 distance_fns = {
-    'euclidean':euclidean,
-    'cityblock':cityblock,
-    'pearson':pearson,
-    'spearman':spearman,
-    'xcorrdist':xcorrdist
+    'euclidean':metrics.euclidean,
+    'cityblock':metrics.cityblock,
+    'pearson':metrics.pearson,
+    'spearman':metrics.spearman,
+    'xcorrdist':metrics.xcorrdist
     }
 
 def _sorted_affs(affs):
@@ -46,7 +47,7 @@ def _iterative_som(patterns, max_rec=50, *args, **kwargs):
     return affs_n, gr_n
 
 
-def som1(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
+def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
          neighbor_fn=neigh_gauss,
          fade_coeff = 0.9,
          min_reassign=10,

@@ -5,7 +5,7 @@ import random as pyrnd
 
 from pylab import *
 
-from imfun.cluster import euclidean, cityblock, pearson, spearman, xcorrdist
+from .metrics import euclidean, cityblock, pearson, spearman, xcorrdist
 
 class Edge:
     def __init__(self, node1, node2):

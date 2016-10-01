@@ -2,8 +2,9 @@
 
 from __future__ import division
 
-from itertools import combinations
 
+from itertools import combinations
+import itertools as itt
 
 
 #from pylab import mpl
@@ -707,7 +708,6 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3):
 
 
 def som_cluster_fseq(seq, **kwargs):
-	import itertools as itt
 	from imfun import som
 	shape = seq.shape()
 	a = seq.as3darray()
@@ -716,12 +716,26 @@ def som_cluster_fseq(seq, **kwargs):
 	perm = np.random.permutation(np.product(shape))
 	affiliations = som.som1(tracks,**kwargs)
 	return som.cluster_map_permutation(affiliations, perm, shape)
-	
+
+def locations(shape):
+    """ all locations for a shape; substitutes nested cycles
+    """
+    return itt.product(*map(xrange, shape))
+    
 def n_random_locs(n, shape):
     """
     return a list of n random locations within shape
     """
     return zip(*[tuple(np.random.choice(dim, n)) for dim in shape])
+
+
+def make_grid(shape,size,stride):
+    """Make a generator over sets of slices which go through the provided shape
+       by a stride
+    """
+    origins =  itt.product(*[range(0,dim,stride) for dim in shape])
+    squares = ([slice(a,a+size) for a in o] for o in origins)
+    return squares
 
 
 def write_table_csv(table, fname):

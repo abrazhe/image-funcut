@@ -7,7 +7,7 @@ from scipy import ndimage
 
 from imfun import lib
 from imfun import atrous
-from imfun import cluster
+from imfun.cluster import metrics
 
 import sys
 
@@ -16,7 +16,7 @@ sys.setrecursionlimit(10000)
 _dtype_ = atrous._dtype_
 _show_time_ = False
 
-distance = cluster.euclidean
+distance = metrics.euclidean
 embedding = lib.embedding
 embedded_to_full = lib.embedded_to_full
 
@@ -284,7 +284,7 @@ def deblend_node(node, coefs, acc = None):
     Returns:
       - `acc`: a list of deblended objests, represented by the root `MVMNode`.
     """
-    distance = cluster.euclidean
+    distance = metrics.euclidean
     if acc is None: acc = [node]
     flat_leaves = flat_tree(node)
     #mxcoef = lambda level, loc : coefs[level][loc]

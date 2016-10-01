@@ -19,7 +19,7 @@ OR
 
 
 from imfun import pica
-from imfun import som
+from imfun import cluster
 
 from . import warps
 
@@ -29,7 +29,7 @@ from . import warps
 def make_pca_templates(frames, pcf, gridshape=(5,1),npc=15):
     coords = np.array([pcf.project(f) for f in frames])
     npc = min(npc, pcf.npc)
-    som_result = som.som1(coords[:,:npc], gridshape=gridshape)
+    som_result = cluster.som(coords[:,:npc], gridshape=gridshape)
     sorted_affs = som._sorted_affs(som_result)[::-1]
     templates = [pcf.rec_from_coefs(coords[som_result==_k].mean(axis=0)) for _k in sorted_affs]
     return templates,(som_result,sorted_affs)
