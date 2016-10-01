@@ -4,9 +4,9 @@ import numpy as np
 
 from skimage import feature as skfeature
 
-from . import lkp
-from . import gk
-from . import clg
+from . import lkp_
+from . import gk_
+from . import clg_
 
 try:
     # https://github.com/pyimreg/imreg
@@ -59,7 +59,7 @@ def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
     if transpose:
         template = template.T
         image = image.T
-    aligner = gk.GK_image_aligner()
+    aligner = gk_.GK_image_aligner()
     shift = skfeature.register_translation(template, image, upsample_factor=4.)[0]
     p0x,p0y = np.ones(nparam)*shift[1], np.ones(nparam)*shift[0]
 
@@ -86,7 +86,7 @@ def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
 def slkp( image, template, wsize=25, **fnargs):
     sh = image.shape
 
-    aligner = lkp.LKP_image_aligner(wsize)
+    aligner = lkp_.LKP_image_aligner(wsize)
     _,p = aligner(image,template, **fnargs)
     if _output == 'flow':
         return -np.array(aligner.grid_shift_coords(p, sh))
@@ -97,7 +97,7 @@ def slkp( image, template, wsize=25, **fnargs):
         return _regfn
 
 def mslkp(image, template, nl=3, wsize=25,**fnargs):
-    aligner = lkp.MSLKP_image_aligner()
+    aligner = lkp_.MSLKP_image_aligner()
     w = aligner(image,template, **fnargs)
     def _regfn(coordinates):
         return [c+s for c,s in zip(coordinates, w)]
@@ -108,7 +108,7 @@ def mslkp(image, template, nl=3, wsize=25,**fnargs):
 
 def msclg( image, template, nl=3, algorithm='pcgs',alpha=1e-5,
           verbose=False, **fnargs):
-    aligner = clg.MSCLG(algorithm=algorithm,verbose=verbose)
+    aligner = clg_.MSCLG(algorithm=algorithm,verbose=verbose)
     w = aligner(image, template,nl, **fnargs)
     def _regfn(coordinates):
         return [c+s for c,s in zip(coordinates, w)]
