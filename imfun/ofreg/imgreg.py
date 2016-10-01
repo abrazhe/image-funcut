@@ -21,7 +21,7 @@ except ImportError:
 
 
 _boundary_mode='nearest'
-_output = 'fn' # {fn, flow, dct}
+_output = 'flow' # {fn, flow, dct}
 
 
 
