@@ -531,7 +531,7 @@ class FStackM_imgleic(FStackM_img):
             xmlname = pattern
         self.fns = ifnot(fns, [])
         try:
-            from imfun import leica
+            from imfun.io import leica
             self.lp = leica.LeicaProps(xmlname)
             self.meta['axes'][1:3] = [Q(self.lp.dx,'um'), Q(self.lp.dy,'um')]
             if hasattr(self.lp, 'dt'):
@@ -548,7 +548,7 @@ class FStackM_imgleic(FStackM_img):
 
 
 #from imfun.MLFImage import MLF_Image
-import ioraw
+from imfun.io import ioraw
 
 class FStackM_plsi(FrameStackMono):
     "FrameStackMono class for LaserSpeckle multi-frame images"
@@ -654,7 +654,7 @@ class FStackM_plsi(FrameStackMono):
 
 
 ## -- MES files --
-import mes
+from imfun.io import mes
 
 class FStackM_mes(FStackM_arr):
     def __init__(self, fname, record, ch='r', fns=None, verbose=False,
@@ -758,7 +758,7 @@ def from_images(path,flavor=None,**kwargs):
     return obj
     
 
-from imfun import leica
+from imfun.io import leica
 def attach_leica_metadata(obj, path, xmlname=None):
     if not xmlname:
         xmlname = leica.get_xmljob(path)
@@ -852,7 +852,7 @@ def from_tiff(path, flavor=None, **kwargs):
     return obj
 
 def attach_olympus_metadata(obj, path):
-    from imfun import olympus
+    from imfun.io import olympus
     dye_order = ['dsred','ogb','trict']
     path_base, ext = os.path.splitext(path)
     meta = olympus.parse_meta_general(path_base+'.txt')

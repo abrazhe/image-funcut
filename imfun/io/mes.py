@@ -5,11 +5,11 @@ from __future__ import division
 import itertools as itt
 import numpy as np
 from scipy import io
-import lib
-import fnutils as fu
 
-from external.physics import Q
 
+from imfun.external.physics import Q
+from imfun import fnutils as fu
+from imfun import lib
 
 def guess_format(file_name):
     """given file name, return either 'mat' or 'h5' depending on whether the

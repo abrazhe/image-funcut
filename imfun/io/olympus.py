@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from external.physics import Q
+from imfun.external.physics import Q
 def parse_property(line):
     l = line.strip().replace('"','')
     name, value = l.split('\t')
