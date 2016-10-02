@@ -5,10 +5,15 @@
 import numpy as np
 from scipy import ndimage
 
-from imfun import lib
 from . import atrous, mmt
 from . import utils
+
 from imfun.cluster import metrics
+from imfun.core import deco
+from imfun.core import array_handling as ah
+from imfun.core import misc
+from imfun.core import fnutils
+
 
 from .constants import *
 
@@ -20,8 +25,8 @@ _dtype_ = atrous._dtype_
 _show_time_ = False
 
 distance = metrics.euclidean
-embedding = lib.embedding
-embedded_to_full = lib.embedded_to_full
+embedding = ah.embedding
+embedded_to_full = ah.embedded_to_full
 
 class MVMNode:
     """A class to represent MVM Node, with its branches, etc
@@ -68,7 +73,7 @@ def max_pos(arr, labels, ind, xslice):
     x = ndimage.maximum_position(arr[xslice], labels[xslice], ind)
     return tuple(x + offset)
 
-#@lib.with_time_dec
+#@deco.with_time_dec
 def get_structures(coefs, support):
     """ Label contiguous regions in significant coefficients and convert them
     to MVM  nodes.
@@ -96,7 +101,7 @@ def get_structures(coefs, support):
 ### NOTE: it only preserves structures that are connected up to the latest
 ### level this is probably not always the desired behaviour
 ### update: fixed
-#@lib.with_time_dec
+#@deco.with_time_dec
 def connectivity_graph(structures, min_nscales=2):
     """Create the interscale connectivity graph from labelled regions of
     signigicant wavelet coefficients.
@@ -132,7 +137,7 @@ def flat_tree(root_node):
     acc = [root_node]
     for node in root_node.branches:
         acc.append(flat_tree(node))
-    return lib.flatten(acc)
+    return misc.flatten(acc)
 
 def nleaves(root):
     """Count leaves in one tree"""
@@ -213,23 +218,23 @@ def _restore_object_iterative(arr, object, min_level=0, niter=5,
     return out
 
 def supp_from_connectivity(graph,nlevels):
-    nodes = lib.flatten(graph)
+    nodes = misc.flatten(graph)
     sh = nodes[0].labels.shape
     new_shape = [nlevels] + list(sh)
-    out = lib.memsafe_arr(new_shape, _dtype_)*0.0
+    out = ah.memsafe_arr(new_shape, _dtype_)*0.0
     for n in nodes:
 	out[n.level][n.labels>0] = 1.0
     return out
     
 
-#@lib.with_time_dec            
+#@deco.with_time_dec            
 def supp_from_obj(object, min_level=0, max_level= 10,
 		  verbose=0, mode=0,
 		  weights = None):
     """Return support arrays from object"""
     sh = object.labels.shape
     new_shape = [object.level+1] + list(sh)
-    out = lib.memsafe_arr(new_shape, _dtype_)
+    out = ah.memsafe_arr(new_shape, _dtype_)
     flat = flat_tree(object)
     nfl = len(flat)
     if weights is None:
@@ -337,7 +342,7 @@ def deblend_all(objects, coefs, min_scales=2):
       - a list of deblended objests, represented by the root `MVMNode` instances.
 
     """
-    roots = lib.flatten([deblend_node(o,coefs) for o in objects])
+    roots = misc.flatten([deblend_node(o,coefs) for o in objects])
     return [r for r in roots if nscales(r) >= min_scales]
 
 
@@ -346,7 +351,7 @@ def deblend_all(objects, coefs, min_scales=2):
 ### second is a list, contaning shape and slice of the enclosing original data
 ### array 
 
-#@lib.with_time_dec
+#@deco.with_time_dec
 ## def embedding(arr, delarrp=True):
 ##     """Return an *embeding* of the non-zero portion of an array.
 
@@ -389,7 +394,7 @@ def just_denoise(arr, k=3, level=5, noise_std=None,
                                   modulus=False)  
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures, min_nscales)
-    #labels = reduce(lambda a,b:a+b, (n.labels for n in lib.flatten(g)))
+    #labels = reduce(lambda a,b:a+b, (n.labels for n in misc.flatten(g)))
     new_supp = supp_from_connectivity(g,level)
     return atrous.rec_with_support(coefs, new_supp)
     
@@ -474,11 +479,11 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     # note: even if we decompose with mmt.decompose_mwt
     # we use atrous.decompose for object reconstruction because
     # we don't expect too many outliers and this way it's faster
-    pipelines = [lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
+    pipelines = [fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
                                lambda x: utils.simple_rec(coefs, x),
                                embedding),
-                 lib.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
+                 fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
                                lambda x:
                                utils.simple_rec_iterative(coefs, x, 
@@ -512,11 +517,11 @@ def energy(obj):
     return np.sum(data)
 
 ### Obvious todo: parallelize!
-@lib.with_time_dec
+@deco.with_time_dec
 def _framewise_find_objects_old(frames, min_frames=5,
 				binary_structure = (3,2),
 				*args, **kwargs):
-    framewise = lib.with_time(list, (find_objects(f, *args, **kwargs) for f in frames))
+    framewise = deco.with_time(list, (find_objects(f, *args, **kwargs) for f in frames))
     print "all frames computed"
     fullrestored = objects_to_array(framewise)
     if fullrestored is None:
@@ -544,7 +549,7 @@ def recobjs_lm_connected(o1, o2):
     return o1[pos] > 0
 
 
-@lib.with_time_dec
+@deco.with_time_dec
 def framewise_find_objects(frames, min_frames=5,
 			   framewise=None,
 			   verbose=True,
@@ -580,7 +585,7 @@ def framewise_find_objects(frames, min_frames=5,
     res = filter_linked(res, min_frames)
     return [restore_linked(r,L) for r in res]
 
-@lib.with_time_dec
+@deco.with_time_dec
 def filter_linked(res, min_frames):
     return [r for r in res if nframes_linked(r) >=min_frames] 
 
@@ -635,7 +640,7 @@ def roots_only(objlist):
 def excluding(item, _list):
     return [e for e in _list if e is not item]
 
-@lib.with_time_dec
+@deco.with_time_dec
 def prune_multiple_prevs(objlist):
     """
     each object in a frame n can only have one
@@ -657,7 +662,7 @@ def prune_multiple_prevs(objlist):
     return objlist
 	     
 
-@lib.with_time_dec
+@deco.with_time_dec
 def connect_framewise_objs(objlist,testfn = recobjs_overlap, nnext=3):
     for j,frame in enumerate(objlist[:-nnext]):
 	nextframes = objlist[j+1:j+nnext+1]
@@ -670,7 +675,7 @@ def connect_framewise_objs(objlist,testfn = recobjs_overlap, nnext=3):
 		if len(nx):
 		    for n in nx: obj.linknext(n)
 		    break
-    objs = [o for o in lib.flatten(objlist) if len(o.prev) or len(o.branches)]
+    objs = [o for o in misc.flatten(objlist) if len(o.prev) or len(o.branches)]
     objs = prune_multiple_prevs(objs)
     return roots_only(objs)
 

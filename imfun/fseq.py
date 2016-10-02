@@ -1103,6 +1103,15 @@ try:
 except ImportError as e:
     print "Can't load OpenCV python bindings", e
 
+def ravel_frames(frames):
+    l,w,h = frames.shape
+    return frames.reshape(l,w*h)
+
+def shape_frames(X,(nrows,ncols)):
+    Nt,Np = X.shape
+    return X.reshape(Nt, nrows, ncols)
+    
+
 
 def to_movie(fslist, video_name, fps=25, start=0,stop=None,
              ncols = None,

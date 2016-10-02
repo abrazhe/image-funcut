@@ -8,6 +8,7 @@ from numba import jit
 
 import itertools as itt
 
+from .core.misc import ifnot
 
 def gauss_kern(xsize=1.5, ysize=None):
     """
@@ -127,6 +128,33 @@ def bspline_smooth(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
     return apprx
 
+
+def auto_threshold(arr, init_th = None, max_iter = 1e7):
+    """
+    Automatic threhold with INTERMEANS(I) algorithm
+
+    Parameters:
+      - `arr`: array-like
+      - `init_th`: starting threshold
+      - `max_iter`: upper limit of iterations
+
+    Returns:
+      - threshold: float
+
+    Based on:
+    T. Ridler and S. Calvard, "Picture thresholding using an iterative
+    selection method," IEEE Trans. Systems Man Cybernet., vol. 8, pp. 630-632,
+    1978.
+    """
+    thprev = ifnot(init_th, np.median(arr))
+    for i in xrange(int(max_iter)):
+	ab = np.mean(arr[np.where(arr <= thprev)])
+	av = np.mean(arr[np.where(arr > thprev)])
+	thnext = 0.5*(ab+av)
+	if thnext <= thprev:
+		break
+	thprev = thnext
+    return thnext
 
 
 # TODO: make it faster
