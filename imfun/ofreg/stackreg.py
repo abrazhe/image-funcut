@@ -18,7 +18,7 @@ OR
 """
 
 
-from imfun import pica
+from imfun.components import pca
 from imfun import cluster
 
 from . import warps
@@ -41,7 +41,7 @@ def to_pca_templates(frames, regfn, npc=20, template_kw=None, **fnargs):
     # number of frames all other templates must eventually be registered to this one
     # There may be other criteria, such as the most contrast or the sharpest image
     all_warps = []
-    pcf = pica.PCA_frames(frames[:],npc)
+    pcf = pca.PCA_frames(frames[:],npc)
     print 'PCA done'
     if template_kw is None:
         template_kw = {}

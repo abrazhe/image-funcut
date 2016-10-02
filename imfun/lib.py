@@ -814,3 +814,10 @@ def write_dict_csv(dict, fname, index=None, **kwargs):
         
         
         
+def reshape_from_movie(mov):
+    l,w,h = mov.shape
+    return mov.reshape(l,w*h)
+
+def reshape_to_movie(X,(nrows,ncols)):
+    Nt, Np = X.shape
+    return X.reshape(Nt,nrows,ncols)
