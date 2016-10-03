@@ -5,6 +5,7 @@ from functools import partial
 
 import numpy as np
 from imfun import core
+from imfun import fseq
 
 try:
     from pathos.pools import ProcessPool

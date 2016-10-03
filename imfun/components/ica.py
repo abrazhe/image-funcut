@@ -36,7 +36,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     Output:
       - ica_filters, ica_signals
     """
-    data = reshape_from_movie(X) # nframes x npixels
+    data = ravel_frames(X) # nframes x npixels
     sh = X[0].shape
 
     npca = (npca is None) and ncomp or npca
@@ -68,7 +68,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     else:
         skewsorted = range(ncomp)
     if reshape_filters:
-        ica_filters = reshape_to_movie(ica_filters[skewsorted], sh)
+        ica_filters = shape_frames(ica_filters[skewsorted], sh)
     else:
         ica_filters = ica_filters[skewsorted]
     return ica_filters, ica_signals[skewsorted]

@@ -1,3 +1,5 @@
+from __future__ import division # a/b will always return float
+
 import numpy as np
 
 from .constants import *

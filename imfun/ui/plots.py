@@ -7,6 +7,8 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as pl
 
+from ..core import ifnot
+
 
 _gridshapes = {4:(2,2),
                5:(2,3),

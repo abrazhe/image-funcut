@@ -110,7 +110,7 @@ class PCA_frames():
     def __init__(self,frames, npc=20, center=False):
         self.npc = npc
         self.sh = frames[0].shape
-        u,s,vh = np.linalg.svd(reshape_from_movie(frames), full_matrices=False)
+        u,s,vh = np.linalg.svd(ravel_frames(frames), full_matrices=False)
         self.u = u[:,:npc]
         self.s = s[:npc]
         self.vh = vh[:npc]
