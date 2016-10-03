@@ -51,7 +51,7 @@ def group_maps(maplist, ncols=None,
         nrows = int(np.ceil(len(maplist)/ncols))
     sh = maplist[0].shape
     aspect = float(sh[0])/sh[1]
-    figsize = ifnot (figsize, (figscale*ncols/aspect,figscale*nrows)) 
+    figsize = ifnot (figsize, (figscale*ncols/aspect,figscale*nrows))
     figh = pl.figure(figsize=figsize)
     #print samerange
     if samerange:
@@ -97,7 +97,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
     if sep is None:
         mean_range = np.mean([np.max(v)-np.min(v) for v in vecs])
         sep = 0.05*mean_range
-    
+
     if colors is None: colors = 'b'
     if isinstance(colors, basestring):
         c = colors
@@ -110,7 +110,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
             positions.append(pos)
             prevpos = pos
     L = np.min(map(len, vecs))
-    if x is None: 
+    if x is None:
         x = np.arange(L)
     if ax is None:
         f,ax = subplots(1,1,figsize=figsize)
@@ -134,7 +134,7 @@ def group_plots(ylist, ncols=None, x = None,
         nrows, ncols = guess_gridshape(len(ylist))
     else:
         nrows = int(np.ceil(len(ylist)/ncols))
-    
+
     figsize = ifnot(figsize, (2*ncols,2*nrows))
     fh, axs = pl.subplots(int(nrows), int(ncols),
                           sharex=True,

@@ -4,7 +4,7 @@ import itertools as itt
 from functools import partial
 
 import numpy as np
-from imfun import lib
+from imfun import core
 
 try:
     from pathos.pools import ProcessPool
@@ -33,10 +33,10 @@ def make_pca_templates(frames, pcf, gridshape=(5,1),npc=15):
     sorted_affs = cluster.som_._sorted_affs(som_result)[::-1]
     templates = [pcf.rec_from_coefs(coords[som_result==_k].mean(axis=0)) for _k in sorted_affs]
     return templates,(som_result,sorted_affs)
-              
-    
+
+
 def to_pca_templates(frames, regfn, npc=20, template_kw=None, **fnargs):
-    
+
     # first template is the "master" template because it is based on the largest
     # number of frames all other templates must eventually be registered to this one
     # There may be other criteria, such as the most contrast or the sharpest image
@@ -47,7 +47,7 @@ def to_pca_templates(frames, regfn, npc=20, template_kw=None, **fnargs):
         template_kw = {}
     templates, (affs, cluster_idx) = make_pca_templates(frames, pcf, **template_kw)
     kt = 0
-                      
+
     for template,index in zip(templates,cluster_idx):
         print "Doing template %d"%index
         correction = np.zeros((2,)+frames[0].shape)
@@ -64,7 +64,7 @@ def to_pca_templates(frames, regfn, npc=20, template_kw=None, **fnargs):
         kt += 1
     all_warps.sort(key = lambda aw:aw[0])
     return [w[1] for w in all_warps]
-    
+
 
 
 def to_template(frames, template, regfn, njobs=4,  **fnargs):
@@ -100,7 +100,5 @@ def recursive(frames, regfn):
         mf_r, warps_right = register_stack_recursive(frames[L/2:], regfn)
         fn = regfn(mf_l, mf_r)
         fm = 0.5*(apply_fn_warp(mf_l,fn) + mf_r)
-        return fm, [lib.flcompose(fx,fn) for fx in warps_left] + warps_right
+        return fm, [core.fnutils.flcompose(fx,fn) for fx in warps_left] + warps_right
         #return fm, [fnutils.flcompose2(fn,fx) for fx in fn1] + fn2
-
-

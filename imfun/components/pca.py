@@ -3,8 +3,8 @@ from numpy import array,dot,argsort,diag,where, zeros, sqrt,float,linalg
 from numpy.linalg import eig, eigh, inv, norm, svd
 
 
-from ..lib import reshape_from_movie
-from ..lib import reshape_to_movie
+from ..fseq import ravel_frames
+from ..fseq import shape_frames
 
 
 ## TODOs:
@@ -50,7 +50,7 @@ def pca_points(X):
       - X : data points, dimensions are columns, independent observarions are rows
             i.e. each row is a point with x,y,... coordinates. Data can also be
             regarded as a list of coordinate tuples, e.g. [(x1,y1), (x2,y2), ...]
-    
+
     Output:
       - Vh : PC vectors
       - phi: rotation of main axis (in degrees)
@@ -71,7 +71,7 @@ def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)
     X1 = (X - c0)
     return array([np.dot(L.reshape(1,-1), X1.T).reshape(-1) for L in Vh ]).T
-    
+
 def _whitenmat(X, ncomp=None):
     "Assumes data are nframes x npixels"
     n,p = map(float, X.shape)
@@ -119,7 +119,7 @@ class PCA_frames():
     def approx(self, frame):
         return self.project(frame).dot(self.vh).reshape(self.sh)
     def rec_from_coefs(self,coefs):
-        return coefs.dot(self.vh).reshape(self.sh) 
+        return coefs.dot(self.vh).reshape(self.sh)
 
 
 #### Old stuff -------------------------------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ def _pca_trick(X):
     """PCA with transformation trick"""
     ndata, ndim = X.shape
     #X_mean = X.mean(axis=-1)[:, np.newaxis]
-    X_mean = X.mean(axis=0)[np.newaxis,:]    
+    X_mean = X.mean(axis=0)[np.newaxis,:]
     Y = X - X_mean # remove mean
     Y = X
     e, C = eigh(dot(Y,Y.T))
@@ -170,4 +170,3 @@ def _pca1 (X, verbose=False):
     #V1 = tmp[::-1]
     #S1 = sqrt(es)[::-1]
     return EV
-

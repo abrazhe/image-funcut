@@ -8,8 +8,8 @@ from scipy import io
 
 
 from imfun.external.physics import Q
-from imfun import fnutils as fu
-from imfun import lib
+from imfun.core import fnutils as fu
+from ..core import array_handling as ah
 
 def guess_format(file_name):
     """given file name, return either 'mat' or 'h5' depending on whether the
@@ -60,7 +60,7 @@ def load_record(file_name, recordName):
         print "WARNING: falling back to first available record"
         r = [valid_records[0]]
         recordName = r[0].record
-        
+
     handlers = {'matZ':ZStack_mat,
                 'matT':Timelapse_mat,
                 'h5Z':ZStack_h5,
@@ -75,9 +75,9 @@ def load_record(file_name, recordName):
         print "Unknown type of file or record"
         obj = None
     return obj
-    
 
-    
+
+
 
 ## TODO use [()] together with squeeze_me argument for scipy.io.loadmat
 
@@ -126,7 +126,7 @@ class MAT_Record(MES_Record):
 
     def _get_stream(self, name):
         rec = io.loadmat(self.file_name,variable_names=[name],appendmat=False)
-        return rec[name]    
+        return rec[name]
     def _get_recs(self, names):
         return io.loadmat(self.file_name, variable_names=names,appendmat=False)
     def is_zstack(self):
@@ -138,8 +138,8 @@ class MAT_Record(MES_Record):
         return 'FoldedFrameInfo' in self.entry.dtype.names
     def get_field(self, field):
         return field[0][0]
-        
-        
+
+
 
 class H5_Record(MES_Record):
     "Base functions to read entries from MES-related HDF5 MAT files"
@@ -180,7 +180,7 @@ class ZStack:
         #if ch is None: ch = self.ch
         k =  num*self.nchannels
         pipeline = fu.flcompose(self._get_stream, lambda a: 1.0*np.array(a),
-                                lib.rescale)
+                                ah.rescale)
         names = self.img_names[k:k+self.nchannels][self._ch2ind(ch)]
 
         cstack = np.array(map(pipeline, names))
@@ -191,7 +191,7 @@ class ZStack:
         if np.ndim(indices) < 1:
             return self._read_frame(indices)
         return np.array(map(self._read_frame, indices))
-        
+
     def _ch2ind(self, ch):
         if ch is None or ch == 'all':
             out = slice(0,self.nchannels)
@@ -200,7 +200,7 @@ class ZStack:
         elif isinstance(ch,basestring):
             out = np.where([ch in s for s in 'rgb'])[0][()]
         return out
-                          
+
     def load_data(self, ch):
         #if ch is None: ch = self.ch
         #outmeta = {'ch':ch}
@@ -215,7 +215,7 @@ class ZStack:
             sh = tuple(self.base_shape) + (max(3, nchannels),)
             #print 'Shape', sh, self.base_shape, nchannels
             recs = self._get_recs(var_names)
-            stream = lib.clip_and_rescale(np.array([recs[n] for n in var_names]))
+            stream = ah.clip_and_rescale(np.array([recs[n] for n in var_names]))
             data = np.zeros(sh)
             framecount = 0
             #print 'Shape2:', stream[0].shape
@@ -267,7 +267,7 @@ class Timelapse:
     def load_data(self,ch):
         #if ch == None: ch = self.ch
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
-        #outmeta['axes'] = lib.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
+        #outmeta['axes'] = ah.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
         outmeta['axes'] = [Q(self.dt, 's'), Q(self.dx, 'um'), Q(self.dx, 'um')]
         nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
         base_shape = map(np.int, (nframes-1, nlines, line_len))
@@ -277,7 +277,7 @@ class Timelapse:
             for k,f in enumerate(self._reshape_frames(streams[0])):
                 data[k] = f
         else:
-            #streams = [lib.clip_and_rescale(s) for s in streams]
+            #streams = [ah.clip_and_rescale(s) for s in streams]
             reshape_iter = itt.izip(*map(self._reshape_frames, streams))
             sh = base_shape + (max(3, len(streams)),)
             data = np.zeros(sh, dtype=streams[0].dtype)
@@ -328,7 +328,7 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         #tstop = float(ffi['frameTimeLength'])
         #return (tstop-tstart)/nframes
         return float(ffi['frameTimeLength'])/1000.
-    def get_ffi(self): 
+    def get_ffi(self):
         return first_measure_mat(self.entry)['FoldedFrameInfo'][0]
 
 class Timelapse_h5(Timelapse, H5_Record):
@@ -346,7 +346,7 @@ class Timelapse_h5(Timelapse, H5_Record):
         return (stream[k*nlines:(k+1)*nlines,:] for k in xrange(1,nframes))
     def _get_stream(self, name):
         return self.h5file[name]
-    
+
 # --- Routines for HDF5 Matlab files (to be refactored later) ----------
 
 import h5py
@@ -376,7 +376,7 @@ def get_ffi_h5(h5file, record):
 
 ## TODO: make class with __repr__ instead
 def describe_file_h5(file_name):
-    with h5py.File(file_name) as f: 
+    with h5py.File(file_name) as f:
         record_keys = [k for k in f.keys() if 'Df' in k]
         for key in record_keys:
             print key, ':', describe_record_h5(f,key, f[key])

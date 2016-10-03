@@ -1,12 +1,16 @@
-### Functional mapping tools 
+### Functional mapping tools
 
 
 import numpy as np
 import time, sys
 from swan import pycwt
 
-from imfun import lib, bwmorph
-ifnot = lib.ifnot
+from . import core
+from . import bwmorph
+ifnot = core.ifnot
+
+from .core.baselines import DFoSD, DFoF
+
 
 neighbours = bwmorph.neighbours
 locations = bwmorph.locations
@@ -31,12 +35,12 @@ def cwt_iter(fseq,
     Parameters:
       - `fseq` -- frame sequence instance
       - `frange`  -- frequency range as a pair or vector of frequencies
-      - `nfreqs` -- number of frequencies/scales for decomposition 
+      - `nfreqs` -- number of frequencies/scales for decomposition
       - `wavelet` -- wavelet object [pycwt.Morlet()]
-      - `normL` -- length of normalizing part (baseline) of the time series 
-      - `max_pixels` -- upper limit on number of pixels to iterate over 
+      - `normL` -- length of normalizing part (baseline) of the time series
+      - `max_pixels` -- upper limit on number of pixels to iterate over
       - `cwt_fn` -- function to process wavelet coefficients [pycwt.eds]
-      - `verbose` -- be verbose 
+      - `verbose` -- be verbose
       - `**kwargs` --  are passed to fseq.pix_iter
 
     Returns:
@@ -84,7 +88,7 @@ def cwtmap(fseq,
            **kwargs):
     """
     Wavelet-based 'functional' map of the frame sequence
-    
+
     Parameters:
      * `fseq` -- frame sequence
      * `tranges` -- list of time ranges
@@ -137,7 +141,7 @@ def cwt_freqmap(fseq,
     else:
         freqs = np.linspace(frange[0], frange[-1],nfreqs)
     def _dominant_freq(arr):
-        ma = np.mean(arr,1) 
+        ma = np.mean(arr,1)
         if np.max(ma) < 1e-7:
             print "mean wavelet power %e too low"%np.mean(ma)
             return np.nan
@@ -178,7 +182,7 @@ def _feature_map(fseq, rhythm, freqs, **kwargs):
             out[k,i,j] = np.sum(eds[fi1:fi2,k])
         #out[:,i,j] /= eds.mean()
     return out
-    
+
 
 def tanh_step(start,stop):
     "To be used for correlation"
@@ -196,8 +200,6 @@ def MH_onoff(start,stop):
         v = mh.psi((t - (start+0.5*w))/scale)
         return v
     return _
-
-DFoSD = lib.DFoSD # Simple normalization function
 
 def detrend(y, ord=2, take=None):
     x = np.arange(len(y))
@@ -218,10 +220,10 @@ def meanactmap(fseq, (start,stop), normL=None):
         sx = detrend(s,take=range(330))
         out[j,k] = np.mean(DFoSD(s,normL)[mrange])
     return out
-    
+
 
 def actcorrmap(fseq, (start, stop), normL=None,
-               normfn = lib.DFoSD,
+               normfn = DFoSD,
                sigfunc = tanh_step):
     "Activation correlation-based mapping"
     comp_sig = sigfunc(start, stop)(fseq.frame_idx())
@@ -231,9 +233,9 @@ from scipy import stats
 
 _corrfuncs = {'pearson':stats.pearsonr,
              'spearman':stats.spearmanr,
-             'correlate':np.correlate} 
+             'correlate':np.correlate}
 
-def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
+def xcorrmap(fseq, signal, normL=None, normfn = DFoSD,
              corrfn = 'pearson',
              keyfn = lambda x:x[0],
 	     normalize_data = False,
@@ -244,7 +246,7 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
       - signal: a template signal (to correlate to)
       - normL : N points to use for normalization
       - normfn: a function to use for normalization [default: DFoSD]
-      - corrfn: a correlation function. can be {'pearson', 'spearman', 'correlate'} 
+      - corrfn: a correlation function. can be {'pearson', 'spearman', 'correlate'}
         or user-provided function
       - keyfn : a function to extract corr. coefficient from corrfn returned value.
         default, [x->x]
@@ -252,7 +254,7 @@ def xcorrmap(fseq, signal, normL=None, normfn = lib.DFoSD,
 
     Returned value:
      2D array, each value contains correlation coefficient of the provided frame
-     sequence to the template signal. 
+     sequence to the template signal.
     """
     if isinstance(corrfn, str):
         corrfn = _corrfuncs[corrfn]
@@ -273,11 +275,11 @@ def simple_corrlag(v1):
     which takes a vector, returns position
     of the main peak in cross-correlation function
     """
-    from imfun import atrous, lib
+    from imfun.multiscale import atrous
     L = len(v1)
-    v1n = lib.DFoSD(v1)
+    v1n = DFoSD(v1)
     def _(v2):
-	v2n = lib.DFoSD(v2)
+	v2n = DFoSD(v2)
 	xcorr = np.correlate(v1n, v2n, mode='same')
 	return np.argmax(xcorr)-L/2
     return _
@@ -288,13 +290,13 @@ def corrlag(timevec):
     which takes two vectors, returns position and amplitude
     of the main peak in cross-correlation function
     """
-    from imfun import atrous, lib
+    from imfun.multiscale import atrous
     tv1 = np.concatenate((-timevec[::-1], timevec[1:]))
     def _(v1,v2):
-	v1n = lib.DFoSD(v1)/len(v1)
-	xcorr = np.correlate(v1n, lib.DFoSD(v2), mode='full')
+	v1n = DFoSD(v1)/len(v1)
+	xcorr = np.correlate(v1n, DFoSD(v2), mode='full')
 	xcorr = atrous.smooth(xcorr, 2)
-	maxima = lib.locextr(xcorr, x=tv1, output='max')
+	maxima = core.extrema.locextr(xcorr, x=tv1, output='max')
 	k = np.argmax([x[1] for x in maxima])
 	return maxima[k]
     return _
@@ -306,7 +308,7 @@ def xcorr_lag(fseq, **kwargs):
     return xcorrmap(fseq, signal, corrfn=corrlag(tv),
 		    **kwargs)
 
-def local_corr_map(arr, normfn=lib.DFoSD,
+def local_corr_map(arr, normfn=DFoSD,
                    corrfn=np.correlate,
                    keyfn=lambda x:x[0],
                    verbose=False):
@@ -347,8 +349,8 @@ def simple_local_coherence(arr, normfn=lambda v: v-v.mean(),
 	local_cov = [np.sum((_v(loc)*_v(n))>0)/L for n in neighbours(loc,sh)]
 	out[loc] = np.mean(local_cov)
     return out
-	
-    
+
+
 
 
 def fftmap(fseq, frange, func=np.mean,
@@ -385,7 +387,3 @@ def fftmap(fseq, frange, func=np.mean,
         if verbose:
             sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
         return out
-
-            
-
-    

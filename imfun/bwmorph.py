@@ -8,9 +8,8 @@ from functools import partial
 
 from scipy import ndimage
 
-from imfun import lib
-ifnot = lib.ifnot
-
+from . import core
+from .core import ifnot, coords
 
 def locations(shape):
     """locations from a given shape (Cartesian product) as an iterator"""
@@ -39,12 +38,40 @@ def adaptive_threshold(arr, n = 3, k = 0):
     return out
 
 
+def auto_threshold(arr, init_th = None, max_iter = 1e7):
+    """
+    Automatic threhold with INTERMEANS(I) algorithm
+
+    Parameters:
+      - `arr`: array-like
+      - `init_th`: starting threshold
+      - `max_iter`: upper limit of iterations
+
+    Returns:
+      - threshold: float
+
+    Based on:
+    T. Ridler and S. Calvard, "Picture thresholding using an iterative
+    selection method," IEEE Trans. Systems Man Cybernet., vol. 8, pp. 630-632,
+    1978.
+    """
+    thprev = ifnot(init_th, np.median(arr))
+    for i in xrange(int(max_iter)):
+	ab = np.mean(arr[np.where(arr <= thprev)])
+	av = np.mean(arr[np.where(arr > thprev)])
+	thnext = 0.5*(ab+av)
+	if thnext <= thprev:
+		break
+	thprev = thnext
+    return thnext
+
+
 def contiguous_regions(binarr):
-    """    
+    """
     Given a binary Nd array, return a sorted (by size) list of contiguous
     regions (True everywhere)
     Version without recursion. Relies on scipy.ndimage.find_objects
-    """    
+    """
     sh = binarr.shape
     regions = [[]]
     visited = np.zeros(sh, bool)
@@ -58,7 +85,7 @@ def contiguous_regions(binarr):
         #x1 = np.asarray(np.where(labels[o] == j+1)).T
         x1 = np.argwhere(labels[o] == j+1)
         regions.append( map(tuple, (x1 + origin)))
-    
+
     regions.sort(key = lambda x: len(x), reverse=True)
     return map(lambda x: RegionND(x, binarr.shape), regions)
 
@@ -77,7 +104,7 @@ def neighbours_x(loc,shape):
     d = np.diag(np.ones(n))
     x = np.concatenate((d,-d)) + loc
     return filter(partial(valid_loc, shape=shape), map(tuple, x))
-    
+
 
 def neighbours_2(loc, shape):
     """Return list of adjacent locations"""
@@ -112,7 +139,7 @@ def filter_density(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
     """
     rows, cols = mask.shape
     X,Y = np.meshgrid(xrange(cols), xrange(rows))
-    in_circle = lib.in_circle
+    in_circle = coords.in_circle
     out = np.zeros((rows,cols), np.bool)
     for row,col in locations(mask.shape):
 	if fn(mask,row,col):
@@ -133,7 +160,7 @@ def majority(bimage, th = 5, mod = False):
             if mod:
                out[(row,col)] *= bimage[row,col]
     return out
-            
+
 
 def filter_mask(mask, fn, args=()):
     """Split a mask into contiguous regions,
@@ -190,7 +217,7 @@ def regions_overlap(r1,r2):
         if loc in r2.locs:
             return True
     return False
-        
+
 def unite_2regions(region1,region2):
     "Glue together two regions"
     return RegionND(list(region1.locs) + list(region2.locs), region1.shape)
@@ -202,14 +229,14 @@ def distance_regions(r1, r2, fn=min, start=1e9):
     if fn is =min=, smallest distance is returned,
     if fn is =max=, largest distance is returned
     """
-    dists = [lib.eu_dist(*pair) for pair in
+    dists = [coords.eu_dist(*pair) for pair in
              itt.product(r1.borders(), r2.borders())]
     return reduce(fn, dists, start)
 
 
 def distance_regions_centra(r1,r2):
     """Return distance between centroids of the two regions"""
-    return lib.eu_dist(r1.center(), r2.center())
+    return coords.eu_dist(r1.center(), r2.center())
 
 class RegionND:
     "Basic class for a contiguous region. Can make masks from it"
@@ -228,9 +255,9 @@ class RegionND:
         return (l for l in self.locs if
                 len(filter(lambda x: x not in self.locs, neighbours(l,self.shape))))
     def linsize(self,):
-        dists = [lib.eu_dist(*pair) for pair in lib.allpairs(self.borders())]
+        dists = [coords.eu_dist(*pair) for pair in core.misc.allpairs(self.borders())]
         return reduce(max, dists, 0)
-                               
+
         pass
     def tomask(self):
         m = np.zeros(self.shape, bool)
@@ -239,5 +266,3 @@ class RegionND:
 
 
 #----------------------------
-
-

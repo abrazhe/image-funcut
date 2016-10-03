@@ -9,9 +9,6 @@ import numpy as np
 import scipy.io
 from scipy import ndimage
 
-
-
-
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib import widgets as mw
@@ -43,7 +40,8 @@ from .. import core
 from ..core import ifnot,rezip
 from ..core.units import quantity_to_pair
 from ..core.baselines import DFoSD, DFoF
-from .plots import group_maps, group_plot
+from .plots import group_maps, group_plots
+from .DraggableRois import CircleROI, LineScan
 
 _widgetcolor = 'lightyellow'
 
@@ -95,7 +93,7 @@ def tags_iter(tag_id =1):
     while True:
         yield 'r%02d'%tag_id
         tag_id +=1
-        
+
 def rand_tags_iter():
     while True: yield rand_tag()
 
@@ -107,7 +105,7 @@ def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
         if not tag in tags:
             return tag
     return "Err"
-        
+
 
 
 class Picker (object):
@@ -153,7 +151,7 @@ class Picker (object):
         # -- omitting  vmin,vmax, or clim arguments for now
         splitted = np.split(f, frame_coll.nCh,-1)
         clims = [(np.min(_x),np.max(_x)) for _x in splitted]
-        self.clims = clims    
+        self.clims = clims
 	self.home_frame = f
 
         return
@@ -194,7 +192,7 @@ class Picker (object):
         channel_names = ['Red','Green','Blue','Grayscale']
         streams = [s.meta['channel'] for s in self.frame_coll.stacks]
         stream_idx = {s:k for k,s in enumerate(streams)}
-        
+
         nCh = self.frame_coll.nCh
         self.channel_ctrls = {k:None for k in channels}
 
@@ -213,7 +211,7 @@ class Picker (object):
                         self.ach_setter.set_active(ch)
                 self._ccmap[key] = ch
             pass
-        
+
         for k,c in enumerate(channels):
             ax = fig.add_axes([0.1,  1 - (k+1)*(el_h +spacing), 0.8, el_h ], aspect='equal')
             ax.set_title(channel_names[k],size='small',color= (c!='i') and c or 'k')
@@ -246,17 +244,17 @@ class Picker (object):
                                    aspect='auto', axisbg=_widgetcolor)
             ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],
                                   aspect='auto', axisbg=_widgetcolor)
-            
+
             lmin,lmax = stack.data_range()
             low,high = self.clims[k]
             low_slider = mw.Slider(ax_low, '%s low'%channel_name, lmin,lmax,valinit=low)
             high_slider = mw.Slider(ax_high, '%s high'%channel_name, lmin,lmax,valinit=high)
-            
+
             low_slider.on_changed(_update_levels)
             high_slider.on_changed(_update_levels)
             self.level_controls[k] = (low_slider,high_slider)
         plt.subplots_adjust(left=0.05,right=0.95,bottom=0.05,top=0.95)
-        
+
 
     def _init_active_channel_setter(self):
         """
@@ -275,14 +273,14 @@ class Picker (object):
 
         streams = [s.meta['channel'] for s in self.frame_coll.stacks]
         stream_idx = {s:k for k,s in enumerate(streams)}
-        
+
         self.active_stack = self.frame_coll.stacks[0]
         self.ach_setter = mw.RadioButtons(ax_active, streams)
         def _update_active(event):
             ind = stream_idx[self.ach_setter.value_selected]
-            #print 'active stack updated to ', ind 
+            #print 'active stack updated to ', ind
             self.active_stack = self.frame_coll.stacks[ind]
-            
+
         self.ach_setter.on_clicked(_update_active)
         pass
 
@@ -300,9 +298,9 @@ class Picker (object):
         button_width = 0.1
         button_height = 0.05
         self.ui_buttons = {}
-        
+
 	if ax is None:
-            
+
             self.fig, self.ax1 = plt.subplots()
             if self.suptitle:
                 self.fig.suptitle(self.suptitle)
@@ -328,7 +326,7 @@ class Picker (object):
             lev_but = mw.Button(bax_lev, 'Levels', color=_widgetcolor)
             lev_but.on_clicked(self._levels_controls)
             self.ui_buttons['levels'] = lev_but
-            
+
             yloc -= (button_vmargin+button_height)
             bax_freeze = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
             freeze_but = mw.Button(bax_freeze, 'Freeze ROIs',color=_widgetcolor)
@@ -341,7 +339,7 @@ class Picker (object):
                     self.roi_layout_freeze = True
             freeze_but.on_clicked(_freeze_control)
             self.ui_buttons['freeze'] = freeze_but
-                
+
             yloc -= (button_vmargin + button_height)
             bax_drop = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
             drop_but = mw.Button(bax_drop, 'Drop ROIs',color=_widgetcolor)
@@ -358,7 +356,7 @@ class Picker (object):
 
         if 'cmap' not in imshow_args:
             imshow_args['cmap'] = 'gray'
-        
+
 
         ## setup axes and show home frame
         axes = self.frame_coll.meta['axes']
@@ -389,7 +387,7 @@ class Picker (object):
         if self._Nf is None:
             self._Nf = len(self.frame_coll)
         return self._Nf
-    
+
 
     def legend(self):
         if self._show_legend == True:
@@ -432,7 +430,7 @@ class Picker (object):
         return
 
     def on_keyrelease(self, event):
-        return 
+        return
 
     def init_line_handle(self):
         color = self.new_color()
@@ -451,7 +449,7 @@ class Picker (object):
 
     def new_color(self):
         if self.roi_coloring_model == 'allrandom':
-            self.current_color = self.cw.next()            
+            self.current_color = self.cw.next()
         elif self.roi_coloring_model == 'groupsame':
             self.current_color = self._tag_pallette[self.roi_prefix]
         elif self.roi_coloring_model == 'groupvar':
@@ -475,7 +473,7 @@ class Picker (object):
 
     def on_click(self,event):
         if not self.event_canvas_ok(event): return
-        
+
         #x,y = round(event.xdata), round(event.ydata)
         x,y = event.xdata, event.ydata # do I really need to round?
         if event.button is 1 and \
@@ -485,7 +483,7 @@ class Picker (object):
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
             dx,dy = self.frame_coll.meta['axes'][1:3]
-            
+
             #color = self.cw.next()
             color = self.new_color()
             c = plt.Circle((x,y), self.default_circle_rad*dx.value,
@@ -493,7 +491,7 @@ class Picker (object):
                            linewidth = 1.5,
                            facecolor=color+[0.5],
                            edgecolor=color)
-                           
+
             c.figure = self.fig
             self.ax1.add_patch(c)
             self.roi_objs[label]= CircleROI(c, self)
@@ -511,7 +509,7 @@ class Picker (object):
                                               self.lasso_callback,
                                               lineprops=dict(color='g',lw=2))
                 self.ax1.figure.canvas.widgetlock(self.lasso)
-        self.legend()    
+        self.legend()
         self.ax1.figure.canvas.draw()
 
     def lasso_callback(self, verts):
@@ -537,16 +535,16 @@ class Picker (object):
         ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
         ax.contour(out, levels=[0],colors=['g'])
         self.pmask = out
-        return 
+        return
 
     def on_motion(self, event):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
         pstop = event.xdata, event.ydata
-        if hasattr(self, 'curr_line_handle'): 
+        if hasattr(self, 'curr_line_handle'):
             self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
         self.fig.canvas.draw() #todo BLIT!
-        
+
     def on_release(self,event):
         self.pressed = None
         if not event.button == 3: return
@@ -583,11 +581,11 @@ class Picker (object):
         return reduce(lambda x,y: x or y,
                       [roi.obj.contains(event)[0]
                        for roi in self.roi_objs.values()])
-    
+
     def roi_tags(self, filt = lambda x:True):
         "List of tags for all ROIs"
         return sorted(filter(filt, self.roi_objs.keys()))
-    
+
     def export_rois(self, fname=None):
         """Exports picked ROIs as structures to a file and/or returns as list"""
         out = [x.to_struct() for x in self.roi_objs.values()]
@@ -649,7 +647,7 @@ class Picker (object):
                 ax.plot(vcont_obj.contlines[1].get_ydata(),'r')
                 ax.axis(ax_lim)
                 fig.savefig(os.path.join(save_figs_to, k+'.png'))
-                
+
         #diams = [objs[k].vconts.get_diameter() for k in keys]
         out = {k:objs[k].vconts.get_diameter() for k in keys}
         if format == 'csv':
@@ -682,7 +680,7 @@ class Picker (object):
                     vmin,vmax = self.clims[i]
                     out_frame[...,k] = (f - 1.0*vmin)/(vmax-vmin)
         return np.clip(out_frame, 0,1)
-    
+
     def add_frameshow_hook(self, fn, label):
         self.frame_hooks[label] = fn
 
@@ -705,7 +703,7 @@ class Picker (object):
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
         show_f = self._get_show_f(n)
-        
+
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
@@ -726,7 +724,7 @@ class Picker (object):
         self.frame_index = 0
         #if hasattr(self, 'caller'): #called from frame_viewer
         #    self.caller.frame_index = self.frame_index
-        
+
     def frame_skip(self,event, n=1):
 	if not self.event_canvas_ok(event):
 	    return
@@ -767,7 +765,7 @@ class Picker (object):
             if self._verbose:
                 print "disconnecting old callbacks"
             map(self.fig.canvas.mpl_disconnect, self.cid.values())
-            
+
     def isAreaROI(self, tag):
         return self.roi_objs[tag].roi_type == 'area'
     def isPathROI(self, tag):
@@ -816,7 +814,7 @@ class Picker (object):
     #             print "Saved time-views for all rois to ", fname
 
     def export_roi_signals(self, fname, format='csv'):
-        #TODO: multiple color save to csv and tab 
+        #TODO: multiple color save to csv and tab
         known_formats = ['csv', 'tab', 'pickle', 'hdf', 'mat', 'npy']
         if format not in known_formats:
             print 'Pickle.export_roi_signals: unknown save format'
@@ -829,7 +827,7 @@ class Picker (object):
         if format in ['csv', 'tab']:
             # only save 1D signals to csv and tab
             all_rois = filter(self.isAreaROI, all_rois)
-        
+
         all_zv = {t:self.roi_objs[t].get_zview() for t in all_rois}
         if format in ['mat', 'pickle', 'hdf']:
             all_zv['meta'] = _dict_copy_no_nones(self.frame_coll.meta)
@@ -840,7 +838,7 @@ class Picker (object):
             for rd in all_zv['roi_props']:
                 rd.pop('func')
             scipy.io.matlab.savemat(fname, all_zv)
-            
+
         elif format == 'csv':
             #writer = partial(io.write_dict_csv, index=('time, s',tv))
             io.write_dict_csv(all_zv, fname, index=('time, s', tv))
@@ -862,7 +860,7 @@ class Picker (object):
         tx = self.active_stack.frame_idx()
         t0 = tx[self.frame_index]
 
-        if rois is None: rois = self.roi_tags()        
+        if rois is None: rois = self.roi_tags()
         _key = lambda t: self.roi_objs[t].roi_type
         figs = []
         #roi_types = np.unique(map(_key, rois))
@@ -876,7 +874,7 @@ class Picker (object):
             if roi_type is 'area':
                 print prefs
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
-                
+
                 fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
 
                 for ax in np.ravel(axs):
@@ -888,9 +886,9 @@ class Picker (object):
                         except:
                             pass
                     self.add_frameshow_hook(_cursor, roi_tgroup[0]+rand_tag())
-                    
+
                 figs.append(fig)
-                
+
                 if len(_sh)>1:
                     colors = 'red', 'green', 'blue' #TODO: harmonize with color names in fseq?
                     for ax, c in zip(axs[0,:], colors):
@@ -957,8 +955,8 @@ class Picker (object):
             for f in figs:
                  f.show()
         return figs
-        
-	    
+
+
     def show_ffts(self, rois = None, **keywords):
         L = self.length()
         dt = self.frame_coll.meta['axes'][0]
@@ -1064,13 +1062,13 @@ class Picker (object):
         #             sorted(filter(self.isAreaROI, self.roi_objs.keys())))
 	#print 'in Picker.roi_show_iterator'
 	rois = ifnot(rois, sorted(self.roi_objs.keys()))
-	
+
 	L = len(rois)
 	if L < 1: return
 	fig,axlist = plt.subplots(len(rois),1,sharey=True,sharex=True,
                                  squeeze = False,
                                  figsize=(5*L,4.5))
-        
+
 	for i, roi_label in enumerate(rois):
 	    roi = self.roi_objs[roi_label]
             ax = axlist[i,0]
@@ -1097,7 +1095,7 @@ class Picker (object):
         def nonempty(x): return len(x)
         def get_prefix(tag): return filter(nonempty, re.findall('[a-z]*',tag))[0]
         return np.unique(map(get_prefix, tags))
-                         
+
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,
                      func = pycwt.wtc_f,

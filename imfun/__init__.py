@@ -11,11 +11,10 @@ else:
     VERSION = __version__
 
 from . import bwmorph
-from . import cluster, components
+from . import cluster, components, core
 from . import external
-from . import fnmap, fnutils, fseq
+from . import fnmap, fseq
 from . import io
-from . import lib
 from . import multiscale
 from . import ofreg
 from . import track, ui

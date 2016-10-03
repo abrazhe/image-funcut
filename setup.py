@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #from distutils.core import setup
 
-from setuptools import setup 
+from setuptools import setup
 #import path
 import subprocess
 
@@ -30,10 +30,12 @@ setup(name='image-funcut',
       packages = ['imfun',
                   'imfun.cluster',
                   'imfun.components',
+                  'imfun.core',
                   'imfun.external',
                   'imfun.io',
                   'imfun.multiscale',
                   'imfun.ofreg',
+                  'imfun.ui'
                   ],
       data_files = [('Examples/image-funcut',['scripts/stab-params-example.json'])],
       install_requires = ['numpy',
@@ -61,4 +63,3 @@ setup(name='image-funcut',
           'Topic :: Scientific/Engineering',
         ],
       )
-

@@ -35,8 +35,11 @@ from matplotlib.pyplot import imread
 
 #import quantities as pq
 
-from imfun import lib
-ifnot = lib.ifnot
+from . import core
+#from . import ui
+from .core import ifnot
+from .core import fnutils as fu
+from .core import array_handling as ah
 
 class FrameStackMono(object):
     "Base class for a stack {stream, sequence} of single-channel frames"
@@ -48,7 +51,7 @@ class FrameStackMono(object):
 
     def pipeline(self):
 	"""Return the composite function to process frames based on self.fns"""
-	return lib.flcompose(_identity, *self.fns)
+	return fu.flcompose(_identity, *self.fns)
 
     def std(self, axis=None):
 	"""get standard deviation of the data"""
@@ -193,7 +196,7 @@ class FrameStackMono(object):
           [start,] stop [, step] to go through frames
 	  - `crop`: (`slice` or `None`) -- a crop (tuple of slices) to take from each frame
 	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
-        
+
 	Returns:
 	  `3D` array `d`, where frames are stored in higher dimensions, such
 	  that ``d[0]`` is the first frame, etc.
@@ -202,7 +205,7 @@ class FrameStackMono(object):
             fslice = (fslice, )
         shape = self.get_frame_shape(crop)
 	newshape = (len(self),) + shape
-        out = lib.memsafe_arr(newshape, dtype)
+        out = ah.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(self, *fslice)):
             out[k,...] = frame[crop]
         out = out[:k+1]
@@ -316,7 +319,7 @@ class FrameStackMono(object):
 	L = len(pwfn(np.random.randn(len(self))))
 	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
 	#L = len(testv)
-	out = lib.memsafe_arr((L,) + self.frame_shape, dtype)
+	out = ah.memsafe_arr((L,) + self.frame_shape, dtype)
         for v, row, col in self.pix_iter(**kwargs):
 	    if verbose:
 		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
@@ -470,8 +473,8 @@ class FStackM_collection(FrameStackMono):
 
 	The composition of functions in `self.fns`
 	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
-	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	of function "hooks" to put into `self.fns` are ``core.baselines.DFoSD``,
+	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
 	"""
         fn = self.pipeline()
         seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names)
@@ -565,11 +568,11 @@ class FStackM_plsi(FrameStackMono):
 
 	The composition of functions in `self.fns`
 	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are ``imfun.lib.DFoSD``,
-	``imfun.lib.DFoF`` or functions from ``scipy.ndimage``.
+	of function "hooks" to put into `self.fns` are ``core.baselines.DFoSD``,
+	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
 	"""
 
-        fn = lib.flcompose(_identity, *self.fns)
+        fn = fu.flcompose(_identity, *self.fns)
         return itt.imap(fn,self.plsimg.frame_iter())
 
     def __getitem__(self, val):
@@ -741,7 +744,7 @@ class FStackColl(object):
                 ordered_stacks.append(match[0])
         other_stacks = [s for s in self.stacks if s not in ordered_stacks]
         self.stacks = ordered_stacks + other_stacks
-    
+
 
 from skimage import io as skio
 from skimage.external import tifffile
@@ -756,7 +759,7 @@ def from_images(path,flavor=None,**kwargs):
     if isinstance(flavor, basestring) and  flavor.lower() == 'leica':
         attach_leica_metadata(obj, path)
     return obj
-    
+
 
 from imfun.io import leica
 def attach_leica_metadata(obj, path, xmlname=None):
@@ -808,7 +811,7 @@ def from_mes(path, record=None, ch=None, **kwargs):
         print "FSeq_mes: Unknown record definition format"
 
     mesrec = mes.load_record(path, record)
-    channels = np.unique(mesrec.channels)    
+    channels = np.unique(mesrec.channels)
     if ch is None:
         stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in channels]
         obj =  FStackColl(stacks)
@@ -816,7 +819,7 @@ def from_mes(path, record=None, ch=None, **kwargs):
         return obj
     else:
         return FStackM_mes(path, record, ch=ch,**kwargs)
-        
+
 
 def from_plsi(path, *args, **kwargs):
     """Load LaserSpeckle frame stack.
@@ -917,7 +920,7 @@ def from_any(path, *args, **kwargs):
 
 def _open_seq(path, *args, **kwargs):
     """
-    **  Deprecated and broken ** 
+    **  Deprecated and broken **
     Dispatch to an appropriate class constructor depending on the file name
 
     Parameters:
@@ -1000,7 +1003,7 @@ try:
             t = f['tstamps']
             self.tv = (t-t[0])/1e6 # relative time, in s
             dt = np.median(np.diff(self.tv))
-            meta = {'axes': lib.alist_to_scale([dt,'sec'])}
+            meta = {'axes': core.units.alist_to_scale([dt,'sec'])}
             self.h5file = f # just in case we need it later
             parent.__init__(f['lsc'], fns=fns,meta=meta)
 
@@ -1110,133 +1113,3 @@ def ravel_frames(frames):
 def shape_frames(X,(nrows,ncols)):
     Nt,Np = X.shape
     return X.reshape(Nt, nrows, ncols)
-    
-
-
-def to_movie(fslist, video_name, fps=25, start=0,stop=None,
-             ncols = None,
-             figsize=None, figscale=4,
-             with_header=True, titles = None,
-             writer='avconv', bitrate=2500,
-             frame_on=False, marker_idx=None,
-             clim = None, **kwargs):
-    """
-    Create an video file from the frame sequence using avconv or other writer.
-    and mpl.Animation
-
-    Parameters:
-      - `fslist`: a FrameSequence object or a list of such objects
-      - `video_name`: (`str`) -- name of the movie to be created
-      - `fps`: (`number`) -- frames per second; If None, use 10/self.meta['axes'][0]
-      - `start`: start export at this frame count
-      - `stop`: stop export at this frame count
-      - `ncols`: number of columns in a grid to use when exporting several FrameSequence objects
-      - `figsize`: set figure size manually
-      - `figscale`: approximate size of one subplot (discarded if `figsize` is provided)
-      - `with_header`: display a header with frame count and timer
-      - `titles`: optional title string for each provided FrameSequence
-      - `writer`: use this matplotlib movie writer as backend
-      - `bitrate`: output video bitrate
-      - `frame_on`: if True, draw axes and rectangle around video frame
-      - `marker_idx`: (`array_like`) -- indices when to show a marker
-        (e.g. for stimulation)
-      - `**kwargs` : keyword arguments to be passed to pyplot.imshow, e.g. cmap, vmin, vmax, etc`
-    """
-    from matplotlib import animation
-    import matplotlib.pyplot as plt
-    import gc
-
-    plt_interactive = plt.isinteractive()
-    plt.ioff() # make animations in non-interactive mode
-    if isinstance(fslist, FrameStackMono):
-        fslist = [fslist]
-
-    marker_idx = ifnot(marker_idx, [])
-    stop = ifnot(stop, np.min(map(len, fslist)))
-    L = stop-start
-    print 'number of frames:', L
-    dz = fslist[0].meta['axes'][0] # units of the first frame sequence are used
-    zunits = str(dz.unit)
-    #dz = dz.value
-
-    lutfns = []
-    for fs in fslist:
-        if clim is not None:
-            vmin, vmax = clim
-        else:
-            if (isinstance(fs, FrameStackMono) and hasattr(fs, 'data')) or \
-               (isinstance(fs, FStackColl) and hasattr(fs.stacks[0], 'data')):
-                bounds = fs.data_percentile((1,99))
-            else:
-                bounds = fs.data_range()
-            bounds = np.array(bounds).reshape(-1,2)
-            vmin, vmax = np.min(bounds[:,0],0), np.max(bounds[:,1],0)
-        #print vmin,vmax
-        lutfn = lambda f: np.clip((f-vmin)/(vmax-vmin), 0, 1)
-        lutfns.append(lutfn)
-
-
-    #------ Setting canvas up --------------
-    if ncols is None:
-        nrows, ncols = lib.guess_gridshape(len(fslist))
-    else:
-        nrows = int(np.ceil(len(fslist)/ncols))
-    sh = fslist[0].frame_shape
-    aspect = float(sh[0])/sh[1]
-    header_add = 0.5
-    figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add))
-
-    fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
-
-    titles = ifnot(titles, ['']*len(fslist))
-    if len(titles) < len(fslist):
-        titles = list(titles) + ['']*(len(fslist)-len(titles))
-
-    if 'aspect' not in kwargs:
-        kwargs['aspect']='equal'
-    if 'cmap' not in kwargs:
-        kwargs['cmap'] = 'gray'
-
-    views = []
-    for fs,lut,title,ax in zip(fslist, lutfns, titles, np.ravel(axs)):
-        view = ax.imshow(lut(fs[start]), **kwargs)
-        views.append(view)
-        ax.set_title(title)
-        if not frame_on:
-            plt.setp(ax,frame_on=False,xticks=[],yticks=[])
-        marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
-        ax.add_patch(marker)
-
-
-    header = plt.suptitle('')
-    plt.tight_layout()
-
-    # ------ Saving -------------
-    def _animate(framecount):
-        tstr = ''
-        k = start + framecount
-        for view, fs, lut in zip(views, fslist, lutfns):
-            view.set_data(lut(fs[k]))
-        if with_header:
-            if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                tstr = ', time: %0.3f %s' %(k*dz.value, zunits) #TODO: use in py3 way
-            header.set_text('frame %04d'%k + tstr)
-        if k in marker_idx:
-            plt.setp(marker, visible=True)
-        else:
-            plt.setp(marker, visible=False)
-        return views
-
-    anim = animation.FuncAnimation(fig, _animate, frames=L, blit=True)
-    Writer = animation.writers.avail[writer]
-    w = Writer(fps=fps,bitrate=bitrate)
-    anim.save(video_name, writer=w)
-
-    fig.clf()
-    plt.close(fig)
-    plt.close('all')
-    del anim, w, axs, _animate
-    gc.collect()
-    if plt_interactive:
-        plt.ion()
-    return

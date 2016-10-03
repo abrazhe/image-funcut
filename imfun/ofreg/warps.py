@@ -6,7 +6,8 @@ import numpy as np
 
 from scipy.ndimage.interpolation import map_coordinates
 
-from imfun import fseq, fnutils
+from imfun import fseq
+from ..core import fnutils
 
 import pickle
 
@@ -54,7 +55,7 @@ def apply_warp(warp, img ,mode=_boundary_mode):
 
 _with_dill_ = False
 _with_pathos_ = False
-    
+
 
 try:
     #!pip install https://github.com/uqfoundation/dill/archive/master.zip
@@ -74,10 +75,10 @@ except ImportError:
     print "Can't load `dill` package, won't be able to save warps as functions"
     print """Consider installing it by one of the following commands:
 > pip install https://github.com/uqfoundation/dill/archive/master.zip
-OR 
+OR
 > conda install dill
 """
-        
+
 try:
     from pathos.pools import ProcessPool
     _with_pathos_ = True
@@ -93,11 +94,11 @@ def to_pickle(name,warps):
     with open(name, 'wb') as recipe:
         pickle.dump(warps, recipe)
 
-    
+
 def from_pickle(name):
     with open(name, 'rb') as recipe:
         return pickle.load(recipe)
-    
+
 def to_npy(name, warps):
     np.save(name, warps)
 
@@ -110,8 +111,8 @@ def to_dct_encoded(name, warps, **fnargs):
 def from_dct_encoded(name, **fnargs):
     codes = from_npy(name)
     return map(dct_decode, codes)
-    
-    
+
+
 def map_warps(warps, frames, njobs=4):
     """
     returns result of applying warps for given frames (one warp per frame)
@@ -127,7 +128,7 @@ def map_warps(warps, frames, njobs=4):
         out = fseq.from_array(out)
         out.meta = frames.meta
     return out
-    
+
 
 
 from scipy.fftpack import dct, idct

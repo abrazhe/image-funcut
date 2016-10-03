@@ -14,8 +14,8 @@ except ImportError:
     _skew_loaded = False
 
 
-from ..lib import reshape_from_movie
-from ..lib import reshape_to_movie
+from ..fseq import ravel_frames
+from ..fseq import shape_frames
 
 from . import pca
 from .pca import whitenmat2
@@ -25,14 +25,14 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     """Spatiotemporal ICA for sequences of images
 
     Input:
-      - `X` -- list of 2D arrays or 3D array with first axis = time 
+      - `X` -- list of 2D arrays or 3D array with first axis = time
       - `ncomp` -- number of components to resolve
       - `mu`  -- weight of temporal input, :math:`mu = 0 -> spatial`; mu = 1 -> temporal
       - `npca` -- number of principal components to calculate (default, equals
         to the number of independent components
       - `reshape_filters` -- if true, `ICA` filters are returned as a sequence
         of images (3D array, Ncomponents x Npx x Npy)
-    
+
     Output:
       - ica_filters, ica_signals
     """
@@ -55,7 +55,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     ica_signals = dot(W, pc_s)
     ## I doubt we really need this scaling at all
     #a = diag(1.0/np.sqrt(ev[:ncomp])) # do we need sqrt?
-    #ica_filters = dot(dot(a, W), pc_f) 
+    #ica_filters = dot(dot(a, W), pc_f)
     ica_filters = dot(W, pc_f)
 
     if _skew_loaded:
@@ -73,7 +73,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
         ica_filters = ica_filters[skewsorted]
     return ica_filters, ica_signals[skewsorted]
 
- 
+
 def transp(m):
     "conjugate transpose"
     return m.conjugate().transpose()
@@ -102,7 +102,7 @@ def _sym_decorrelate(X):
     ":math:`W <- W \\cdot (W^T \\cdot W)^{-1/2}`"
     a = dot(X, transp(X))
     ev, EV = eigh(a)
-    
+
     return dot(dot(dot(EV, np.diag(1.0/np.sqrt(ev))),
                    EV.T),
                X)
@@ -115,7 +115,7 @@ def _ica_symm(X, nIC=None, guess=None,
     nPC, siglen = map(np.float, X.shape)
     nIC = nIC or nPC
 
-    
+
     guess = guess or np.random.normal(size=(nIC,nPC))
     guess = _sym_decorrelate(guess)
 

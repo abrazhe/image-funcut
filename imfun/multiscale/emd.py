@@ -1,7 +1,8 @@
 ### Empirical mode decomposition routines
 
 import numpy as np
-from imfun import lib
+from .. import core
+from ..core import extrema
 
 def envelopes(vec, x=None):
     """
@@ -10,7 +11,7 @@ def envelopes(vec, x=None):
     vector `vec`
     """
     from scipy.interpolate import splrep,splev
-    xfit,yfit,_,maxlocs,minlocs = lib.locextr(vec,x,sort_values=False)
+    xfit,yfit,_,maxlocs,minlocs = extrema.locextr(vec,x,sort_values=False)
     if (len(maxlocs) < 1) or (len(minlocs) < 1):
 	return []
     if x is None: x = np.arange(len(vec))
@@ -52,7 +53,7 @@ def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
 
     Returns:
       - `h`: a mode estimate
-    
+
     """
     h_prev = imf_candidate(vec,x)
     if h_prev is None:
@@ -62,7 +63,7 @@ def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
 	if h1 is None:
 	    return h_prev
 	sd = np.sum((h1-h_prev)**2)/np.sum(h_prev**2)
-	xf,yf,der,mx,mn = lib.locextr(h1)
+	xf,yf,der,mx,mn = extrema.locextr(h1)
 	zc = np.where(np.diff(np.sign(h1)) > 0 )[0]
 	print len(zc), len(mx), len(mn)
 	if (abs(len(zc) - len(mx)) < 2) and \
@@ -73,7 +74,7 @@ def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
 	h_prev = h1
     print "No convergence after %d iterations" % max_iter
     return h1
-	
+
 def find_all_modes(vec,x=None, max_modes = 100):
     """
     Iteratively run ``find_mode`` to obtain all empirical modes in vector `vec`
@@ -97,6 +98,3 @@ def find_all_modes(vec,x=None, max_modes = 100):
 	    modes.append(h)
 	    rem = rem - h
     return modes, rem
-    
-    
-    

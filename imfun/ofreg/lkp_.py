@@ -11,7 +11,7 @@ from scipy.ndimage.interpolation import map_coordinates
 
 from skimage import feature as skfeature
 
-from .. import lib
+from .. import core
 from ..multiscale import atrous
 
 from warps import apply_warp
@@ -44,7 +44,7 @@ class LKP_image_aligner ():
 
             if weigh_by_shitomasi:
                 st_resp = skfeature.corner_shi_tomasi(source)
-                st_resp =  lib.clip_and_rescale(st_resp, 5000)
+                st_resp =  core.array_handling.clip_and_rescale(st_resp, 5000)
                 weights = np.array([st_resp[tuple(l)] for l in mesh])
                 vx = vx*weights[:,None]
 

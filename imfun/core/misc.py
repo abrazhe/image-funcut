@@ -1,6 +1,6 @@
 import numpy as np
 
-import scipy.interpolation as ip
+import scipy.interpolate as ip
 from scipy import ndimage
 
 def rezip(a):
@@ -35,7 +35,7 @@ def imresize(a, nx, ny, **kw):
     """
     return ndimage.affine_transform(
         a, [(a.shape[0]-1)*1.0/nx, (a.shape[1]-1)*1.0/ny],
-        output_shape=[nx,ny], **kw) 
+        output_shape=[nx,ny], **kw)
 
 def allpairs(seq):
     return combinations(seq,2)
@@ -61,7 +61,7 @@ def flatten(x,acc=None):
    acc = ifnot(acc,[])
    if not np.iterable(x):
 	   acc.append(x)
-	   return 
+	   return
    for o in x:
        flatten(o, acc)
    return acc
@@ -116,6 +116,3 @@ def simple_snr2(arr, plow=50,phigh=75):
         out[j] = max(c1,c2)
     out /= out.mean()
     return out
-
-
-	
