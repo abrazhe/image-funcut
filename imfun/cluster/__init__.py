@@ -9,11 +9,18 @@ from numba import jit
 from .conv_squares_ import csq_find_rois, csq_plot_rois
 from .dbscan_ import dbscan
 from . import metrics
+#from . import utils
+
 from .kmeans_ import kmeans
-from .som_ import som
+
 from . import som_
+from .som_ import som
 
 
+###---------------------------------------------------------
+###             Simple helper functions                  ###
+###---------------------------------------------------------
+from .utils import sort_clusters_by_size
 
 def quality_threshold(points, max_diam, dist_fn = metrics.euclidean):
     # unfinished, unoptimized, slow, but works
@@ -46,93 +53,3 @@ def quality_threshold(points, max_diam, dist_fn = metrics.euclidean):
         out_clusters.append(cluster)
         points = [p for p in points if p not in cluster.points]
     return out_clusters
-
-
-
-
-
-
-
-###---------------------------------------------------------
-###             Simple helper functions                  ###
-###---------------------------------------------------------
-
-def select_points(points, affiliations, idx):
-    return [p for a,p in zip(affiliations, points) if a == idx]
-
-
-def filter_clusters_size(clusters, min_size=100):
-    return filter(lambda x: x.mass() > min_size, clusters)
-
-def plot_clusters(points, clusters):
-    import pylab as pl
-    pl.figure(figsize=(6,6))
-    arr = points2array(points)[:,:2]
-    pl.scatter(*arr.T[:2,:], color='k', s=1)
-    colors = ['r','b','g','c','m','y']
-    for j,c in enumerate(clusters):
-        pl.scatter(*cluster2array(c).T[:2,:], color=colors[j%len(colors)],
-                alpha=0.5)
-
-def plot3_clusters(points, clusters):
-    
-    from mpl_toolkits.mplot3d import axes3d
-
-    pl.figure(figsize=(6,6))
-    ax = pl.axes(projection='3d')
-    arr = points2array(points)[:,:3]
-    plot(*arr.T[:3,:], color='k', ls='none',
-         marker=',', alpha=0.3)
-    colors = ['r','b','g','c','m','y']
-    for j,c in enumerate(clusters):
-        pl.plot(*cluster2array(c).T[:3,:],
-             ls = 'none', marker=',',
-             color=colors[j%len(colors)],
-             alpha=0.5)
-
-
-def locations(shape):
-    """ all locations for a shape; substitutes nested cycles
-    """
-    return itt.product(*map(xrange, shape))
-
-def mask2points(mask):
-    "mask to a list of points, as row,col"
-    points = []
-    for loc in locations(mask.shape):
-        if mask[loc]:
-            points.append(loc) 
-    return points
-
-    
-def mask2pointsr(mask):
-    "mask to a list of points, with X,Y coordinates reversed"
-    points = []
-    for loc in locations(mask.shape):
-        if mask[loc]:
-            points.append(loc[::-1]) 
-    return points
-
-def array2points(arr):
-    return [r for r in surfconvert(arr)]
-    
-def cluster2array(c):
-    "helpful for scatter plots"
-    return points2array(c.points)
-
-def points2array(points,dtype=np.float64):
-    return np.array(points, dtype=dtype)
-
-
-def surfconvert(frame, mask):
-    from imfun import lib
-    out = []
-    nr,nc = map(float, frame.shape)
-    space_scale = max(nr, nc)
-    f = lib.rescale(frame)
-    for r in range(int(nr)):
-        for c in range(int(nc)):
-	    if not mask[r,c]:
-		out.append([c/space_scale,r/space_scale, f[r,c]])
-    return np.array(out)
-

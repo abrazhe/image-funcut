@@ -7,16 +7,18 @@ from .metrics import euclidean
 
 import sys
 
+from .utils import _sorted_memberships
+from .utils import sort_clusters_by_size
 
 def neigh_gauss(x1,x2, r):
     return np.exp(-euclidean(x1,x2)**2/r**2)
 
 def voronoi_inds(patterns, maps, distance):
-    affiliations = np.zeros(len(patterns))
+    memberships = np.zeros(len(patterns))
     for k,p in enumerate(patterns):
-        affiliations[k] = np.argmin([distance(p, m)
+        memberships[k] = np.argmin([distance(p, m)
                                      for m in np.flatiter(maps)])
-    return affiliations
+    return memberships
 
 distance_fns = {
     'euclidean':metrics.euclidean,
@@ -25,26 +27,21 @@ distance_fns = {
     'spearman':metrics.spearman,
     'xcorrdist':metrics.xcorrdist
     }
-
-def _sorted_affs(affs):
-    return np.array(sorted(range(int(np.max(affs)+1)), key=lambda i:np.sum(affs==i)))
-
-
 def _iterative_som(patterns, max_rec=50, *args, **kwargs):
-    affs_p, gr_p = som1(patterns, *args, output='both',  **kwargs)
+    membs_p, gr_p = som1(patterns, *args, output='both',  **kwargs)
     hist = []
     for count in xrange(max_rec):
-	affs_n, gr_n = som1(patterns, *args, output='both',
+	membs_n, gr_n = som1(patterns, *args, output='both',
 			    init_templates = [g[0] for g in gr_p],
 			    **kwargs)
 	err = np.sum(abs(gr_n-gr_p))
 	
-	if np.allclose(_sorted_affs(affs_p), _sorted_affs(affs_n)):
-	    return affs_n, gr_n
+	if np.allclose(_sorted_memberships(membs_p), _sorted_memberships(membs_n)):
+	    return membs_n, gr_n
 	hist.append(err)
-	print count, np.sum(abs(_sorted_affs(affs_n) - _sorted_affs(affs_p))) 
-	affs_p, gr_p = affs_n, gr_n
-    return affs_n, gr_n
+	print count, np.sum(abs(_sorted_memberships(membs_n) - _sorted_memberships(membs_p))) 
+	membs_p, gr_p = membs_n, gr_n
+    return membs_n, gr_n
 
 
 def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
@@ -86,7 +83,7 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
         distance = euclidean
 
     ### TODOs:
-    ### [X] go through patterns in random order, return sorted affiliations
+    ### [X] go through patterns in random order, return sorted memberships
     ### [X] use principal components as a start-off patterns
     ### [-] allow for sorting of at least 1D-grids
     niter = 0
@@ -108,16 +105,16 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
     for k,l in enumerate(locs):
         grid[l] = init_templates[k]
 
-    # initialize affiliations from patterns
-    affiliations = np.array([classify(p, grid, distance)[0] for p in patterns])
-    reassigned = len(affiliations)
+    # initialize memberships from patterns
+    memberships = np.array([classify(p, grid, distance)[0] for p in patterns])
+    reassigned = len(memberships)
 
     out = []
     grid_pdists = np.zeros((L,L))
     flatgrid_sh = (-1, ) + sh
     
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
-        affiliations_prev = affiliations.copy()
+        memberships_prev = memberships.copy()
         for k1,k2 in itt.combinations(range(L),2):
             grid_pdists[k1,k2] = neighbor_fn(locs[k1],locs[k2],r)
             grid_pdists[k2,k1] = grid_pdists[k1,k2]
@@ -135,22 +132,22 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
                 sys.stderr.write("\r %04d %06d, %06d"%(niter, reassigned, Npts-i))
             dists = distance(grid.reshape(flatgrid_sh), p)
             winner_ind = np.argmin(dists)
-            affiliations[k] = winner_ind
+            memberships[k] = winner_ind
             update = (p-grid.reshape(flatgrid_sh))
             aux_sh = (L,)+(1,)*len(sh)
             update *= grid_pdists[winner_ind].reshape(aux_sh)
             grid += alpha*update.reshape(grid.shape)
         alpha *= fade_coeff
         r *= fade_coeff
-        reassigned = np.sum(affiliations != affiliations_prev)
+        reassigned = np.sum(memberships != memberships_prev)
         niter +=1
-	out.append(affiliations.copy())
+	out.append(memberships.copy())
     if output == 'last':
-	return affiliations
+	return memberships
     elif output == 'grid':
 	return grid
     elif output == 'both':
-	return affiliations, grid
+	return memberships, grid
     elif output == 'full':
         return out, grid
     return out
@@ -190,7 +187,7 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
         distance = distance_fns[distance]
 
     ### TODOs:
-    ### [ ] go through patterns in random order, return sorted affiliations
+    ### [ ] go through patterns in random order, return sorted memberships
     ### [X] use principal components as a start-off patterns
     ### [-] allow for sorting of at least 1D-grids
     niter = 0
@@ -210,33 +207,33 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
 	    init_templates = [patterns[k] for k in init_ks]
     for k,l in enumerate(locs):
         grid[l] = init_templates[k]
-    #affiliations = np.ones(Npts)*-1
-    # initialize affiliations from patterns
-    affiliations = np.array([_classify_old(p, grid, distance)[0] for p in patterns])
-    reassigned = len(affiliations)
+    #memberships = np.ones(Npts)*-1
+    # initialize memberships from patterns
+    memberships = np.array([_classify_old(p, grid, distance)[0] for p in patterns])
+    reassigned = len(memberships)
     out = []
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
-        affiliations_prev = affiliations.copy()
+        memberships_prev = memberships.copy()
         for k,p in enumerate(patterns):
             if (not k%100) and verbose:
                 sys.stderr.write("\r %04d %06d, %06d"%(niter, reassigned, Npts-k))
             dists = [distance(grid[loc],p) for loc in locs]
             winner_ind = np.argmin(dists)
-            affiliations[k] = winner_ind
+            memberships[k] = winner_ind
             winner_loc = locs[winner_ind]
             for loc in locs:
                 grid[loc] += alpha*neighbor_fn(winner_loc, loc, r)*(p-grid[loc])
         alpha *= fade_coeff
         r *= fade_coeff
-        reassigned = np.sum(affiliations != affiliations_prev)
+        reassigned = np.sum(memberships != memberships_prev)
         niter +=1
-	out.append(affiliations.copy())
+	out.append(memberships.copy())
     if output == 'last':
-	return affiliations
+	return memberships
     elif output == 'grid':
 	return grid
     elif output == 'both':
-	return affiliations, grid
+	return memberships, grid
     return out
 
 def classify(pattern, grid, distance = euclidean):
@@ -260,11 +257,11 @@ def som_batch(patterns, shape=(10,1), neighbor_fn = neigh_gauss,
     print "Not implemented yet"
     pass
 
-def cluster_map_permutation(affs, perms, shape):
-    "auxiliary function to map affiliations to 2D image"
+def cluster_map_permutation(membs, perms, shape):
+    "auxiliary function to map memberships to 2D image"
     import itertools as itt
     out = np.zeros(shape)
     coordinates = list(itt.product(*map(xrange,shape)))
-    for k,a in enumerate(affs):
+    for k,a in enumerate(membs):
         out[coordinates[perms[k]]] = a
     return out
