@@ -1,6 +1,5 @@
 
 import numpy as np
-
 from scipy import optimize as opt
 
 def plane(pars, x,y):

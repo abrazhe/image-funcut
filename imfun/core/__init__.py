@@ -1,7 +1,7 @@
 # Auxilary utilities for image-funcut
 from __future__ import division
 
-from . import array_handling
+from . import array_handling as ah
 from . import baselines
 from . import coords
 from . import deco
@@ -15,3 +15,4 @@ from . import units
 from .misc import ifnot,rezip
 from .random_proc import ar1
 from .array_handling import rescale
+from .path import ensure_dir

@@ -19,6 +19,23 @@ def memsafe_arr(shape, dtype=_dtype_):
     
 
 
+def ravel_frames(frames):
+    #l,w,h = frames.shape
+    if isinstance(frames, np.ndarray):
+        l,w,h = frames.shape
+        return frames.reshape(l,w*h)
+    else:
+        return np.array([np.ravel(f) for f in frames])
+
+def shape_frames(X,(nrows,ncols)):
+    if isinstance(frames, np.ndarray):
+        Nt,Np = X.shape
+        return X.reshape(Nt, nrows, ncols)
+    else:
+        return np.array([_x.reshape(nrows,ncols) for _x in X])
+    
+
+
 
 def embedding(arr, delarrp=True):
     """Return an *embeding* of the non-zero portion of an array.

@@ -14,8 +14,7 @@ except ImportError:
     _skew_loaded = False
 
 
-from ..fseq import ravel_frames
-from ..fseq import shape_frames
+from ..core import ah
 
 from . import pca
 from .pca import whitenmat2
@@ -36,7 +35,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     Output:
       - ica_filters, ica_signals
     """
-    data = ravel_frames(X) # nframes x npixels
+    data = ah.ravel_frames(X) # nframes x npixels
     sh = X[0].shape
 
     npca = (npca is None) and ncomp or npca
@@ -68,7 +67,7 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     else:
         skewsorted = range(ncomp)
     if reshape_filters:
-        ica_filters = shape_frames(ica_filters[skewsorted], sh)
+        ica_filters = ah.shape_frames(ica_filters[skewsorted], sh)
     else:
         ica_filters = ica_filters[skewsorted]
     return ica_filters, ica_signals[skewsorted]

@@ -3,8 +3,7 @@ from numpy import array,dot,argsort,diag,where, zeros, sqrt,float,linalg
 from numpy.linalg import eig, eigh, inv, norm, svd
 
 
-from ..fseq import ravel_frames
-from ..fseq import shape_frames
+from ..core import ah
 
 
 ## TODOs:
@@ -107,19 +106,21 @@ def whitenmat2(X):
 
 
 class PCA_frames():
-    def __init__(self,frames, npc=20, center=False):
+    def __init__(self,frames, npc=20):
         self.npc = npc
         self.sh = frames[0].shape
-        u,s,vh = np.linalg.svd(ravel_frames(frames), full_matrices=False)
+        self.mean_frame = np.mean(frames, axis=0)
+        u,s,vh = np.linalg.svd(ah.ravel_frames(frames-self.mean_frame), full_matrices=False)
         self.u = u[:,:npc]
         self.s = s[:npc]
         self.vh = vh[:npc]
+        self.coords = np.array([self.project(frame) for frame in frames])
     def project(self, frame):
-        return self.vh.dot(np.ravel(frame))
+        return self.vh.dot(np.ravel(frame-self.mean_frame))
     def approx(self, frame):
-        return self.project(frame).dot(self.vh).reshape(self.sh)
+        return self.project(frame).dot(self.vh).reshape(self.sh) + self.mean_frame
     def rec_from_coefs(self,coefs):
-        return coefs.dot(self.vh).reshape(self.sh)
+        return coefs.dot(self.vh).reshape(self.sh) + self.mean_frame
 
 
 #### Old stuff -------------------------------------------------------------------------------------------------------

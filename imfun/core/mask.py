@@ -1,3 +1,6 @@
+import numpy as np
+from .coords import locations
+
 def mask_percent_threshold(mat, thresh):
     minv = np.min(mat)
     maxv = np.max(mat)
@@ -31,3 +34,36 @@ def zero_in_mask(mat, mask):
 
 def zero_low_sd(mat, n = 1.5):
     return zero_in_mask(mat, mask_median_SD(mat,n,np.less))
+
+
+def mask2points(mask):
+    "mask to a list of points, as row,col"
+    points = []
+    for loc in locations(mask.shape):
+        if mask[loc]:
+            points.append(loc) 
+    return points
+
+    
+def mask2pointsr(mask):
+    "mask to a list of points, with X,Y coordinates reversed"
+    points = []
+    for loc in locations(mask.shape):
+        if mask[loc]:
+            points.append(loc[::-1]) 
+    return points
+
+def array2points(arr):
+    return [r for r in surfconvert(arr)]
+    
+def surfconvert(frame, mask):
+    from .array_handling import rescale
+    out = []
+    nr,nc = map(float, frame.shape)
+    space_scale = max(nr, nc)
+    f = rescale(frame)
+    for r in range(int(nr)):
+        for c in range(int(nc)):
+	    if not mask[r,c]:
+		out.append([c/space_scale,r/space_scale, f[r,c]])
+    return np.array(out)
