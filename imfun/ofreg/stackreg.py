@@ -25,44 +25,26 @@ from imfun import cluster
 from . import warps
 
 
-# TODO: need to think through passing arguments to/between various functions
-
-def make_pca_templates(frames, pcf, gridshape=(5,1),npc=15):
-    coords = np.array([pcf.project(f) for f in frames])
-    npc = min(npc, pcf.npc)
-    som_result = cluster.som(coords[:,:npc], gridshape=gridshape)
-    sorted_affs = cluster.som_._sorted_affs(som_result)[::-1]
-    templates = [pcf.rec_from_coefs(coords[som_result==_k].mean(axis=0)) for _k in sorted_affs]
-    return templates,(som_result,sorted_affs)
-
-
-def to_pca_templates(frames, regfn, npc=20, template_kw=None, **fnargs):
+def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
 
     # first template is the "master" template because it is based on the largest
     # number of frames all other templates must eventually be registered to this one
     # There may be other criteria, such as the most contrast or the sharpest image
     all_warps = []
-    pcf = pca.PCA_frames(frames[:],npc)
-    print 'PCA done'
-    if template_kw is None:
-        template_kw = {}
-    templates, (affs, cluster_idx) = make_pca_templates(frames, pcf, **template_kw)
-    kt = 0
 
-    for template,index in zip(templates,cluster_idx):
-        print "Doing template %d"%index
+    for k,template in enumerate(templates):
+        print "Doing template %d"%k
         correction = np.zeros((2,)+frames[0].shape)
-        if kt > 0:
+        if k > 0:
             correction = regfn(template, templates[0],**fnargs)
-        frame_idx = np.arange(len(frames))[affs==index]
+        frame_idx = np.arange(len(frames))[index==k]
         #print len(frame_idx)
         frame_slice = (frames[fi] for fi in frame_idx)
-        warps_ = to_template(frame_slice, template, regfn)
+        warps_ = to_template(frame_slice, template, regfn, njobs=njobs, **fnargs)
         print 'Warps?', type(correction), type(warps_[0])
         #print len(warps_)
         all_warps.extend([(fi, warps.compose_warps(correction, w)) for fi,w in zip(frame_idx, warps_)])
         #warps = [(fi,correction+reg_fn(template,frames[fi],**fnargs)) for fi in frame_idx]
-        kt += 1
     all_warps.sort(key = lambda aw:aw[0])
     return [w[1] for w in all_warps]
 
@@ -80,7 +62,7 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
         #pool.close()
     else:
-        print 'Running on one core', 'with_pathos:', _with_pathos_
+        print 'Running on one core'
         out = np.array([regfn(img, template, **fnargs) for img in frames])
     return out
 
