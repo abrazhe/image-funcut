@@ -6,7 +6,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import atrous, mmt
-from . import utils
+from .utils import threshold_w, simple_rec, simple_rec_iterative
 
 from imfun.cluster import metrics
 from imfun.core import deco
@@ -457,7 +457,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if dec_fn == mmt.decompose_mwt:
         sigmaej = mmt.sigmaej_mwts2
     if supp is None:
-        supp = utils.threshold_w(coefs, np.array(k,_dtype_)*noise_std,
+        supp = threshold_w(coefs, np.array(k,_dtype_)*noise_std,
                                       modulus=modulus, sigmaej=sigmaej)
     if weights is None:
         weights  = np.ones(level)
@@ -481,12 +481,12 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     # we don't expect too many outliers and this way it's faster
     pipelines = [fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
-                               lambda x: utils.simple_rec(coefs, x),
+                               lambda x: simple_rec(coefs, x),
                                embedding),
                  fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
                                                            weights = weights),
                                lambda x:
-                               utils.simple_rec_iterative(coefs, x, 
+                               simple_rec_iterative(coefs, x, 
                                                                positive_only=(not modulus)),
                                embedding)]
     recovered = (pipelines[rec_variant-1](obj, start_scale) for obj in objects)
