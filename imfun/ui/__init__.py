@@ -1,7 +1,7 @@
 from __future__ import division # a/b will always return float
 
 
-from .Picker_ import Picker
+from .Picker_ import Picker, color_walker
 from .plots import group_maps, group_plots, plot_coll
 
 #--- old ui.py ---
@@ -12,6 +12,7 @@ import numpy as np
 from .. import io
 from ..core import ifnot
 from .plots import guess_gridshape
+
 
 from matplotlib import pyplot as plt
 from matplotlib import animation
@@ -72,7 +73,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
 
     views = []
     for p,title,ax in zip(pickers,titles,np.ravel(axs)):
-        view = ax.imshow(p._get_show_f(start), **kwargs)
+        view = ax.imshow(p._get_show_f(start), vmin=0,vmax=1.0,**kwargs)
         views.append(view)
         ax.set_title(title)
         if not frame_on:

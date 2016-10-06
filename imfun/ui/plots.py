@@ -93,7 +93,9 @@ def data_range(datalist):
 
 def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
               ax = None,
-              figsize=None,**kwargs):
+              figsize=None,
+              frame_on=False,
+              **kwargs):
     from itertools import izip
 
     if sep is None:
@@ -103,7 +105,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
     if colors is None: colors = 'b'
     if isinstance(colors, basestring):
         c = colors
-        colors = (c for i in xrange(1e6))
+        colors = (c for i in xrange(int(1e6)))
     if positions is None:
         prevpos,positions = 0,[0]
         ranges = [(v.min(),v.max()) for v in vecs]
@@ -115,11 +117,11 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
     if x is None:
         x = np.arange(L)
     if ax is None:
-        f,ax = subplots(1,1,figsize=figsize)
+        f,ax = pl.subplots(1,1,figsize=figsize)
     for v,p,c in izip(vecs,positions,colors):
         ax.plot(x, v[:L]+p, color=c, **kwargs)
         #a.axhline(p, color='b')
-    setp(ax, yticks=[],frame_on=False)
+    pl.setp(ax, yticks=[],frame_on=frame_on)
     ax.axis('tight')
 
 def group_plots(ylist, ncols=None, x = None,
