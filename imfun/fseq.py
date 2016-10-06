@@ -49,9 +49,10 @@ class FrameStackMono(object):
         self.meta['axes'] = [Q(1,'_') for i in range(3)]
         self.meta['channel'] = None
 
+    @property
     def pipeline(self):
-	"""Return the composite function to process frames based on self.fns"""
-	return fu.flcompose(_identity, *self.fns)
+	"""Return the composite function to process frames based on self.frame_filters"""
+	return fu.flcompose(_identity, *self.frame_filters)
 
     def std(self, axis=None):
 	"""get standard deviation of the data"""
@@ -362,9 +363,10 @@ def _empty_axes_meta(size=3):
 class FStackM_arr(FrameStackMono):
     """A FrameStackMono class as a wrapper around a `3D` Numpy array
     """
-    def __init__(self, arr, fns = None, meta=None):
+    def __init__(self, arr, frame_filters = None, meta=None):
         self.data = arr
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
         if meta is None:
             self.set_default_meta(self)
         else:
@@ -372,11 +374,11 @@ class FStackM_arr(FrameStackMono):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, val):
-        fn = self.pipeline()
+        fn = self.pipeline
         if isinstance(val,slice) or np.ndim(val) > 0:
             x = self.data[val]
             dtype = fn(x[0]).dtype
-            if not self.fns:
+            if not self.frame_filters:
                 return x
             out = np.zeros(x.shape,dtype)
             for j,f in enumerate(x):
@@ -389,7 +391,7 @@ class FStackM_arr(FrameStackMono):
 
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
 	"Iterator over time signals from each pixel (FSM_arr)"
-        if not self.fns:
+        if not self.frame_filters:
             for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
 	        v = self.data[:,row,col].copy()
 		yield np.asarray(v, dtype=dtype), row, col
@@ -402,11 +404,11 @@ class FStackM_arr(FrameStackMono):
 	"""
 	Return iterator over frames.
 
-	The composition of functions in `self.fns` list is applied to each
+	The composition of functions in `self.frame_filters` list is applied to each
 	frame. By default, this list is empty.  Examples of function "hooks"
-	to put into `self.fns` are filters from ``scipy.ndimage``.
+	to put into `self.frame_filters` are filters from ``scipy.ndimage``.
 	"""
-        fn = self.pipeline()
+        fn = self.pipeline
         return itt.imap(fn, self.data)
 
 
@@ -451,11 +453,12 @@ def __fseq_from_glob(pattern, ch=0, loadfn=np.load):
 class FStackM_collection(FrameStackMono):
     """A FrameStackMono class as a wrapper around a set of files
     provided as a collection of file names or a glob-like pattern"""
-    def __init__(self, names, ch=0, fns=None,
+    def __init__(self, names, ch=0, frame_filters=None,
                  meta = None):
         #self.pattern = pattern
         self.ch = ch
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
         if isinstance(names, basestring):
             self.file_names = sorted_file_names(names)
         else:
@@ -471,17 +474,17 @@ class FStackM_collection(FrameStackMono):
 	"""
 	Return iterator over frames.
 
-	The composition of functions in `self.fns`
+	The composition of functions in `self.frame_filters`
 	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are ``core.baselines.DFoSD``,
+	of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
 	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
 	"""
-        fn = self.pipeline()
+        fn = self.pipeline
         seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names)
         return itt.imap(fn, seq)
 
     def __getitem__(self, val):
-	fn = self.pipeline()
+	fn = self.pipeline
         if isinstance(val, slice)  or np.ndim(val) > 0:
             seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names[val])
             return map(fn, seq)
@@ -514,9 +517,10 @@ class FStackM_npy_collection(FStackM_collection):
     def loadfn(self, y): return np.load(y)
 
 class FStackM_npy(FStackM_arr):
-    def __init__(self, name, fns = None, meta=None):
+    def __init__(self, name, frame_filters = None, meta=None):
         self.data = np.load(name)
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
         if meta is None:
             self.set_default_meta(self)
         else:
@@ -527,12 +531,13 @@ class FStackM_imgleic(FStackM_img):
     It is just a wrapper around FStackM_img, only it also looks for an xml
     file in Leica's format with the Job description
     """
-    def __init__(self, pattern, ch=0, fns=None, xmlname = None,
+    def __init__(self, pattern, ch=0, frame_filters=None, xmlname = None,
                  meta=None):
         FStackM_collection.__init__(self, pattern, ch=ch, meta=meta)
         if xmlname is None:
             xmlname = pattern
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
         try:
             from imfun.io import leica
             self.lp = leica.LeicaProps(xmlname)
@@ -555,32 +560,33 @@ from imfun.io import ioraw
 
 class FStackM_plsi(FrameStackMono):
     "FrameStackMono class for LaserSpeckle multi-frame images"
-    def __init__(self, fname, fns = None):
+    def __init__(self, fname, frame_filters = None):
         self.plsimg = ioraw.PLSI(fname)
         self.set_default_meta()
         dt = self.plsimg.dt/1000.0
         self.meta['axes'][0] = Q(dt, 's')
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
 
     def frames(self,):
 	"""
 	Return iterator over frames.
 
-	The composition of functions in `self.fns`
+	The composition of functions in `self.frame_filters`
 	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.fns` are ``core.baselines.DFoSD``,
+	of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
 	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
 	"""
 
-        fn = fu.flcompose(_identity, *self.fns)
+        fn = fu.flcompose(_identity, *self.frame_filters)
         return itt.imap(fn,self.plsimg.frame_iter())
 
     def __getitem__(self, val):
 	#L = self.length()
-	fn = self.pipeline()
+	fn = self.pipeline
         if isinstance(val, slice) or np.ndim(val) > 0:
 	    indices = np.arange(self.plsimg.nframes)
-            if not self.fns:
+            if not self.frame_filters:
                 return self.plsimg[val]
             else:
                 return np.array(map(fn, itt.imap(self.plsimg.read_frame, indices[val])))
@@ -593,7 +599,7 @@ class FStackM_plsi(FrameStackMono):
         return self.plsimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
-	if not len(self.fns):
+	if not len(self.frame_filters):
 	    for row,col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
 		v = self.plsimg.read_timeslice((row,col))
 		yield np.asarray(v, dtype=dtype), row, col
@@ -613,19 +619,19 @@ class FStackM_plsi(FrameStackMono):
 ##     import PIL.Image as Image
 ##     class FSeq_multiff(FrameStackMono):
 ##         "Class for multi-frame tiff files"
-##         def __init__(self, fname, fns = None, meta=None):
+##         def __init__(self, fname, frame_filters = None, meta=None):
 ##             self.set_default_meta()
-##             self.fns = ifnot(fns, [])
+##             self.frame_filters = ifnot(frame_filters, [])
 ##             self.im = Image.open(fname)
 ##         def frames(self, count=0):
 ##             """
 ##             Return iterator over frames.
 
-##             The composition of functions in `self.fns`
+##             The composition of functions in `self.frame_filters`
 ##             list is applied to each frame. By default, this list is empty. Examples
-##             of function "hooks" to put into `self.fns` are functions from ``scipy.ndimage``.
+##             of function "hooks" to put into `self.frame_filters` are functions from ``scipy.ndimage``.
 ##             """
-##             fn = self.pipeline()
+##             fn = self.pipeline
 ##             while True:
 ##                 try:
 ##                     self.im.seek(count)
@@ -660,7 +666,7 @@ class FStackM_plsi(FrameStackMono):
 from imfun.io import mes
 
 class FStackM_mes(FStackM_arr):
-    def __init__(self, fname, record, ch='r', fns=None, verbose=False,
+    def __init__(self, fname, record, ch='r', frame_filters=None, verbose=False,
                  autocrop = True):
         """
         The following format is assumed:
@@ -670,7 +676,8 @@ class FStackM_mes(FStackM_arr):
         The timelapse images are stored as NxM arrays, where N is one side of an image,
         and then columns iterate over the other image dimension and time.
         """
-        self.fns = ifnot(fns, [])
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
         self._verbose=verbose
 
 
@@ -996,7 +1003,7 @@ try:
 
     class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
-        def __init__(self, fname, fns = None):
+        def __init__(self, fname, frame_filters = None):
             parent = super(FStackM_hdf5_lsc, self)
             #parent.__init__()
             f = h5py.File(fname, 'r')
@@ -1005,7 +1012,7 @@ try:
             dt = np.median(np.diff(self.tv))
             meta = {'axes': core.units.alist_to_scale([dt,'sec'])}
             self.h5file = f # just in case we need it later
-            parent.__init__(f['lsc'], fns=fns,meta=meta)
+            parent.__init__(f['lsc'], frame_filters=frame_filters,meta=meta)
 
     def fstack_to_h5(seqlist, name, compress_level=-1,verbose=False):
         # todo: add metadata, such as time and spatial scales
@@ -1105,14 +1112,6 @@ try:
 
 except ImportError as e:
     print "Can't load OpenCV python bindings", e
-
-def ravel_frames(frames):
-    l,w,h = frames.shape
-    return frames.reshape(l,w*h)
-
-def shape_frames(X,(nrows,ncols)):
-    Nt,Np = X.shape
-    return X.reshape(Nt, nrows, ncols)
 
 from . import cluster 
 from .components import pca
