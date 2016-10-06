@@ -6,7 +6,7 @@ from . import baselines
 from . import coords
 from . import deco
 from . import extrema
-from . import fnutils
+from . import fnutils as fu
 
 from . import misc
 from . import units
