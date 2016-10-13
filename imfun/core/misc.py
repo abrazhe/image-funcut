@@ -82,7 +82,7 @@ def som_cluster_fseq(seq, **kwargs):
 	return som_.cluster_map_permutation(affiliations, perm, shape)
 
 
-def vinterpoolate(v,n=3,smoothing=1):
+def vinterpolate(v,n=3,smoothing=1):
     from ..multiscale.atrous import smooth
     L = len(v)
     if smoothing > 0:

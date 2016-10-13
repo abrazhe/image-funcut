@@ -1,5 +1,7 @@
 ### Monte-Carlo routines for significance level estimation
 
+import numpy as np
+import sys
  
 def mc_levels(transform_fn, size=(256,256),level=3, N = 1e3):
     """Return Monte-Carlo estimation of noise :math:`\\sigma`
@@ -42,7 +44,7 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3):
     out  = np.zeros((N,level))
     for n,im in enumerate(signals):
 	x = np.mean(out[:n], axis=0)
-	s0 = ','.join(['%1.2e'%a for a in x])
+	s0 = ','.join(['%1.4e'%a for a in x])
 	s = '\r signal {:06d} out of {:06d}, current: {}'.format(n+1,long(N), s0)
 	sys.stderr.write(s)
 	#out[n] = map(np.std, decompose1d_direct(im, level)[:-1])

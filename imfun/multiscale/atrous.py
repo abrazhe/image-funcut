@@ -139,11 +139,11 @@ except ImportError as ex:
         
 
 def decompose1d_weave(sig, level,
-		      phi=_phi_,
-		      dtype= _dtype_):
+                      phi=_phi_,
+                      dtype= _dtype_):
     """
     1D stationary wavelet transform with B3-spline scaling function
-
+    
     Parameters:
       - sig : 1D array
       - level : level of decomposition
@@ -158,7 +158,7 @@ def decompose1d_weave(sig, level,
     coefs = np.ones((level+1, L),dtype=dtype)
     for j in xrange(int(level)):
         phiind = (2**j)*phirange
-	approx = np.zeros(sig.shape, dtype=dtype)
+        approx = np.zeros(sig.shape, dtype=dtype)
         if _has_numba_:
             numba_conv1d_wholes(approx, cprev, phi, phiind)
         else:
@@ -178,9 +178,10 @@ def make_phi2d(phi):
     x = phi.reshape(1,-1)
     return np.dot(x.T,x)
 
+
 def decompose2d_weave(arr2d, level,
-		      phi=_phi_,
-		      dtype= 'float64'):
+                      phi=_phi_,
+                      dtype= 'float64'):
     """
     2D stationary wavelet transform with B3-spline scaling function
 
@@ -203,7 +204,7 @@ def decompose2d_weave(arr2d, level,
     coefs = np.ones((level+1, sh[0], sh[1]),dtype=dtype)
     for j in xrange(int(level)):
         phiind = (2**j)*phirange
-	approx = np.zeros(sh, dtype=dtype)
+        approx = np.zeros(sh, dtype=dtype)
         if _has_numba_:
             numba_conv2d_wholes(approx, cprev, phi2d, phiind)
         else:
@@ -235,7 +236,7 @@ def decompose1d_numpy(sig, level, phi=_phi_, boundary='symm'):
     
     """
     if boundary == 'symm':
-	boundary = 'mirror'
+        boundary = 'mirror'
     sig = sig.astype(_dtype_) # to prevent from taking up too much memory
     apprx = convolve1d(sig, phi, mode=boundary)
     w = (sig - apprx) # wavelet coefs
@@ -288,10 +289,7 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
         return [w] + decompose2d_numpy(approx,level-1,upphi,boundary=boundary) 
 
 
-def decompose3d_numpy(arr, level=1,
-		      phi = _phi_,
-		      boundary1d = 'mirror',
-		      boundary2d = 'symm'):
+def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary2d = 'symm'):
     """Semi-separable a trous wavelet decomposition for 3D data
     with B3-spline scaling function
     
@@ -409,7 +407,6 @@ def decompose3d_weave(arr, level=1,
         f2d = weave_conv2d_wholes
     for loc in locations(arr.shape[1:]):
         v = arr[:,loc[0], loc[1]]
-	#vo = np.zeros(v.shape, _dtype_)
         f1d(tapprox[:,loc[0], loc[1]], v, phi, phiind)
     if axis is None:
         approx = np.zeros(arr.shape,_dtype_)
@@ -491,7 +488,7 @@ def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
     """
     d = np.ravel(decompose(arr,1)[0])
     for j in xrange(int(max_iter)):
-	d = d[abs(d) < k*np.std(d)]
+        d = d[abs(d) < k*np.std(d)]
     return np.std(d)
 
 
@@ -510,9 +507,9 @@ def estimate_sigma_mad(arr, is_details = False):
     #mad = lambda x: np.median(np.abs(x-np.median(x)))
     def mad(x): return np.median(np.abs(x-np.median(x)))
     if is_details:
-	w1 = arr
+        w1 = arr
     else:
-	w1 = decompose(arr,1)[0]
+        w1 = decompose(arr,1)[0]
     nd = w1.ndim
     return mad(w1)/(0.6745*sigmaej[nd][0])
  
@@ -574,17 +571,15 @@ def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None,
             noise_std = estimate_sigma(f, coefs) / 0.974 # magic value
         else:
             noise_std = estimate_sigma_mad(coefs[0], True)
-    supp = get_support(coefs, np.array(k, _dtype_)*noise_std,
-		       modulus=modulus,soft=soft)
+    supp = get_support(coefs, np.array(k, _dtype_)*noise_std, modulus=modulus,soft=soft)
     if soft:
-	return np.sum(supp, axis=0)
+        return np.sum(supp, axis=0)
     else:
-	return rec_with_support(coefs, supp)
+        return rec_with_support(coefs, supp)
 
 def DFoF(v, level=9,**kwargs):
     """Normalize `v` as :math:`v/v_0 - 1` for :math:`v_0` taken as
     approximation at given level
-
     """
     approx = smooth(v, level,**kwargs)
     zi = np.where(np.abs(approx) < 1e-6)
@@ -604,23 +599,21 @@ def DFoSD(v, level=9, smooth=0,**kwargs):
     """Normalize `v` as :math:`(v-v_0)/\\sigma` for :math:`v_0` taken as
     approximation at given level and :math:`\\sigma` taken as an estimation of
     the noise standard deviation.
-
     """    
     coefs = decompose(v, level,**kwargs)
     approx = coefs[-1]
     if smooth:
-	vd = np.sum(coefs[smooth:-1], axis=0)
+        vd = np.sum(coefs[smooth:-1], axis=0)
     else:
-	vd = v-approx
+        vd = v-approx
     sd = estimate_sigma_mad(coefs[0], True)
     if sd == 0:
-	return np.zeros(vd.shape)
+        return np.zeros(vd.shape)
     return vd/sd
 
 def _DFoF_asym(v, level=5, r=1.0):
     """Normalize `v` as :math:`v/v_0 - 1` for :math:`v_0` taken as
     asymmetric-approximation baseline at givel level
-
     """
     baseline = _asymmetric_smooth(v, level, r=r)
     zi = np.where(np.abs(baseline) < 1e-6)
@@ -636,18 +629,18 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
     sd = estimate_sigma_mad(v)
     sprev = None
     for i in xrange(int(niter)):
-	s = smooth(vcurr, level)
-	sd = np.std(vcurr-s)
-	clip = (vcurr > s+r*sd)
-	vcurr = np.where(clip, s, vcurr)
+        s = smooth(vcurr, level)
+        sd = np.std(vcurr-s)
+        clip = (vcurr > s+r*sd)
+        vcurr = np.where(clip, s, vcurr)
         #vcurr = np.where(clip, np.sign(vcurr)*(np.abs(vcurr)-(r*sd)), vcurr)
-	if sprev is not None:
-	    conv = np.std(s-sprev)
-	    if conv < tol:
-		if verbose:
-		    print 'converged after %d iterations' %(i+1)
-		break
-	sprev = s
+        if sprev is not None:
+            conv = np.std(s-sprev)
+            if conv < tol:
+                if verbose:
+                    print 'converged after %d iterations' %(i+1)
+                break
+        sprev = s
     return s
 
 ## def _decompose2p5d(arr, level=1,

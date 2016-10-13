@@ -175,7 +175,9 @@ def fastica(X, ncomp=None, whiten = True,
     fun = algorithms.get(algorithm, 'symmetric')
     W  = fun(XW, **kwargs)
     if whiten:
-        S = dot(dot(W,Uh),X)
+        print X.shape, W.shape, Uh.shape, XW.shape
+        #S = dot(dot(W,Uh),X)
+        S = W.dot(XW).dot(Uh)
     else:
         S = dot(W,X)
     return S, W

@@ -95,6 +95,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
               ax = None,
               figsize=None,
               frame_on=False,
+              labels = None,
               **kwargs):
     from itertools import izip
 
@@ -103,6 +104,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
         sep = 0.05*mean_range
 
     if colors is None: colors = 'b'
+    if labels is None: labels = [None]*len(vecs)
     if isinstance(colors, basestring):
         c = colors
         colors = (c for i in xrange(int(1e6)))
@@ -118,8 +120,8 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
         x = np.arange(L)
     if ax is None:
         f,ax = pl.subplots(1,1,figsize=figsize)
-    for v,p,c in izip(vecs,positions,colors):
-        ax.plot(x, v[:L]+p, color=c, **kwargs)
+    for v,p,c,l in izip(vecs,positions[::-1],colors,labels):
+        ax.plot(x, v[:L]+p, color=c, label=l, **kwargs)
         #a.axhline(p, color='b')
     pl.setp(ax, yticks=[],frame_on=frame_on)
     ax.axis('tight')

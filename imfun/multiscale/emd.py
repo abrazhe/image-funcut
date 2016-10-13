@@ -17,6 +17,9 @@ def envelopes(vec, x=None):
     if x is None: x = np.arange(len(vec))
     minlocs = np.concatenate([[0],minlocs,[-1]])
     maxlocs = np.concatenate([[0],maxlocs,[-1]])
+    #print len(minlocs), len(maxlocs)
+    if min(*map(len,(minlocs,maxlocs))) < 4:
+        return []
     lower = splev(x,splrep(xfit[minlocs],yfit[minlocs]))
     upper = splev(x,splrep(xfit[maxlocs],yfit[maxlocs]))
     return lower, upper
@@ -65,7 +68,7 @@ def find_mode(vec, x=None,SDk = 0.2,max_iter=1e5):
 	sd = np.sum((h1-h_prev)**2)/np.sum(h_prev**2)
 	xf,yf,der,mx,mn = extrema.locextr(h1)
 	zc = np.where(np.diff(np.sign(h1)) > 0 )[0]
-	print len(zc), len(mx), len(mn)
+	#print len(zc), len(mx), len(mn)
 	if (abs(len(zc) - len(mx)) < 2) and \
 	   (abs(len(mx) - len(mn)) < 2) and \
 	   (abs(len(zc) - len(mn)) < 2) and \
