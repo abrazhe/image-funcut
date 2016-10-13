@@ -153,6 +153,8 @@ class Picker (object):
         clims = [(np.min(_x),np.max(_x)) for _x in splitted]
         self.clims = clims
 	self.home_frame = f
+        self.frame_cache = {}
+        self._use_cache_flag = True
 
         return
 
@@ -210,6 +212,7 @@ class Picker (object):
                     if key is 'i':
                         self.ach_setter.set_active(ch)
                 self._ccmap[key] = ch
+            self.frame_cache = {}
             pass
 
         for k,c in enumerate(channels):
@@ -237,6 +240,7 @@ class Picker (object):
             for k in range(nCh):
                 low,high = self.level_controls[k]
                 self.clims[k] = (low.val, high.val)
+            self.frame_cache = {}
             pass
         for k,stack in enumerate(self.frame_coll.stacks):
             channel_name = stack.meta['channel']
@@ -687,7 +691,12 @@ class Picker (object):
     def _get_show_f(self, n):
         Nf = len(self.frame_coll)
 	fi = int(n)%Nf
-        show_f = self._lutconv(self.frame_coll[fi])
+        if fi in self.frame_cache:
+            show_f = self.frame_cache[fi]
+        else:
+            show_f = self._lutconv(self.frame_coll[fi])
+            if self._use_cache_flag:
+                self.frame_cache[fi] = show_f
         return show_f
 
     def set_frame_index(self,n):
