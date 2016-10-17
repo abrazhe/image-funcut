@@ -695,13 +695,17 @@ class FStackM_mes(FStackM_arr):
 
 class FStackColl(object):
     "Class for a collection (container) of single-channel frame stacks. E.g. Multichannel data"
-    def __init__(self, stacks):
+    def __init__(self, stacks, meta=None):
         self.stacks = list(stacks)
         for k,s in enumerate(self.stacks):
             if not s.meta['channel']:
                 s.meta['channel'] = str(k)
+
         # TODO: harmonize metadata
-        self.meta = stacks[0].meta.copy()
+        if meta is None:
+            self.meta = stacks[0].meta.copy()
+        else:
+            self.meta=meta
     @property
     def nCh(self):
         return len(self.stacks)
@@ -762,7 +766,8 @@ def from_images(path,flavor=None,**kwargs):
     When `flavor` is set to 'leica', try to load Leica XML metadata
     """
     stacks = [FStackM_img(path, ch=channel,**kwargs) for channel in (0,1,2)]
-    obj =  FStackColl(stacks)
+    meta = 'meta' in kwargs and kwargs['meta'] or None
+    obj =  FStackColl(stacks,meta=meta)
     if isinstance(flavor, basestring) and  flavor.lower() == 'leica':
         attach_leica_metadata(obj, path)
     return obj
@@ -846,7 +851,8 @@ def from_array(data, *args, **kwargs):
         nch = sh[k]
         channels = map(np.squeeze, np.split(data, nch, k))
         stacks = [FStackM_arr(c, *args, **kwargs) for c in channels]
-        return FStackColl(stacks)
+        meta = 'meta' in kwargs and kwargs['meta'] or None
+        return FStackColl(stacks,meta=meta)
     else:
         return FStackM_arr(data, *args,**kwargs)
 
@@ -863,7 +869,7 @@ def from_tiff(path, flavor=None, **kwargs):
 
 def attach_olympus_metadata(obj, path):
     from imfun.io import olympus
-    dye_order = ['dsred','ogb','trict']
+    dye_order = ['dsred','ogb','egfp','trict']
     path_base, ext = os.path.splitext(path)
     meta = olympus.parse_meta_general(path_base+'.txt')
     obj.meta = meta
