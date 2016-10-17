@@ -28,7 +28,7 @@ _output = 'flow' # {fn, flow, dct}
 def shifts( image, template):
     shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
     if _output == 'flow':
-        flow = [s * np.ones(image.shape) for s in shift[::-1]]
+        flow = [-s * np.ones(image.shape) for s in shift[::-1]]
         return np.array(flow)
     else:
         def _regfn(coordinates):
