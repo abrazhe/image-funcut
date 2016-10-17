@@ -925,9 +925,9 @@ class Picker (object):
                         l = axs[row,k].legend(frameon=False)
                         if l is None: continue
                         for lx in l.legendHandles:
-                            lx.set_visible(False)
+                            lx.set_visible(True)
                             lx.set_linewidth(2)
-                            lx.set_alpha(1.0)
+                            lx.set_alpha(0.5)
                     axs[row,0].set_ylabel(prefix)
                     #DONE: add event that hovering mouse over trace makes its alpha=1
 
@@ -938,14 +938,16 @@ class Picker (object):
                     #for line,label in zip(_ax.lines,_ax.texts):
                     for line, label in zip(_ax.lines[1:], _ax.legend_.legendHandles):
                         if line.contains(event)[0]:
-                            line.set_alpha(1)
+                            line.set_alpha(1.0)
                             line.set_linewidth(2)
                             label.set_visible(True)
+                            label.set_alpha(1.0)
                             #leg.set_linewidth(2)
                         else:
                             line.set_alpha(0.5)
                             line.set_linewidth(1)
-                            label.set_visible(False)
+                            label.set_visible(True)
+                            label.set_alpha(0.5)                            
                     _ax.figure.canvas.draw()
 
                 # #TODO: may be use on_click event?

@@ -260,7 +260,7 @@ class LineScan(DraggableObj):
         elif event.button == 1:
             xy = event.xdata,event.ydata
             candidates = [self.centerpoint()] + self.endpoints()
-            k = np.argmin([coords.eueu_dist(xy, xp) for xp in candidates])
+            k = np.argmin([coords.eu_dist(xy, xp) for xp in candidates])
             self.pressed = event.xdata, event.ydata, k
         elif event.button == 2:
             self.dm = self.show_zview()
