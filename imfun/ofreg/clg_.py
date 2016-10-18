@@ -12,7 +12,7 @@ from scipy.ndimage.interpolation import map_coordinates
 
 from numba import jit
 
-from . import warps
+from .warps import Warp
 
 from imfun.multiscale import pyramid_from_zoom
 from imfun.filt import nearestpd,mirrorpd,filt2d
@@ -50,7 +50,7 @@ class MSCLG(object):
         for level in xrange(nl-1,-1,-1):
             h = 2.0**level
             if level < nl-1:
-                psx = warps.apply_warp((u[level],v[level]), ps[level], mode=_boundary_mode)
+                psx = Warp.from_array((u[level],v[level]))(ps[level], mode=_boundary_mode)
             else:
                 psx = ps[level]
 

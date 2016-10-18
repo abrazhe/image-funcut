@@ -14,7 +14,7 @@ from skimage import feature as skfeature
 from .. import core
 from ..multiscale import atrous
 
-from warps import apply_warp
+from .warps import Warp
 
 _boundary_mode = 'nearest'
 
@@ -96,7 +96,8 @@ class MSLKP_image_aligner ():
             wsize = int((self.base_window-1)/h + 1)
 
             if level < nl-1:
-                psx = apply_warp((u[level],v[level]), ps[level], mode=_boundary_mode)
+                
+                psx = Warp.from_array((u[level],v[level]))(ps[level], mode=_boundary_mode)
             else:
                 psx = ps[level]
 

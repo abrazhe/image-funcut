@@ -7,6 +7,8 @@ from skimage import feature as skfeature
 from . import lkp_
 from . import gk_
 from . import clg_
+from .warps import Warp
+
 
 try:
     # https://github.com/pyimreg/imreg
@@ -27,13 +29,9 @@ _output = 'flow' # {fn, flow, dct}
 
 def shifts( image, template):
     shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
-    if _output == 'flow':
-        flow = [-s * np.ones(image.shape) for s in shift[::-1]]
-        return np.array(flow)
-    else:
-        def _regfn(coordinates):
-            return [c - p for c,p in zip(coordinates, shift[::-1])]
-        return _regfn
+    def _regfn(coordinates):
+        return [c - p for c,p in zip(coordinates, shift[::-1])]
+    return Warp.from_function(_regfn, image.shape)
 
 def _imreg( image, template, tform):
     if not _with_imreg:
@@ -45,7 +43,7 @@ def _imreg( image, template, tform):
         ir_coords = imreg.model.Coordinates.fromTensor(coordinates)
         out =  tform(step.p, ir_coords).tensor
         return out
-    return _regfn
+    return Warp.from_function(_regfn, image.shape)
 
 
 def affine(sef, image,template):
@@ -74,47 +72,28 @@ def greenberg_kerr(image, template, nparam=11, transpose=True, **fnargs):
         if transpose:
             dx,dy = dy,dx
         return -dx,-dy
-    if _output == 'flow':
-        return np.array(_make_flow())
-    else:
-        def _regfn(coordinates):
-            dx, dy = _make_flow()
-            return [coordinates[0]+dx, coordinates[1]+dy]
-        return _regfn
+    def _regfn(coordinates):
+        dx, dy = _make_flow()
+        return [coordinates[0]+dx, coordinates[1]+dy]
+    return Warp.from_function(_regfn, sh)
 
 
 def slkp( image, template, wsize=25, **fnargs):
     sh = image.shape
-
     aligner = lkp_.LKP_image_aligner(wsize)
     _,p = aligner(image,template, **fnargs)
-    if _output == 'flow':
-        return -np.array(aligner.grid_shift_coords(p, sh))
-    else:
-        def _regfn(coordinates):
-            shifts = aligner.grid_shift_coords(p, sh)
-            return [c-s for c,s in zip(coordinates, shifts)]
-        return _regfn
+    def _regfn(coordinates):
+        shifts = aligner.grid_shift_coords(p, sh)
+        return [c-s for c,s in zip(coordinates, shifts)]
+    return Warp.from_function(_regfn,sh)
 
 def mslkp(image, template, nl=3, wsize=25,**fnargs):
     aligner = lkp_.MSLKP_image_aligner()
     w = aligner(image,template, **fnargs)
-    def _regfn(coordinates):
-        return [c+s for c,s in zip(coordinates, w)]
-    if _output == 'flow':
-        return np.array(w)
-    else:
-        return _regfn
+    return Warp.from_array(w)
 
 def msclg( image, template, nl=3, algorithm='pcgs',alpha=1e-5,
           verbose=False, **fnargs):
     aligner = clg_.MSCLG(algorithm=algorithm,verbose=verbose)
     w = aligner(image, template,nl, **fnargs)
-    def _regfn(coordinates):
-        return [c+s for c,s in zip(coordinates, w)]
-    if _output == 'flow':
-        return np.array(w)
-    elif _output == 'dct':
-        return warps.dct_encode(w)
-    else:
-        return _regfn
+    return Warp.from_array(w)

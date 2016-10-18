@@ -23,6 +23,7 @@ from imfun.components import pca
 from imfun import cluster
 
 from . import warps
+from .warps import Warp
 
 
 def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
@@ -34,16 +35,16 @@ def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
 
     for k,template in enumerate(templates):
         print "Doing template %d"%k
-        correction = np.zeros((2,)+frames[0].shape)
+        correction = Warp.from_array(np.zeros((2,)+frames[0].shape))
         if k > 0:
             correction = regfn(template, templates[0],**fnargs)
         frame_idx = np.arange(len(frames))[index==k]
         #print len(frame_idx)
         frame_slice = (frames[fi] for fi in frame_idx)
         warps_ = to_template(frame_slice, template, regfn, njobs=njobs, **fnargs)
-        print 'Warps?', type(correction), type(warps_[0])
+        #print 'Warps?', type(correction), type(warps_[0])
         #print len(warps_)
-        all_warps.extend([(fi, warps.compose_warps(correction, w)) for fi,w in zip(frame_idx, warps_)])
+        all_warps.extend([(fi, correction+w) for fi,w in zip(frame_idx, warps_)])
         #warps = [(fi,correction+reg_fn(template,frames[fi],**fnargs)) for fi in frame_idx]
     all_warps.sort(key = lambda aw:aw[0])
     return [w[1] for w in all_warps]
@@ -63,7 +64,7 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         #pool.close()
     else:
         print 'Running on one core'
-        out = np.array([regfn(img, template, **fnargs) for img in frames])
+        out = [regfn(img, template, **fnargs) for img in frames]
     return out
 
 def recursive(frames, regfn):
