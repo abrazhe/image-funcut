@@ -154,15 +154,15 @@ def from_npy(name):
     np.load(name)
 
 def to_dct_encoded(name, warps, upto=20):
-    w = flow_from_fn(warps[0])
-    D = make_dct_dict(flow[0].shape, upto)
-    to_npy(name, [dct_encode(w, upto, D) for w in warps])
+    w = warps[0]
+    D = make_dct_dict(w.field[0].shape, upto)
+    to_npy(name, [dct_encode(w.field, upto, D) for w in warps])
 
 def from_dct_encoded(name, **fnargs):
     codes = from_npy(name)
     cf,sh = coefs[0]
     D = make_dct_dict(sh,int(np.sqrt(len(cf)//2)))
-    return [dct_decode(c,D) for c in  codes]
+    return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
 
 def map_warps(warps, frames, njobs=4):
