@@ -20,7 +20,6 @@ import gc
 
 def harmonize_clims(pickers, mode='extend'):
     lows = [[c[0] for c in px.clims] for px in pickers]
-    highs = [[c[1] for c in px.clims] for px in pickers]
     if mode.lower() == 'extend':
         lowfn,highfn = np.amin, np.amax
     elif mode.lower() == 'shrink':
@@ -80,7 +79,9 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
             plt.setp(ax,frame_on=False,xticks=[],yticks=[])
         marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
         ax.add_patch(marker)
-
+    for ax in np.ravel(axs)[len(pickers):]:
+        pl.setp(ax, visible=False)
+        
     header = plt.suptitle('')
     plt.tight_layout()
 
