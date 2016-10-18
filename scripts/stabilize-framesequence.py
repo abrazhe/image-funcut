@@ -16,10 +16,13 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-from imfun import opflowreg, atrous, fseq, lib
+from imfun import ofreg, multiscale, fseq, core, ui
+from imfun.ofreg import imgreg, stackreg, warps
 
 _smoothing_filters = {'gaussian': ndimage.gaussian_filter,
-                      'atrous': atrous.smooth,
+                      'atrous': multiscale.atrous.smooth,
+                      'atrous.detrend': multiscale.atrous.detrend,
+                      'rescale':lambda f,par: core.rescale(f),
                       'median': signal.medfilt}
 
 
@@ -38,9 +41,9 @@ def main():
                                nargs = '+',
                                #choices = ['shifts', 'softmesh', 'affine', 'Greenberg-Kerr'],
                                help='add movement model to use for stabilization;\
-                               available models: {shifts, softmesh,  affine, Greenberg-Kerr, homography}')),
+                               available models: {shifts, mslkp,msclg, affine, Greenberg-Kerr, homography}')),
         '-t' : ('--type', dict(default='template',
-                                  choices = ['template', 'recursive'],
+                                  choices = ['template', 'pca','recursive'],
                                   help='stabilization type')),
         '-n': ('--ncpu', dict(default=4, type=int, help="number of CPU cores to use")),
         '--record': dict(default=None, help='record within file to use (where applicable)'),
@@ -48,8 +51,9 @@ def main():
         '--with-movies': dict(action='store_true'),
         '--suff': dict(default='', help="optional suffix to append to saved registration recipe"),
         '--fps': dict(default=25,type=float,help='fps of exported movie'),
-        '--pca-denoise': dict(action='store_true'),
-        '--bitrate':dict(default=2000,type=float, help='bitrate of exported movie'),
+        '--dct-encode': dict(action='store_true'),
+        #'--pca-denoise': dict(action='store_true'),
+        '--bitrate':dict(default=16000,type=float, help='bitrate of exported movie'),
         '--no-zstacks': dict(action='store_true', help='try to avoid z-stacks')
         }
     for arg,kw in argdict.items():
@@ -61,7 +65,7 @@ def main():
     args = parser.parse_args()
 
     if args.model is None:
-        args.model = ['softmesh']
+        args.model = ['msclg']
     if args.smooth is None:
         args.smooth = []
     else:
@@ -84,7 +88,7 @@ def main():
     if args.verbose > 2:
         print args
 
-    registrators = opflowreg.RegistrationInterfaces
+    #registrators = opflowreg.RegistrationInterfaces
 
     def apply_reg(frames):
         if args.type == 'template':
@@ -94,18 +98,26 @@ def main():
             tstop = min(len(frames),tstart+50)
             template = np.max(frames[tstart:tstop],axis=0)
             def register_stack(stack, registrator, **fnargs):
-                return opflowreg.register_stack_to_template(stack,template,registrator,njobs=args.ncpu,**fnargs)
+                return stackreg.to_template(stack,template,registrator,njobs=args.ncpu,**fnargs)
+        elif args.type in ['pca', 'pca-5']:
+            print 'in pca'
+            templates, indices = fseq.frame_exemplars_pca_som(frames,som_gridshape=(5,1))
+            if args.verbose>1:
+                print "Created frame exemplars by clustering PCA coefficients"
+            def register_stack(stack, registrator, **fnargs):
+                return stackreg.to_templates(stack, templates,indices,registrator,njobs=args.ncpu,**fnargs)
         elif args.type == 'recursive':
             def register_stack(stack, registrator,**fnargs):
-                return opflowreg.register_stack_recursive(stack,registrator,**fnargs)[1]
+                return stackreg.recursive(stack,registrator,**fnargs)[1]
         else:
             raise NameError("Unknown registration type")
         # TODO: below is just crazy. has to be made neat later
-        reg_dispatcher = {'affine':registrators.affine,
-                          'homography':registrators.homography,
-                          'shifts':registrators.shifts,
-                          'Greenberg-Kerr':registrators.greenberg_kerr,
-                          'softmesh':registrators.softmesh}
+        reg_dispatcher = {'affine':imgreg.affine,
+                          'homography':imgreg.homography,
+                          'shifts':imgreg.shifts,
+                          'Greenberg-Kerr':imgreg.greenberg_kerr,
+                          'mslkp':imgreg.mslkp,
+                          'msclg':imgreg.msclg}
         operations = args.model
         newframes = frames
         warp_history = []
@@ -122,43 +134,53 @@ def main():
                 print 'correcting for {} with params: {}'.format(model, model_params)
             warps = register_stack(newframes, reg_dispatcher[model], **model_params)
             warp_history.append(warps)
-            newframes = opflowreg.apply_warps(warps, newframes, njobs=args.ncpu)
-        final_warps = [lib.flcompose(*warpchain) for warpchain in zip(*warp_history)]
+            newframes = ofreg.warps.map_warps(warps, newframes, njobs=args.ncpu)
+        final_warps = [ofreg.warps.compose_warps(*warpchain) for warpchain in zip(*warp_history)]
         del newframes
         return final_warps
     
     for stackname in args.imagestacks:
         out_suff = make_outname_suffix(args)
         outname = stackname + out_suff + '.stab'
-        try:
+        #try:
+        if True:
             if args.verbose:
                 print '\nCalculating motion stabilization for file {}'.format(stackname)
                 
             if args.pretend: continue
-
-            fs = fseq.open_seq(stackname, ch=args.ch, record=args.record)
+            #fskwargs =
+            fs = fseq.from_any(stackname, ch=args.ch, record=args.record)
 
             if 'no_zstacks' and guess_fseq_type(fs) == 'Z':
                 continue
 
-            # use first 20 components just as test for now
-            ncomp = 20
-            if args.pca_denoise:
-                print 'start PCA denoising'
-                data = fs.as3darray()
-                emp_mean = data.mean(0)
-                from imfun import pica
-                data = data-emp_mean
-                u,s,vh = np.linalg.svd(pica.reshape_from_movie(data), full_matrices=False)
-                rec = u[:,:ncomp].dot(np.diag(s[:ncomp]).dot(vh[:ncomp]))
-                rec = pica.reshape_to_movie(rec, emp_mean.shape)+emp_mean
-                fs = fseq.open_seq(rec)
-                print 'PCA denoising done'
-            
+            ## use first 20 components just as test for now
+            # ncomp = 20
+            # if args.pca_denoise:
+            #     print 'start PCA denoising'
+            #     data = fs.as3darray()
+            #     emp_mean = data.mean(0)
+            #     from imfun import pica
+            #     data = data-emp_mean
+            #     u,s,vh = np.linalg.svd(pica.reshape_from_movie(data), full_matrices=False)
+            #     rec = u[:,:ncomp].dot(np.diag(s[:ncomp]).dot(vh[:ncomp]))
+            #     rec = pica.reshape_to_movie(rec, emp_mean.shape)+emp_mean
+            #     fs = fseq.open_seq(rec)
+            #     print 'PCA denoising done'
+
             smoothers = get_smoothing_pipeline(args.smooth)
-            fs.fns = smoothers
+            if args.verbose>1:
+                print 'created smoothers list'
+            fs.frame_filters = smoothers[:]
+            if args.verbose> 1:
+                print 'starting warps'
             warps = apply_reg(fs)
-            opflowreg.save_recipe(warps, outname)
+            if args.verbose >1:
+                print 'Calculated warps'
+            if args.dct_encode:
+                ofreg.warps.to_dct_encoded(outname, warps)
+            else:
+                ofreg.warps.to_pickle(outname,warps)
             if args.verbose:
                 print 'saved motions stab recipe to {}'.format(outname)
             del fs
@@ -167,22 +189,27 @@ def main():
 
                 if args.verbose>2:
                     print stackname+'-before-video.mp4'
-                fsall = fseq.open_seq(stackname, ch='all', record=args.record)
-                vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
-                vl,vh = np.min(vl), np.max(vh)
-                if args.verbose > 10:
-                    print 'vl, vh: ', vl, vh
+                fsall = fseq.from_any(stackname, record=args.record)
+                fsall.stacks = fsall.stacks[:-1] # drop blue channel
+                #vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
+                #vl,vh = np.min(vl), np.max(vh)
+                #if args.verbose > 10:
+                #    print 'vl, vh: ', vl, vh
 
-                proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
 
-                fs2 = opflowreg.apply_warps(warps, fsall, njobs=args.ncpu)
-                proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
+                fs2 = ofreg.warps.map_warps(warps, fsall, njobs=args.ncpu)
+
+                p1 = ui.Picker(fsall)
+                p2 = ui.Picker(fs2)
+
+                #proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
+                #proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
 
                 fig,axs = plt.subplots(1,2,figsize=(12,5.5))
-                def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
+                #def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
                 #def _lutfn(f): return np.dstack([np.clip(f[...,k],vl[k],vh[k])/vh[k] for k in range(f.shape[-1])])
-                for ax,f,t in zip(axs,(proj1,proj2),['before','stabilized']):
-                    ax.imshow(_lutfn(f),aspect='equal')
+                for ax,p,t in zip(axs,(p1,p2),['before','stabilized']):
+                    ax.imshow(p._lutconv(p.home_frame),aspect='equal')
                     #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
                     ax.set_title(t)
@@ -193,23 +220,24 @@ def main():
                 if args.verbose > 2:
                     print stackname+out_suff+'-stabilized-video.mp4'
 
-                fseq.to_movie([fsall, fs2],
+                
+                ui.pickers_to_movie([p1, p2],
                               stackname+out_suff+'-stabilized-video.mp4',
                               titles=['before', 'stabilized'],
-                              bitrate=3000)
+                                    bitrate=args.bitrate)
 
                 del fsall, fs2
                 
                 plt.close('all')
             del warps
             if args.verbose>2: print 'Done'
-
-
-        except Exception as e:
+        else:
+        #except Exception as e:
             print "Couldn't process {} because  {}".format(stackname, e)
         
 def guess_fseq_type(fs):
-    dz, units = fs.meta['axes'][0]
+    dz = fs.meta['axes'][0]
+    units = str(dz.unit)
     out = ''
     if units in ['um','mm','m','nm']:
         out = 'Z'
@@ -237,7 +265,10 @@ def get_smoothing_pipeline(smooth_entry):
         if name not in _smoothing_filters:
             raise NameError('unknown blur filter name')
         smoother = _smoothing_filters[name]
-        def _filter(f): return smoother(f.astype(np.float), float(par))
+        #conv = (name == 'median') and int or float
+        conv = lambda x: int(float(x)) == float(x) and int(float(x)) or float(x)
+        def _filter(f):
+            return smoother(f.astype(np.float), conv(par))
         pipeline.append(_filter)
     return pipeline
 
