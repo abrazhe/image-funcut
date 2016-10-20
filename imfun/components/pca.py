@@ -34,15 +34,17 @@ def pca(X, ncomp=None):
     X_mean = X.mean(0).reshape(1,-1)
     Xc = X - X_mean # remove mean (center data)
     U,s,Vh = svd(Xc, full_matrices=False)
+    #  Normalize s, so it contains standard deviations of projections on principal axes
+    s /= (ndata-1)**0.5
     ## U is eigenvectors of ``Xc Xc.H`` in columns
     ## Vh is eigenvectors of ``Xc.H Xc`` in rows
-    Z = U[:,:ncomp] # whitened data
+    Z = U[:,:ncomp]*(ndata-1)**0.5 # whitened data with unit variance
     ## equivalently (?)
     ## Z = dot((U/s).T[:ncomp], Xc)
     #K = Vh[:ncomp].T/s
     return Z[:,:ncomp], Vh[:ncomp], s[:ncomp], X_mean
 
-def pca_points(X):
+def pca_points(X,ncomp=2):
     """Variant for ellipse fitting
 
     Input:
@@ -54,6 +56,7 @@ def pca_points(X):
       - Vh : PC vectors
       - phi: rotation of main axis (in degrees)
       - ranges: data ranges of projections on PC axes
+      - s  : standard deviations
       - center: center of the data
       - Y : data projections on PCs
     """
@@ -64,7 +67,7 @@ def pca_points(X):
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
     phi = np.rad2deg(np.arctan2(Vh[0,1],Vh[0,0])) # rotation of main axis (for Ellipse)
-    return Vh, phi, ranges, c0, array(Y)
+    return Vh[:ncomp], phi, ranges[:ncomp],s[:ncomp]**0.5,  c0, array(Y[:ncomp])
 
 def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)

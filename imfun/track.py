@@ -234,8 +234,8 @@ class LCV_Contours:
         w = np.where(w < 0, 0, w)
         w = np.where(w > self.upper_bound, self.upper_bound, w)
         self.conts = np.sort(w, 0).reshape(-1)
-
-    def get_diameter(self):
+    @property
+    def diameter(self):
         self.check_conts()
         l,u = self.conts.reshape(2,-1)
         return u-l
