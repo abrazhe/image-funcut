@@ -10,6 +10,7 @@ from imfun import fseq
 from ..core import fnutils
 
 import pickle
+import gzip as gz
 
 _boundary_mode = 'constant'
 
@@ -139,19 +140,19 @@ OR
 """
 
 def to_pickle(name,warps):
-    with open(name, 'wb') as recipe:
+    with gzip.open(name, 'wb') as recipe:
         pickle.dump(warps, recipe)
 
 
 def from_pickle(name):
-    with open(name, 'rb') as recipe:
+    with gzip.open(name, 'rb') as recipe:
         return pickle.load(recipe)
 
 def to_npy(name, warps):
     np.save(name, warps)
 
 def from_npy(name):
-    np.load(name)
+    return np.load(name)
 
 def to_dct_encoded(name, warps, upto=20):
     w = warps[0]
@@ -160,7 +161,7 @@ def to_dct_encoded(name, warps, upto=20):
 
 def from_dct_encoded(name, **fnargs):
     codes = from_npy(name)
-    cf,sh = coefs[0]
+    cf,sh = codes[0]
     D = make_dct_dict(sh,int(np.sqrt(len(cf)//2)))
     return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
