@@ -179,6 +179,13 @@ def main():
                 print 'Calculated warps'
             if args.dct_encode:
                 ofreg.warps.to_dct_encoded(outname, warps)
+                # Saving with numpy creates smaller files than pickle, but attaches a
+                # .npy extension 
+                if os.path.exists(outname+'.npy') and not os.path.exists(outname):
+                    outname = outname+'.npy'
+                # When using DCT coding of frames, it makes sense to use the encoded frames
+                # for demonstration 
+                warps = ofreg.warps.from_dct_encoded(outname)
             else:
                 ofreg.warps.to_pickle(outname,warps)
             if args.verbose:
