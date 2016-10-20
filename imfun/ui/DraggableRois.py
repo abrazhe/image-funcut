@@ -1,3 +1,4 @@
+from __future__ import division # a/b will always return float
 
 import numpy as np
 
@@ -32,8 +33,6 @@ def line_from_struct(line_props):
     return lh
 
 def line_from_points(p1,p2):
-    p1 = map(float, p1)
-    p2 = map(float, p2)
     k = (p1[1] - p2[1])/(p1[0] - p2[0])
     b = p1[1] - p1[0]*k
     return k, b
@@ -49,7 +48,7 @@ def translate(p1,p2):
     L = coords.eu_dist(p1, p2)
     v = [np.array(p, ndmin=2).T for p in p1,p2]
     T = np.array([[0, -1], [1, 0]]) # basic || translation vector
-    tv = np.dot(T, v[0] - v[1])/float(L)
+    tv = np.dot(T, v[0] - v[1])/L
     return tv
 
 def line_reslice1(data, xind, f):
@@ -184,6 +183,7 @@ class LineScan(DraggableObj):
         self.update_tags()
         self.parent.legend()
         self.redraw()
+    @property
     def has_traced_vessels(self):
         "Checks if LineScan instance has traced vessel data"
         return self.vconts is not None \
@@ -605,7 +605,7 @@ def sse_measure(arr1,arr2, vrange=255.0):
     return 1 - np.sqrt(np.sum((arr1-arr2)**2))/max_sse
 
 def corr_measure(arr1,arr2):
-    return 0.5 + np.sum(arr1*arr2)/(2*float(arr1.std())*float(arr2.std()))
+    return 0.5 + np.sum(arr1*arr2)/(2*arr1.std()*arr2.std())
 
 
 class RectFollower(DragRect):
@@ -756,7 +756,7 @@ class VesselContours(object):
             lh = lcv.verlet_step()
             for c,v in zip(self.contlines,lh):
                 c.set_ydata(v/upsample)
-            d = lcv.get_diameter()/upsample
+            d = lcv.diameter/upsample
             self.diam_line.set_ydata(d)
             if not i%skipdraw:
                 self.fig.canvas.draw()
@@ -770,14 +770,15 @@ class VesselContours(object):
         self.lcv = lcv
         self.fig.canvas.draw()
 
-    def get_diameter(self):
+    @property
+    def diameter(self):
         if self.lcv is None: return
-        d = self.lcv.get_diameter()
-        return d/float(self.upsampled)
+        d = self.lcv.diameter
+        return d/self.upsampled
 
     def set_auto_seeds(self):
         d = self.data
-        ext = float(d.shape[0])
+        ext = d.shape[0]
         margin = ext*0.1
         try:
             seeds = track.guess_seeds(d.T,-1)

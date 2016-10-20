@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 from matplotlib import widgets as mw
 from matplotlib import path
 
+
 import pickle
 import random
 
@@ -41,6 +42,7 @@ from ..core import ifnot,rezip
 from ..core.units import quantity_to_pair
 from ..core.baselines import DFoSD, DFoF
 from .plots import group_maps, group_plots
+from . import DraggableRois
 from .DraggableRois import CircleROI, LineScan
 
 _widgetcolor = 'lightyellow'
@@ -630,13 +632,13 @@ class Picker (object):
             if self.isLineROI((tag)):
                 roi = self.roi_objs[tag]
                 data,_ = roi.get_zview(hwidth=hwidth)
-                roi.vconts = VesselContours(data, tag)
+                roi.vconts = DraggableRois.VesselContours(data, tag)
         plt.show()
 
     def export_vessel_diameters(self,fname=None,save_figs_to=None, format='csv'):
         objs = self.roi_objs
         keys = [k for k in sorted(objs.keys())
-                if self.isLineROI(k) and objs[k].has_traced_vessels()]
+                if self.isLineROI(k) and objs[k].has_traced_vessels]
         if not len(keys):
             if self._verbose:
                 print "No LineScane ROIs with traced vesels found"
@@ -653,20 +655,21 @@ class Picker (object):
                 fig.savefig(os.path.join(save_figs_to, k+'.png'))
 
         #diams = [objs[k].vconts.get_diameter() for k in keys]
-        out = {k:objs[k].vconts.get_diameter() for k in keys}
-        if format == 'csv':
-           if _with_pandas:
-               out = pd.DataFrame(out)
-               writer = pd.DataFrame.to_csv
-           else:
-               writer = io.write_dict_csv
-        elif format == 'mat':
-           writer = lambda data, name: scipy.io.matlab.savemat(name, data)
-        else:
-           print "Don't know how to save to format %s"%format
-           writer = lambda data, name: None
+        out = {k:objs[k].vconts.diameter for k in keys}
         if fname is not None:
-            writer(out, fname)
+            if format == 'csv':
+               if _with_pandas:
+                   out = pd.DataFrame(out)
+                   writer = pd.DataFrame.to_csv
+               else:
+                   writer = io.write_dict_csv
+            elif format == 'mat':
+               writer = lambda data, name: scipy.io.matlab.savemat(name, data)
+            else:
+               print "Don't know how to save to format %s"%format
+               writer = lambda data, name: None
+            if fname is not None:
+                writer(out, fname)
         return out
 
     def _lutconv(self, frame):
@@ -790,6 +793,36 @@ class Picker (object):
                      sorted(filter(self.isAreaROI, self.roi_objs.keys())))
         return [self.roi_objs[tag].get_zview(**zview_kwargs)
                 for tag in  rois]
+    def pandize(self, data,index=None):
+        """If has Pandas loaded, return pandas.DataFrame from data"""
+        if _with_pandas:
+            data = pd.DataFrame(data,index=index)
+        return data
+    def get_roi_data(self, only_1d=False,with_diameters=True, use_pandas=True):
+        robjs = self.roi_objs
+        area_rois = sorted(filter(self.isAreaROI, robjs))
+        linescan_rois = sorted(filter(self.isLineROI, robjs))
+
+        rdata = {tag:robjs[tag].get_zview() for tag in area_rois}
+        dx = self.frame_coll.meta['axes'][1]
+        if with_diameters:
+            for r in linescan_rois:
+                if robjs[r].has_traced_vessels:
+                    rdata[r+'-diam'] = robjs[r].vconts.diameter*dx.value
+        if use_pandas:
+            rdata = self.pandize(rdata,index=self.active_stack.frame_idx())
+        if not only_1d:
+            print linescan_rois
+            acc2d = {r:robjs[r].get_zview() for r in linescan_rois}
+            if not use_pandas:
+                rdata.extend(acc2d)
+            else:
+                rdata = [rdata, acc2d]
+        return rdata
+
+
+            
+        
 
     ## def timevec(self):
     ##     dt,Nf = self.dt, self.length()
