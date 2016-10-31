@@ -36,10 +36,15 @@ class MSCLG(object):
         self.omega = 1.9
         self.kstop = 10
         self.verbose=verbose
-    def __call__(self, source, target, nl=3, alpha=1e-5, rho=10., sigma=0.1,  wt=1):
+    def __call__(self, source, target, nl=3, alpha=1e-5, rho=10., sigma=0.1,  wt=1,correct_alpha=True):
         if sigma > 0:
             target = ndimage.gaussian_filter(target,sigma)
             source = ndimage.gaussian_filter(source,sigma)
+
+        if correct_alpha:
+            low = np.min([target,source])
+            high = np.max([target,source])
+            alpha *= abs(high-low)
 
         pt = pyramid_from_zoom(target,nl)
         ps = pyramid_from_zoom(source,nl)

@@ -194,10 +194,11 @@ def main():
             
             if args.with_movies:
 
-                if args.verbose>2:
-                    print stackname+'-before-video.mp4'
                 fsall = fseq.from_any(stackname, record=args.record)
-                fsall.stacks = fsall.stacks[:-1] # drop blue channel
+                if len(fsall.stacks)>2:
+                    fsall.stacks = fsall.stacks[:-1] # drop blue channel
+
+                vl,vh = fsall.data_percentile((0.5, 99.5))    
                 #vl, vh = fsall.data_percentile(0.5), fsall.data_percentile(99.5)
                 #vl,vh = np.min(vl), np.max(vh)
                 #if args.verbose > 10:
@@ -209,6 +210,9 @@ def main():
                 p1 = ui.Picker(fsall)
                 p2 = ui.Picker(fs2)
 
+
+
+
                 #proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
                 #proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
 
@@ -216,6 +220,7 @@ def main():
                 #def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
                 #def _lutfn(f): return np.dstack([np.clip(f[...,k],vl[k],vh[k])/vh[k] for k in range(f.shape[-1])])
                 for ax,p,t in zip(axs,(p1,p2),['before','stabilized']):
+                    p.clims = zip(vl,vh)
                     ax.imshow(p._lutconv(p.home_frame),aspect='equal')
                     #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
