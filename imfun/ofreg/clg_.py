@@ -63,8 +63,10 @@ class MSCLG(object):
             u[level] += ui
             v[level] += vi
             if level > 0:
-                u[level-1] = ndimage.zoom(u[level],2, mode=_boundary_mode)*2
-                v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)*2
+                sh = u[level-1].shape
+                sl = tuple(slice(s) for s in sh)
+                u[level-1] = ndimage.zoom(u[level],2, mode=_boundary_mode)[sl]*2
+                v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)[sl]*2
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:
