@@ -1,4 +1,5 @@
 import numpy as np
+from .misc import ifnot
 
 def DFoSD(vec, normL=None, th = 1e-6):
     "Subtract mean value along first axis and normalize to S.D."

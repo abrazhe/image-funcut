@@ -155,15 +155,31 @@ def from_npy(name):
     return np.load(name)
 
 def to_dct_encoded(name, warps, upto=20):
+    """Convert warps to DCT coefficients and save to a .npy file
+    """
     w = warps[0]
+    sh = w.field.shape[1:]
     D = make_dct_dict(w.field[0].shape, upto)
-    to_npy(name, [dct_encode(w.field, upto, D) for w in warps])
+    Dr = D.reshape(len(D),-1)
+    wwx = np.array([w.field for w in warps]).reshape(-1,2,np.prod(sh))
+    xflows,yflows = np.split(wwx, 2, axis=1)
+    xcodes,ycodes = (np.squeeze(fl).dot(Dr.T) for fl in (xflows,yflows))
+    del wwx, xflows, yflows
+    to_npy(name, [(np.concatenate((xc,yc)),sh) for xc,yc in itt.izip(xcodes, ycodes)])
+    #to_npy(name, [dct_encode(w.field, upto, D) for w in warps])
 
 def from_dct_encoded(name, **fnargs):
+    """Load DCT codes from an .npy file and convert to warp objects
+    """
     codes = from_npy(name)
     cf,sh = codes[0]
     D = make_dct_dict(sh,int(np.sqrt(len(cf)//2)))
-    return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
+    Dr = D.reshape(len(D),-1)
+    cx = np.array([c[0] for c in codes])
+    xflows = cx[:,:len(D)].dot(Dr).reshape((-1,)+sh)
+    yflows = cx[:,len(D):].dot(Dr).reshape((-1,)+sh)
+    return map(Warp.from_array, ((u,v) for u,v in itt.izip(xflows, yflows)))
+    #return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
 
 def map_warps(warps, frames, njobs=4):
@@ -180,7 +196,10 @@ def map_warps(warps, frames, njobs=4):
         out = np.array([w(f) for w,f in itt.izip(warps, frames)])
     if isinstance(frames, (fseq.FrameStackMono, fseq.FStackColl)):
         out = fseq.from_array(out)
-        out.meta = frames.meta
+        out.meta = frames.meta.copy()
+        if isinstance(frames, fseq.FStackColl):
+            for s1,s2 in zip(out.stacks, frames.stacks):
+                s1.meta = s2.meta.copy()
     return out
 
 
@@ -207,7 +226,7 @@ def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
             if maxnorm:
                 patch /= patch.max()
             dct_dict.append(patch)
-    return dct_dict
+    return np.array(dct_dict)
 
 def dct_encode(flow,upto=20,D=None):
     if D is None:
