@@ -43,17 +43,21 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3, noise_model='white')
       - 1 :math:`\\times` level vector of noise :math:`\\sigma` estimations
     """
     import sys
+    import itertools as itt
+    from matplotlib import mlab
     if noise_model == 'white':
         signals = (np.random.randn(size) for i in np.arange(N))
     elif noise_model == 'ar1':
         signals = (np.array(take(size, ar1())) for i in np.arange(N))
     elif noise_model == 'ma':
-        signals = (np.mavg(np.random.randn(size+5),5)[:L] for i in np.arange(N))
+        signals = (mlab.movavg(np.random.randn(size+5),5)[:size] for i in np.arange(N))
+        signals = itt.imap(lambda s: s/np.std(s), signals)
     out  = np.zeros((N,level))
     for n,im in enumerate(signals):
 	x = np.mean(out[:n], axis=0)
 	s0 = ','.join(['%1.4e'%a for a in x])
-	s = '\r signal {:06d} out of {:06d}, current: {}'.format(n+1,long(N), s0)
+        pdone = 100*(n+1)/float(N)
+	s = '\r [{:02.1f}%] signal {:06d} of {:06d}, current: {}'.format(pdone, n+1,long(N), s0)
 	sys.stderr.write(s)
 	#out[n] = map(np.std, decompose1d_direct(im, level)[:-1])
         #out[n] = map(np.std, transform_fn(im, level)[:-1])
