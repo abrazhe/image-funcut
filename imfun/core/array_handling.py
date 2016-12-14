@@ -28,7 +28,7 @@ def ravel_frames(frames):
         return np.array([np.ravel(f) for f in frames])
 
 def shape_frames(X,(nrows,ncols)):
-    if isinstance(frames, np.ndarray):
+    if isinstance(X, np.ndarray):
         Nt,Np = X.shape
         return X.reshape(Nt, nrows, ncols)
     else:

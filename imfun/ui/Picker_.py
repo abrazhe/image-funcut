@@ -993,7 +993,7 @@ class Picker (object):
                 ncols = int(np.ceil(len(slices)/5.))
                 group_maps(map(self._lutconv, slices),
                                ncols=ncols, titles = roi_tgroup,
-                               single_colorbar=(np.ndim(self.active_stack[0])<2))
+                               colorbar=(np.ndim(self.active_stack[0])<2))
                 figs.append(plt.gcf())
             else:
                 print 'ui.Picker.show_zview: unknown roi type, %s'%roi_type
@@ -1034,7 +1034,7 @@ class Picker (object):
                           normp= True,
                           **keywords):
         keywords.update({'rois':rois, 'normp':normp})
-        dt = self.active_stack.meta['axes'][0]
+        dt = self.active_stack.meta['axes'][0].value
         f_s = 1.0/dt
         freqs = ifnot(freqs, self.default_freqs())
         axlist = []
@@ -1059,7 +1059,7 @@ class Picker (object):
             return
         signal = self.get_timeseries([roitag],normp=DFoSD)[0]
         Ns = len(signal)
-        dz = self.active_stack.meta['axes'][0]
+        dz = self.active_stack.meta['axes'][0].value
         f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roitag)
@@ -1097,9 +1097,9 @@ class Picker (object):
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        dz = self.active_stack.meta['axes'][0]
+        dz = self.active_stack.meta['axes'][0].value
         return np.linspace(4.0/(self.length()*dz),
-                           0.5/dz.value, num=nfreqs)
+                           0.5/dz, num=nfreqs)
 
     def roi_show_iterator_subplots(self, rois = None,
                               **kwargs):

@@ -10,7 +10,13 @@ import re
 import glob
 import itertools as itt
 
-from imfun.external.physics import Q
+
+from skimage import io as skio
+from skimage.external import tifffile
+
+
+
+
 
 import warnings
 
@@ -34,6 +40,9 @@ _dtype_ = np.float64
 from matplotlib.pyplot import imread
 
 #import quantities as pq
+
+
+from imfun.external.physics import Q
 
 from . import core
 #from . import ui
@@ -497,7 +506,7 @@ class FStackM_collection(FrameStackMono):
 
 class FStackM_img(FStackM_collection):
     """FrameStackMono around a set of image files"""
-    def loadfn(self,y): return imread(y)
+    def loadfn(self,y): return skio.imread(y)
 
 class FStackM_txt(FStackM_collection):
     """FrameStackMono around a set of text-image files"""
@@ -757,9 +766,7 @@ class FStackColl(object):
         self.stacks = ordered_stacks + other_stacks
 
 
-from skimage import io as skio
-from skimage.external import tifffile
-
+    
 
 def from_images(path,flavor=None,**kwargs):
     """Load a Multichannel FStack collection from a collection of images.
@@ -768,8 +775,9 @@ def from_images(path,flavor=None,**kwargs):
     stacks = [FStackM_img(path, ch=channel,**kwargs) for channel in (0,1,2)]
     meta = 'meta' in kwargs and kwargs['meta'] or None
     obj =  FStackColl(stacks,meta=meta)
-    if isinstance(flavor, basestring) and  flavor.lower() == 'leica':
-        attach_leica_metadata(obj, path)
+    if isinstance(flavor, basestring) :
+        if flavor.lower() == 'leica':
+            attach_leica_metadata(obj, path)
     return obj
 
 
