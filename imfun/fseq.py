@@ -1014,6 +1014,7 @@ try:
                     more than one")
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
+            self.h5file = f # just in case we need it later
 
     class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
@@ -1036,7 +1037,7 @@ try:
             os.remove(name)
         fid = h5py.File(name, 'w')
         L = np.sum(map(len, seqlist))
-        sh = np.min([s.shape() for s in seqlist], axis=0)
+        sh = np.min([s.frame_shape for s in seqlist], axis=0)
         print 'shape:', sh
         chunkshape = tuple([1] + list(sh))
         fullshape = tuple([L] + list(sh))
