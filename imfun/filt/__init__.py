@@ -8,7 +8,10 @@ from numba import jit
 
 import itertools as itt
 
-from .core import ifnot
+from ..core import ifnot
+
+from .l1splines import l1spline,l1sp_pyramid
+
 
 def gauss_kern(xsize=1.5, ysize=None):
     """
@@ -195,41 +198,6 @@ def filt2d(u, kern):
     return uout
 
 
-def kalman_stack_filter(frames, seed='mean', gain=0.5, var=0.05, fn=lambda f:f):
-    """Kalman stack filter similar to that of Imagej
-
-    Input:
-    ------
-      - frames: array_like, e.g. nframes x nrows x ncolumns array or list of 2D
-                images
-      - seed: {'mean' | 'first' | 2D array}
-              the seed to start with, defaults to the time-average of all
-              frames, if 'first', then the first frame is used, if 2D array,
-              this array is used as the seed
-      - gain: overall filter gain
-      - var: estimated environment noise variance
-
-    Output:
-    -------
-      - new frames, an nframes x nrows x ncolumns array with filtered frames
-
-    """
-    if seed is 'mean' or None:
-        seed = np.mean(frames,axis=0)
-    elif seed is 'first':
-        seed = frames[0]
-    out = np.zeros_like(frames)
-    predicted = fn(seed)
-    Ek = var*np.ones_like(frames[0])
-    var = Ek
-    for k,M in enumerate(frames):
-        Kk = 1.+ gain*(Ek/(Ek + var)-1)
-        corrected = predicted + Kk*(M-predicted)
-        err = (corrected-predicted)**2/predicted.max()**2 # unclear
-        Ek = Ek*(1.-Kk) + err
-        out[k] = corrected
-        predicted = fn(out[k])
-    return out
 
 
 _bclose = ndimage.binary_closing
@@ -240,36 +208,7 @@ def opening_of_closing(a):
 
 
 
-from scipy import sparse
-from scipy.sparse.linalg import spsolve
-
-def baseline_als(y, lam, p, niter=10):
-    """Implements an Asymmetric Least Squares Smoothing
-    baseline correction algorithm
-    (P. Eilers, H. Boelens 2005)
-    """
-    L = len(y)
-    D = sparse.csc_matrix(np.diff(np.eye(L),2))
-    w = np.ones(L)
-    for i in xrange(niter):
-	W = sparse.spdiags(w, 0, L, L)
-	Z = W + lam*np.dot(D,D.T)
-	z = spsolve(Z,w*y)
-	w = p*(y>z) + (1-p)*(y<z)
-    return z
-
 
 # ---------------------------------------------
 
 
-def test_kalman_stack_filter():
-    "just tests if kalman_stack_filter function runs"
-    print "Testing Kalman stack filter"
-    import numpy as np
-    try:
-        test_arr = np.random.randn(100,64,64)
-        arr2 = kalman_stack_filter(test_arr,)
-        del  arr2, test_arr
-    except Exception as e :
-        print "filt.py: Failed to run kalman_stack_filter fuction"
-        print "Reason:", e

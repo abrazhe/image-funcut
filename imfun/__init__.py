@@ -19,3 +19,4 @@ from . import multiscale
 from . import ofreg
 from . import track, ui
 from . import ui
+from . import filt
