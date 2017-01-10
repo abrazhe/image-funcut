@@ -9,6 +9,10 @@ import os
 import re
 import glob
 import itertools as itt
+import inspect
+
+import zipfile
+import fnmatch
 
 
 from skimage import io as skio
@@ -508,6 +512,10 @@ class FStackM_img(FStackM_collection):
     """FrameStackMono around a set of image files"""
     def loadfn(self,y): return skio.imread(y)
 
+class FStackM_imgzip(FStackM_collection):
+    def loadfn(self,name):
+        return skio.imread(self.zf.open(name))
+
 class FStackM_txt(FStackM_collection):
     """FrameStackMono around a set of text-image files"""
     def loadfn(self,y): return np.loadtxt(y)
@@ -772,9 +780,16 @@ def from_images(path,flavor=None,**kwargs):
     """Load a Multichannel FStack collection from a collection of images.
     When `flavor` is set to 'leica', try to load Leica XML metadata
     """
-    stacks = [FStackM_img(path, ch=channel,**kwargs) for channel in (0,1,2)]
     meta = 'meta' in kwargs and kwargs['meta'] or None
-    obj =  FStackColl(stacks,meta=meta)
+    cmap = dict(r=0,g=1,b=2)
+    if not 'ch' in kwargs or kwargs['ch'] is None:
+        stacks = [construct_with_kwargs(FStackM_img, path, ch=channel, **kwargs) for channel in (0,1,2)]
+        obj =  FStackColl(stacks,meta=meta)
+    else:
+        ch = kwargs.pop('ch')
+        if isinstance(ch, basestring): # convert from rgb string to 012
+            ch = cmap[ch]
+        obj = construct_with_kwargs(FStackM_img, path, ch=ch,**kwargs)
     if isinstance(flavor, basestring) :
         if flavor.lower() == 'leica':
             attach_leica_metadata(obj, path)
@@ -833,23 +848,23 @@ def from_mes(path, record=None, ch=None, **kwargs):
     mesrec = mes.load_record(path, record)
     channels = np.unique(mesrec.channels)
     if ch is None:
-        stacks = [FStackM_mes(path, record,ch, **kwargs) for ch in channels]
+        stacks = [construct_with_kwargs(FStackM_mes, path, record=record, ch=ch, **kwargs) for ch in channels]
         obj =  FStackColl(stacks)
         obj.order_stacks(channel_order)
         return obj
     else:
-        return FStackM_mes(path, record, ch=ch,**kwargs)
+        return construct_with_kwargs(FStackM_mes, path, record, ch=ch,**kwargs)
 
 
 def from_plsi(path, *args, **kwargs):
     """Load LaserSpeckle frame stack.
     For arguments, see FStackM_plsi constructor
     """
-    return FStackM_plsi(path, *args, **kwargs)
+    return construct_with_kwargs(FStackM_plsi, path, *args, **kwargs)
 
 def from_h5(path, *args, **kwargs):
     "Load frame stack from a generic HDF5 file"
-    return FStackM_hdf5(path, *args, **kwargs)
+    return construct_with_kwargs(FStackM_hdf5, path, *args, **kwargs)
 
 def from_array(data, *args, **kwargs):
     sh = data.shape
@@ -858,11 +873,11 @@ def from_array(data, *args, **kwargs):
         k = np.argmin(sh)
         nch = sh[k]
         channels = map(np.squeeze, np.split(data, nch, k))
-        stacks = [FStackM_arr(c, *args, **kwargs) for c in channels]
+        stacks = [construct_with_kwargs(FStackM_arr, c, *args, **kwargs) for c in channels]
         meta = 'meta' in kwargs and kwargs['meta'] or None
         return FStackColl(stacks,meta=meta)
     else:
-        return FStackM_arr(data, *args,**kwargs)
+        return construct_with_kwargs(FStackM_arr,data, *args,**kwargs)
 
 def from_npy(path, *args, **kwargs):
     data = np.load(path)
@@ -891,7 +906,7 @@ def attach_olympus_metadata(obj, path):
 
 
 
-import inspect
+
 
 def _is_glob_or_names(path):
     "return True if path is a glob-like string or a collection of strings"
@@ -936,7 +951,13 @@ def from_any(path, *args, **kwargs):
     return obj
 
 
+def valid_kwargs(handlerClass,kwargs):
+    spec = inspect.getargspec(handlerClass.__init__)
+    kwargs = {k:kwargs[k] for k in kwargs if k in spec[0]}
+    return kwargs
 
+def construct_with_kwargs(handlerClass, *args, **kwargs):
+    return handlerClass(*args,**valid_kwargs(handlerClass, kwargs))
 
 
 def _open_seq(path, *args, **kwargs):
