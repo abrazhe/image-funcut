@@ -141,7 +141,11 @@ def main():
     
     for stackname in args.imagestacks:
         out_suff = make_outname_suffix(args)
-        outname = stackname + out_suff + '.stab'
+
+        outname = fseq._is_glob_or_names(stackname) and os.path.split(stackname)[0] or stackname
+        outname += out_suff
+
+        out_stab_name = outname + '.stab'
         #try:
         if True:
             if args.verbose:
@@ -178,18 +182,18 @@ def main():
             if args.verbose >1:
                 print 'Calculated warps'
             if args.dct_encode:
-                ofreg.warps.to_dct_encoded(outname, warps)
+                ofreg.warps.to_dct_encoded(out_stab_name, warps)
                 # Saving with numpy creates smaller files than pickle, but attaches a
                 # .npy extension 
-                if os.path.exists(outname+'.npy') and not os.path.exists(outname):
-                    outname = outname+'.npy'
+                if os.path.exists(out_stab_name+'.npy') and not os.path.exists(out_stab_name):
+                    out_stab_name = out_stab_name+'.npy'
                 # When using DCT coding of frames, it makes sense to use the encoded frames
                 # for demonstration 
-                warps = ofreg.warps.from_dct_encoded(outname)
+                warps = ofreg.warps.from_dct_encoded(out_stab_name)
             else:
-                ofreg.warps.to_pickle(outname,warps)
+                ofreg.warps.to_pickle(out_stab_name,warps)
             if args.verbose:
-                print 'saved motions stab recipe to {}'.format(outname)
+                print 'saved motions stab recipe to {}'.format(out_stab_name)
             del fs
             
             if args.with_movies:
@@ -225,16 +229,16 @@ def main():
                     #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
                     ax.set_title(t)
-                plt.savefig(stackname+out_suff+'-average-projections.png')
+                plt.savefig(outname+'-average-projections.png')
                 fig.clf()
                 plt.close(fig)
 
                 if args.verbose > 2:
-                    print stackname+out_suff+'-stabilized-video.mp4'
+                    print outname+'-stabilized-video.mp4'
 
                 
                 ui.pickers_to_movie([p1, p2],
-                              stackname+out_suff+'-stabilized-video.mp4',
+                              outname+'-stabilized-video.mp4',
                               titles=['before', 'stabilized'],
                                     bitrate=args.bitrate)
 
