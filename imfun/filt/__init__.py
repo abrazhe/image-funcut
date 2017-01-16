@@ -10,7 +10,7 @@ import itertools as itt
 
 from ..core import ifnot
 
-from .l1splines import l1spline,l1sp_pyramid
+from dctsplines import l1spline,l2spline,sp_decompose
 
 
 def gauss_kern(xsize=1.5, ysize=None):
