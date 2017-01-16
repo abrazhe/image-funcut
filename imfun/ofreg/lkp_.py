@@ -13,6 +13,7 @@ from skimage import feature as skfeature
 
 from .. import core
 from ..multiscale import atrous
+from .. import filt
 
 from .warps import Warp
 
@@ -25,7 +26,7 @@ class LKP_image_aligner ():
         self.mesh = None
     def __call__(self, source, target, maxiter=10,
                  weigh_by_shitomasi = False,
-                 smooth_vfield = 2):
+                 smooth_vfield = 25):
 
         sh = source.shape
         wsize = self.wsize
@@ -51,8 +52,8 @@ class LKP_image_aligner ():
             vfields = -vx.T.reshape(p.shape)
             #print 'vfields shape:', vfields.shape
             if smooth_vfield:
-                vfields = map(partial(atrous.smooth, level=smooth_vfield), vfields)
-
+                #vfields = map(partial(atrous.smooth, level=smooth_vfield), vfields)
+                vfields = map(partial(filt.l1spline, s=smooth_vfield), vfields)
             p += vfields
             imx = self.warp_image(source, p)
         return imx, p
