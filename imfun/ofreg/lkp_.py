@@ -26,7 +26,8 @@ class LKP_image_aligner ():
         self.mesh = None
     def __call__(self, source, target, maxiter=10,
                  weigh_by_shitomasi = False,
-                 smooth_vfield = 25):
+                 smoother = 'l1spline', # {l1spline | l2spline | atrous}
+                 smooth_vfield = 5):
 
         sh = source.shape
         wsize = self.wsize
@@ -53,7 +54,13 @@ class LKP_image_aligner ():
             #print 'vfields shape:', vfields.shape
             if smooth_vfield:
                 #vfields = map(partial(atrous.smooth, level=smooth_vfield), vfields)
-                vfields = map(partial(filt.l1spline, s=smooth_vfield), vfields)
+                if smoother == 'l1spline':
+                    smoothf_ = partial(filt.l1spline, s=smooth_vfield)
+                elif smoother == 'l2spline':
+                    smoothf_ = partial(filt.l2spline, s=smooth_vfield)
+                else:
+                    smoothf_ = partial(atrous.smooth, level=smooth_vfield)
+                vfields = map(smoothf_, vfields)
             p += vfields
             imx = self.warp_image(source, p)
         return imx, p
