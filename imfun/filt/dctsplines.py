@@ -95,14 +95,14 @@ def Gamma(sh,s):
     
     
 
-def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=True,
+def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=False,
              scale_converter=l2sp_gauss_scale_to_smooth):
     sh = m.shape
     if s_is_scale:
         s = scale_converter(s)
     g = Gamma(sh,s)
     zprev = idctnd(g*dctnd(m))
-    if weights is None or np.allclose(weights, ones(N)):
+    if weights is None or np.allclose(weights, ones(sh)):
         return zprev
     
     for nit_ in xrange(niter):
