@@ -143,7 +143,8 @@ def l1spline1d(y, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         zprev = np.copy(z)
     return z#, acc
 
-def l1spline(m, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
+def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
+             weight_niter = 100,
              verbose=False, scale_converter=l1sp_gauss_scale_to_smooth,
              s_is_scale=True):
     
@@ -158,10 +159,23 @@ def l1spline(m, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
     b = np.zeros(sh)
     zprev = np.zeros(sh)
     #acc = []
+    noweights = False
+    if weights is None or np.allclose(weights,ones(sh)):
+        noweights = True
+        weights = np.ones(sh)
     for _i in range(niter):
-        z = idctnd(g*dctnd((d+m-b)))
+        x_ = d+m-b
+        zprev_w = idctnd(g*dctnd(x_))
+        if noweights:
+            z = zprev_w
+        else:
+            for wi_ in xrange(weight_niter):
+                z = idctnd(g*dctnd(weights*(x_-zprev_w)+zprev))
+                if norm(z-zprev_w)/norm(zprev_w)<eps:
+                    break
+                zprev_w = z
         d = shrink((b+z-m),1.0/lam )
-        b = b + (z-m-d)
+        b = b + weights*(z-m-d)
         #acc.append(map(copy, [z, d, b]))
         if _i >0:
             err = norm(z-zprev)/norm(zprev)
