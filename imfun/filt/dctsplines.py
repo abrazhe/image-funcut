@@ -106,7 +106,7 @@ def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=
         return zprev
     
     for nit_ in xrange(niter):
-        z = idct(g*dct(weights*(m - zprev) + zprev, norm='ortho'),norm='ortho')
+        z = idctnd(g*dctnd(weights*(m - zprev) + zprev))
         if norm(z-zprev)/norm(zprev) < eps:
             if verbose:
                 print 'weights: reached convergence at %d iterations'%nit_
