@@ -2,6 +2,8 @@
 Helper functions for some special plot kinds
 """
 
+from __future__ import division
+
 import numpy as np
 
 import matplotlib as mpl
