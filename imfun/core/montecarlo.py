@@ -30,7 +30,7 @@ def mc_levels(transform_fn, size=(256,256),level=3, N = 1e3):
        out[n] = map(np.std, transform_fn(im, level)[:-1])
     return np.mean(out, axis=0)
 
-def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3, noise_model='white'):
+def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3, noise_model='white',p=99.5):
     """Return Monte-Carlo estimation of noise :math:`\\sigma`
 
     Parameters:
@@ -45,12 +45,14 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3, noise_model='white')
     import sys
     import itertools as itt
     from matplotlib import mlab
+    N = int(N)
+    size=int(size)
     if noise_model == 'white':
-        signals = (np.random.randn(size) for i in np.arange(N))
+        signals = (np.random.randn(size) for i in np.arange(N,dtype=np.int))
     elif noise_model == 'ar1':
-        signals = (np.array(take(size, ar1())) for i in np.arange(N))
+        signals = (np.array(take(size, ar1())) for i in np.arange(N,dtype=np.int))
     elif noise_model == 'ma':
-        signals = (mlab.movavg(np.random.randn(size+5),5)[:size] for i in np.arange(N))
+        signals = (mlab.movavg(np.random.randn(size+5),5)[:size] for i in np.arange(N,dtype=np.int))
         signals = itt.imap(lambda s: s/np.std(s), signals)
     out  = np.zeros((N,level))
     for n,im in enumerate(signals):
@@ -61,5 +63,5 @@ def _mc_levels1d(transform_fn, size=1e5, level=12, N = 1e3, noise_model='white')
 	sys.stderr.write(s)
 	#out[n] = map(np.std, decompose1d_direct(im, level)[:-1])
         #out[n] = map(np.std, transform_fn(im, level)[:-1])
-        out[n] = map(lambda v_: np.percentile(v_, 95), transform_fn(im, level)[:-1])
+        out[n] = map(lambda v_: np.percentile(v_, p), transform_fn(im, level)[:-1])
     return np.mean(out, axis=0)
