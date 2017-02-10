@@ -35,7 +35,7 @@ def shifts( image, template):
 
 def _imreg( image, template, tform):
     if not _with_imreg:
-        raise NameError("Don't have imreg module")
+        raise ImportError("Don't have imreg module")
     aligner = imreg.register.Register()
     template, image = map(imreg.register.RegisterData, (template,image))
     step, search = aligner.register(image, template, tform)
@@ -46,7 +46,7 @@ def _imreg( image, template, tform):
     return Warp.from_function(_regfn, image.shape)
 
 
-def affine(sef, image,template):
+def affine(image,template):
     return _imreg(image, template, imreg.model.Affine())
 
 def homography(image,template):
