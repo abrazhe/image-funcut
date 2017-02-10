@@ -524,6 +524,7 @@ class Picker (object):
         # TODO! update to usage of FStackColl
         p = path.Path(verts)
         sh = self.active_stack.frame_shape
+        print 'Active stack shape', sh
         locs = list(itt.product(*map(xrange, sh[::-1])))
         dy,dx = self.active_stack.meta['axes'][1:3]
         out = np.zeros(sh)
@@ -539,7 +540,13 @@ class Picker (object):
         f = plt.figure()
         ax = f.add_subplot(111)
         vmin,vmax = self.plh.get_clim()
-        ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
+        print vmin, vmax
+        print out.shape
+        #print self.home_frame.shape
+        #ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
+        hf = self._lutconv(self.home_frame)
+        print hf.shape
+        ax.imshow(hf, cmap='gray')
         ax.contour(out, levels=[0],colors=['g'])
         self.pmask = out
         return
