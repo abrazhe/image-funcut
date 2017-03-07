@@ -30,7 +30,7 @@ def l2sp_gauss_scale_to_smooth(scale,p_=(3.99006785, -0.25700078)):
 def shrink(x,gamma):
     """(x/|x|)*max(|x|-gamma)"""
     ax = np.abs(x)
-    return np.where(x!=0, x*np.clip(ax-gamma,0,np.nan)/ax, 0)
+    return np.where(x!=0, x*np.clip(ax-gamma,0,np.nan)/(1e-9+ax), 0)
 
 
 
@@ -135,7 +135,8 @@ def l1spline1d(y, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         b = b + (z-y-d)
         #acc.append(map(copy, [z, d, b]))
         if _i >0:
-            err = norm(z-zprev)/norm(zprev)
+            
+            err = norm(z-zprev)/(1e-8 + norm(zprev))
             if err < eps:
                 if verbose:
                     print 'converged after',_i,'iterations'
@@ -178,7 +179,7 @@ def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         b = b + weights*(z-m-d)
         #acc.append(map(copy, [z, d, b]))
         if _i >0:
-            err = norm(z-zprev)/norm(zprev)
+            err = norm(z-zprev)/(1e-8+norm(zprev))
             if err < eps:
                 if verbose:
                     print 'converged after',_i,'iterations'
