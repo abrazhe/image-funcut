@@ -866,16 +866,26 @@ def from_h5(path, *args, **kwargs):
     "Load frame stack from a generic HDF5 file"
     return construct_with_kwargs(FStackM_hdf5, path, *args, **kwargs)
 
-def from_array(data, *args, **kwargs):
+def from_array(data,ch=None,  *args,**kwargs):
+    
     sh = data.shape
+    cmap = dict(r=0,g=1,b=2)
+    
     if np.ndim(data)>3: #(Multichannel)
         #assume smallest dimension is the number of channels
         k = np.argmin(sh)
         nch = sh[k]
         channels = map(np.squeeze, np.split(data, nch, k))
-        stacks = [construct_with_kwargs(FStackM_arr, c, *args, **kwargs) for c in channels]
-        meta = 'meta' in kwargs and kwargs['meta'] or None
-        return FStackColl(stacks,meta=meta)
+        print len(channels), channels[0].shape
+        if ch is None:
+            stacks = [construct_with_kwargs(FStackM_arr, c, *args, **kwargs) for c in channels]
+            meta = 'meta' in kwargs and kwargs['meta'] or None
+            return FStackColl(stacks,meta=meta)
+        else:
+            if isinstance(ch, basestring): # convert from rgb string to 012
+                ch = cmap[ch]
+            print 'Channel:', ch
+            return construct_with_kwargs(FStackM_arr, channels[ch], *args, **kwargs)
     else:
         return construct_with_kwargs(FStackM_arr,data, *args,**kwargs)
 
