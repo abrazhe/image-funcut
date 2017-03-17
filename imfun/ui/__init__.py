@@ -71,8 +71,17 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         kwargs['cmap'] = 'gray'
 
     views = []
+
+        
     for p,title,ax in zip(pickers,titles,np.ravel(axs)):
-        view = ax.imshow(p._get_show_f(start), vmin=0,vmax=1.0,**kwargs)
+
+        if 'cmap' in kwargs:
+            cmap_= kwargs.pop('cmap')
+        else:
+            cmap_ = p.cmap
+
+        
+        view = ax.imshow(p._get_show_f(start), vmin=0,vmax=1.0,cmap=cmap_,**kwargs)
         views.append(view)
         ax.set_title(title)
         if not frame_on:

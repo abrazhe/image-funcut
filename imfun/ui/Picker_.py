@@ -22,10 +22,10 @@ import random
 try:
     from swan import pycwt, utils
     from swan.gui import swanrgb
-    _cmap = swanrgb
 except:
     "Can't load swan (not installed?)"
-    _cmap = plt.cm.spectral
+
+_wavelet_cmap = plt.cm.viridis
 
 try:
     import pandas as pd
@@ -158,7 +158,7 @@ class Picker (object):
 	self.home_frame = f
         self.frame_cache = {}
         self._use_cache_flag = True
-
+        self.cmap='gray'
         return
 
     def _init_home_frame(self, home_frame):
@@ -361,10 +361,6 @@ class Picker (object):
         self.legtype = legend_type
         self.pressed = None
 
-        if 'cmap' not in imshow_args:
-            imshow_args['cmap'] = 'gray'
-
-
         ## setup axes and show home frame
         axes = self.frame_coll.meta['axes']
 
@@ -375,10 +371,16 @@ class Picker (object):
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
 
+        if 'cmap' in imshow_args:
+            self.cmap = imshow_args.pop('cmap')
+        else:
+            self.cmap='gray'
+
         self.plh = self.ax1.imshow(self._lutconv(self.home_frame),
-                                  extent = (0, sx*dx.value)+(0, sy*dy.value)[::lowp],
-                                  aspect='equal',
-                                  **imshow_args)
+                                   extent = (0, sx*dx.value)+(0, sy*dy.value)[::lowp],
+                                   aspect='equal',
+                                   cmap= self.cmap,
+                                   **imshow_args)
         self.ax1.set_xlabel(str(yunits))
         self.ax1.set_ylabel(str(xunits))
 
@@ -546,7 +548,7 @@ class Picker (object):
         #ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
         hf = self._lutconv(self.home_frame)
         print hf.shape
-        ax.imshow(hf, cmap='gray')
+        ax.imshow(hf, cmap=self.cmap)
         ax.contour(out, levels=[0],colors=['g'])
         self.pmask = out
         return
@@ -655,7 +657,7 @@ class Picker (object):
             for k in keys:
                 vcont_obj = objs[k].vconts
                 fig,ax = plt.subplots(1,1)
-                ax.imshow(vcont_obj.data, cmap='gray')
+                ax.imshow(vcont_obj.data, cmap=self.cmap)
                 ax_lim = ax.axis()
                 ax.plot(vcont_obj.contlines[0].get_ydata(),'r')
                 ax.plot(vcont_obj.contlines[1].get_ydata(),'r')
@@ -1029,7 +1031,7 @@ class Picker (object):
         ax = fig.add_subplot(111)
         vmin, vmax = xshow.min(), xshow.max()
         im = ax.imshow(ndimage.median_filter(xcmap,3), aspect = 'equal', vmin=vmin,
-                       vmax=vmax,cmap=_cmap)
+                       vmax=vmax,cmap=_wavelet_cmap)
         plt.colorbar(im, ax=ax)
         ax.set_title('Correlation to %s'%roitag)
         return xcmap
@@ -1176,7 +1178,7 @@ class Picker (object):
         #legend()
         ax2 = plt.subplot(212, sharex = ax1);
         ext = (t[0], t[-1], freqs[0], freqs[-1])
-        ax2.imshow(res, extent = ext, cmap = _cmap)
+        ax2.imshow(res, extent = ext, cmap = _wavelet_cmap)
         #self.cone_infl(freqs,wavelet)
         #self.confidence_contour(res,2.0)
 
