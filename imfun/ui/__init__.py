@@ -33,7 +33,7 @@ def harmonize_clims(pickers, mode='extend'):
 
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      ncols=None, figsize=None, figscale=4, with_header=True,
-                     codec = 'h264', 
+                     codec = 'libx264', 
                      titles=None, writer='avconv', bitrate=16000, frame_on=False,
                      marker_idx = None, **kwargs):
 
