@@ -33,6 +33,7 @@ def harmonize_clims(pickers, mode='extend'):
 
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      ncols=None, figsize=None, figscale=4, with_header=True,
+                     codec = 'h264', 
                      titles=None, writer='avconv', bitrate=16000, frame_on=False,
                      marker_idx = None, **kwargs):
 
@@ -112,7 +113,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
 
     anim = animation.FuncAnimation(fig, _animate, frames=L, blit=True)
     Writer = animation.writers.avail[writer]
-    w = Writer(fps=fps,bitrate=bitrate)
+    w = Writer(fps=fps,bitrate=bitrate, codec=codec)
     anim.save(video_name, writer=w)
 
     fig.clf()
