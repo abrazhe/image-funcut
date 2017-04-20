@@ -110,11 +110,12 @@ def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
     return "Err"
 
 
+_default_roi_coloring = 'allrandom' # {allrandom | groupsame | groupvar}
 
 class Picker (object):
     _verbose = False
     def __init__(self, frames, home_frame = True, verbose=False,
-                 roi_coloring_model='groupvar',
+                 roi_coloring_model=_default_roi_coloring, 
                  suptitle = None,
                  roi_prefix = 'r',
                  default_circle_rad = 5.,
@@ -132,7 +133,6 @@ class Picker (object):
             return
         self.frame_coll = frame_coll
         self._Nf = None
-        #self.roi_coloring_model = 'groupvar' # {allrandom | groupsame | groupvar}
         self.roi_coloring_model = roi_coloring_model
         self.roi_objs = {}
         self._tag_pallette = {}
