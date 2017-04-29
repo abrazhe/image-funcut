@@ -1,4 +1,4 @@
-from __future__ import division
+
 import itertools as itt
 
 
@@ -11,6 +11,7 @@ from ..core import fnutils
 
 import pickle
 import gzip as gz
+import collections
 
 _boundary_mode = 'constant'
 
@@ -46,7 +47,7 @@ class Warp:
     def __call__(self, img,mode=_boundary_mode):
         sh = img.shape
         if np.ndim(img) == 2:
-            start_coordinates = np.meshgrid(*map(np.arange, sh[:2][::-1]))
+            start_coordinates = np.meshgrid(*list(map(np.arange, sh[:2][::-1])))
             if self.fn_ is not None:
                 new_coordinates = self.fn_(start_coordinates)
             else:
@@ -58,7 +59,7 @@ class Warp:
             raise ValueError("Can't handle image of such shape: {}".format(sh))
         
 def flow_from_fn(fn, sh):
-    start_coordinates = np.meshgrid(*map(np.arange, sh[::-1]))
+    start_coordinates = np.meshgrid(*list(map(np.arange, sh[::-1])))
     return fn(start_coordinates)-np.array(start_coordinates)
 
 #def fn_from_flow(flow):
@@ -71,14 +72,14 @@ def flow_from_fn(fn, sh):
 
 import operator as op
 def compose_warps(*warps):
-    _pcalls = map(callable, warps)
+    _pcalls = list(map(callable, warps))
     if np.all(_pcalls):
         return fnutils.flcompose(*warps)
     else:
         #def _fnconv(w):
         #    if callable(w): return flow_from_fn(w)
         #    else: return w
-        return np.sum((callable(w) and flow_from_fn(w) or w for w in warps),axis=0)
+        return np.sum((isinstance(w, collections.Callable) and flow_from_fn(w) or w for w in warps),axis=0)
 
 
 # def apply_warp(warp, img ,mode=_boundary_mode):
@@ -121,23 +122,23 @@ try:
         with open(name, 'wb') as recipe:
             dill.dump(warps, recipe)
 except ImportError:
-    print "Can't load `dill` package, won't be able to save warps as functions"
-    print """Consider installing it by one of the following commands:
+    print("Can't load `dill` package, won't be able to save warps as functions")
+    print("""Consider installing it by one of the following commands:
 > pip install https://github.com/uqfoundation/dill/archive/master.zip
 OR
 > conda install dill
-"""
+""")
 
 try:
     from pathos.pools import ProcessPool
     _with_pathos_ = True
 except ImportError:
-    print """Can't load `pathos` package, parallel maps won't work.
+    print("""Can't load `pathos` package, parallel maps won't work.
 Consider installing it by one of the following commands:
 > pip install git+https://github.com/uqfoundation/pathos
 OR
 > pip install https://github.com/uqfoundation/pathos/archive/master.zip
-"""
+""")
 
 def to_pickle(name,warps):
     with gzip.open(name, 'wb') as recipe:
@@ -178,7 +179,7 @@ def from_dct_encoded(name, **fnargs):
     cx = np.array([c[0] for c in codes])
     xflows = cx[:,:len(D)].dot(Dr).reshape((-1,)+sh)
     yflows = cx[:,len(D):].dot(Dr).reshape((-1,)+sh)
-    return map(Warp.from_array, ((u,v) for u,v in itt.izip(xflows, yflows)))
+    return list(map(Warp.from_array, ((u,v) for u,v in itt.izip(xflows, yflows))))
     #return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
 
@@ -234,7 +235,7 @@ def dct_encode(flow,upto=20,D=None):
     coefs = np.concatenate([[np.sum(d*a) for d in D] for a in flow])
     return coefs, flow[0].shape
 
-def dct_decode((coefs, shape),D=None):
+def dct_decode(coefs,shape,D=None):
     upto = int(np.sqrt(len(coefs)//2))
     if D is None:
         D = make_dct_dict(shape, upto=upto)

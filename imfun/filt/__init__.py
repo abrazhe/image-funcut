@@ -1,5 +1,5 @@
 ## some routines for filtering
-from __future__ import division
+
 import numpy as np
 from scipy import signal
 from scipy import ndimage
@@ -10,7 +10,7 @@ import itertools as itt
 
 from ..core import ifnot
 
-from dctsplines import l1spline,l2spline,sp_decompose
+from .dctsplines import l1spline,l2spline,sp_decompose
 
 
 def gauss_kern(xsize=1.5, ysize=None):
@@ -66,9 +66,9 @@ def gauss_smooth(sig, sigma=1., dt = 1.0, order=0):
     sigma = sigma/dt
     ndim = np.ndim(sig)
     if ndim == 1:
-	fn = ndimage.gaussian_filter1d
+        fn = ndimage.gaussian_filter1d
     else:
-	fn = ndimage.gaussian_filter
+        fn = ndimage.gaussian_filter
     return fn(sig, sigma, order=order)
 
 
@@ -107,7 +107,7 @@ def mavg_DFoSD(v, tau=90., dt=1.):
     vd = v - baseline
     sd = np.std(vd)
     if sd < 1e-6:
-	return np.zeros(vd.shape)
+        return np.zeros(vd.shape)
     return vd/sd
 
 
@@ -125,8 +125,7 @@ def bspline_smooth(sig, phi = np.array([1./16, 1./4, 3./8, 1./4, 1./16])):
     L = len(sig)
     padlen = len(phi)
     assert L > padlen
-    indices = map(lambda i: _mirrorpd(i, L),
-                  range(-padlen, 0) + range(0,L) + range(L, L+padlen))
+    indices = [_mirrorpd(i, L) for i in list(range(-padlen, 0)) + list(range(0,L)) + list(range(L, L+padlen))]
     padded_sig = sig[indices]
     apprx = np.convolve(padded_sig, phi, mode='same')[padlen:padlen+L]
     return apprx
@@ -146,8 +145,8 @@ def adaptive_medianf(arr, k = 2):
     """
     sh = arr.shape
     out = arr.copy()
-    for row in xrange(1,sh[0]-1):
-        for col in xrange(1,sh[1]-1):
+    for row in range(1,sh[0]-1):
+        for col in range(1,sh[1]-1):
             sl = (slice(row-1,row+2), slice(col-1,col+2))
             m = np.mean(arr[sl])
             sd = np.std(arr[sl])
@@ -187,12 +186,12 @@ def filt2d(u, kern):
     (Nr,Nc),(kern_r,kern_c) = u.shape,kern.shape
     ind_r = np.arange(kern_r)-kern_r//2 + (kern_r+1)%2
     ind_c = np.arange(kern_c)-kern_c//2 + (kern_c+1)%2
-    for i in xrange(Nr):
-        for j in xrange(Nc):
+    for i in range(Nr):
+        for j in range(Nc):
             uout[i,j] = 0   # just in case :)
-            for k in xrange(kern_r):
+            for k in range(kern_r):
                 ki = mirrorpd(i + ind_r[k], Nr)
-                for l in xrange(kern_c):
+                for l in range(kern_c):
                     li = mirrorpd(j + ind_c[l], Nc)
                     uout[i,j] += kern[k,l]*u[ki,li]
     return uout

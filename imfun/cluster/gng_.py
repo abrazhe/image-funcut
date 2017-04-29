@@ -116,7 +116,7 @@ def _gngrun(data, ew = 0.1, en = 0.001, _lambda = 100, d = 0.9,
             distfn = euclidean,
             max_nodes = 512):
     if nodes is None:
-        nodes = map(GNGNode, pyrnd.sample(data, 2))
+        nodes = list(map(GNGNode, pyrnd.sample(data, 2)))
         edges = [connect_nodes(*nodes)]
     k,L = 1,len(data)
     while (k < max_iter) and (len(nodes) < max_nodes):
@@ -149,8 +149,8 @@ def _gngrun(data, ew = 0.1, en = 0.001, _lambda = 100, d = 0.9,
 def coefs2points(coefs):
     points = []
     nr,nc = coefs.shape[1:]
-    for r in xrange(nr):
-        for c in xrange(nc):
+    for r in range(nr):
+        for c in range(nc):
             v = coefs[:,r,c]
             loc = [float(c)/nc, float(r)/nr]
             points.append(np.concatenate([loc, v]))
@@ -190,7 +190,7 @@ class Particle(BasicNode):
 
 def rand_pos(maxx,maxy):
     u = np.random.uniform
-    return map(int, map(np.round, (u(0,maxx-1),u(0,maxy-1))))
+    return list(map(int, list(map(np.round, (u(0,maxx-1),u(0,maxy-1))))))
 
 def connect_close_particles(particles, min_dist = 3):
     for p in particles:

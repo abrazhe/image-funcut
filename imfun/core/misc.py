@@ -4,7 +4,7 @@ import scipy.interpolate as ip
 from scipy import ndimage
 
 def rezip(a):
-    return zip(*a)
+    return list(zip(*a))
 
 
 def arr_or(a1,a2):
@@ -12,7 +12,7 @@ def arr_or(a1,a2):
 
 def ma2d(m, n):
     "Moving average in 2d (for rows)"
-    for i in xrange(0,len(m)-n,):
+    for i in range(0,len(m)-n,):
         yield np.mean(m[i:i+n,:],0)
 
 
@@ -25,7 +25,7 @@ def __best (scoref, lst):
     else: return -1,None
 
 def __min1(scoref, lst):
-    return __best(lambda x,y: x < y, map(scoref, lst))
+    return __best(lambda x,y: x < y, list(map(scoref, lst)))
 
 
 def imresize(a, nx, ny, **kw):
@@ -60,8 +60,8 @@ def alias_freq(f, fs):
 def flatten(x,acc=None):
    acc = ifnot(acc,[])
    if not np.iterable(x):
-	   acc.append(x)
-	   return
+           acc.append(x)
+           return
    for o in x:
        flatten(o, acc)
    return acc
@@ -72,14 +72,14 @@ def ifnot(a, b):
     else: return a
 
 def som_cluster_fseq(seq, **kwargs):
-	from imfun.cluster import som_
-	shape = seq.shape()
-	a = seq.as3darray()
-	tracks = np.array([a[:,i,j] for i,j in
-			   itt.product(*map(xrange, shape))])
-	perm = np.random.permutation(np.product(shape))
-	affiliations = som_.som(tracks,**kwargs)
-	return som_.cluster_map_permutation(affiliations, perm, shape)
+        from imfun.cluster import som_
+        shape = seq.shape()
+        a = seq.as3darray()
+        tracks = np.array([a[:,i,j] for i,j in
+                           itt.product(*map(range, shape))])
+        perm = np.random.permutation(np.product(shape))
+        affiliations = som_.som(tracks,**kwargs)
+        return som_.cluster_map_permutation(affiliations, perm, shape)
 
 
 def vinterpolate(v,n=3,smoothing=1):
@@ -96,11 +96,11 @@ def ainterpolate(arr, axis=0, n=3, smoothing=1):
     #fn = lambda v: vinterpolate(v, n, smoothing)
     def fn(v): return vinterpolate(v, n, smoothing)
     if axis == 1:
-        out = np.array(map(fn, arr))
+        out = np.array(list(map(fn, arr)))
     elif axis ==0:
-        out = np.array(map(fn, arr.T)).T
+        out = np.array(list(map(fn, arr.T))).T
     else:
-        print "Can't work with these many dimensions yet"
+        print("Can't work with these many dimensions yet")
     return out
 
 def simple_snr(v,plow=50,phigh=75):
@@ -110,7 +110,7 @@ def simple_snr(v,plow=50,phigh=75):
 def simple_snr2(arr, plow=50,phigh=75):
     nrows, ncols = arr.shape
     out = np.zeros(ncols)
-    for j in xrange(ncols):
+    for j in range(ncols):
         c1 = np.abs(simple_snr(arr[:,j],plow,phigh))
         c2 = np.abs(simple_snr(-arr[:,j],plow,phigh))
         out[j] = max(c1,c2)

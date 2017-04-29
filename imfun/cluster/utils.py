@@ -2,7 +2,7 @@ import numpy as np
 import itertools as itt
 
 def _sorted_memberships(membs):
-    return np.array(sorted(range(int(np.max(membs)+1)), key=lambda i:np.sum(membs==i)))
+    return np.array(sorted(list(range(int(np.max(membs)+1))), key=lambda i:np.sum(membs==i)))
 
 def sort_clusters_by_size(membs):
     """
@@ -23,7 +23,7 @@ def select_points(points, memberships, idx):
 
 
 def filter_clusters_size(clusters, min_size=100):
-    return filter(lambda x: x.mass() > min_size, clusters)
+    return [x for x in clusters if x.mass() > min_size]
 
 def plot_clusters(points, clusters):
     import pylab as pl

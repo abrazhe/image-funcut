@@ -1,4 +1,4 @@
-from __future__ import division # a/b will always return float
+ # a/b will always return float
 
 import numpy as np
 
@@ -15,6 +15,7 @@ from ..core import coords
 from ..core import ifnot, rezip
 
 from ..core.baselines import DFoSD, DFoF
+import collections
 
 
 in_circle = coords.in_circle
@@ -46,7 +47,7 @@ def translate(p1,p2):
     """returns translation vector used to
     ||-translate line segment p1,p2 in an orthogonal direction"""
     L = coords.eu_dist(p1, p2)
-    v = [np.array(p, ndmin=2).T for p in p1,p2]
+    v = [np.array(p, ndmin=2).T for p in (p1,p2)]
     T = np.array([[0, -1], [1, 0]]) # basic || translation vector
     tv = np.dot(T, v[0] - v[1])/L
     return tv
@@ -140,8 +141,9 @@ class DraggableObj(object):
     def on_press(self, event):   pass
 
     def disconnect(self):
-        map(self.obj.axes.figure.canvas.mpl_disconnect,
-            self.cid.values())
+        for tag in self.cid:
+            self.obj.axes.figure.canvas.mpl_disconnect(self.cid[tag])
+
 
     @property
     def color(self):
@@ -179,7 +181,7 @@ class LineScan(DraggableObj):
                                   size = 'small',
                                   color = self.obj.get_color())
         self.labels = [self.length_tag, self.name_tag]
-        print "%2.2f"%self.length()
+        print("%2.2f"%self.length())
         self.update_tags()
         self.parent.legend()
         self.redraw()
@@ -210,7 +212,7 @@ class LineScan(DraggableObj):
         self.update_length_tag()
 
     def endpoints(self):
-        return map(np.array, rezip(self.obj.get_data()))
+        return list(map(np.array, rezip(self.obj.get_data())))
     def centerpoint(self):
         x, y = self.obj.get_xdata(), self.obj.get_ydata()
         return [np.mean(x), np.mean(y)]
@@ -240,7 +242,7 @@ class LineScan(DraggableObj):
         if k == 0: # closer to center point than to any end
             epnew = ep + d
             if self.parent.roi_layout_freeze:
-                for roi in self.parent.roi_objs.values():
+                for roi in list(self.parent.roi_objs.values()):
                     if not roi == self:
                         roi.shift(d)
         elif k == 1:
@@ -266,12 +268,12 @@ class LineScan(DraggableObj):
             self.dm = self.show_zview()
 
     def on_type(self, event):
-	if not self.event_ok(event, True):
-	    return
+        if not self.event_ok(event, True):
+            return
         # press "/" for reslice, as in imagej
         accepted_keys = ['/', '-', 'r']
-	if event.key in accepted_keys:
-	    self.diameter_manager = self.show_zview()
+        if event.key in accepted_keys:
+            self.diameter_manager = self.show_zview()
 
     def destroy(self):
         if self.tag in self.parent.roi_objs:
@@ -290,65 +292,65 @@ class LineScan(DraggableObj):
         return p[0]/dx.value, p[1]/dy.value
 
     def get_zview_at_frames(self, frames, hwidth=2):
-        points = map(self.transform_point, self.check_endpoints())
+        points = list(map(self.transform_point, self.check_endpoints()))
         dx,dy = [_x.value for _x in self.axes[1:3]]
         #((dx,xunits), (dy,yunits)) = map(quantity_to_pair, self.axes[1:3])
         #print 'points:', points[0][0], points[0][1],
         #print 'points:', points[0][0]*dx, points[0][1]*dy
         #print 'points type is:', map(type, points)
-	tv = np.reshape(translate(*points),-1) # translation vector
-	#timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
+        tv = np.reshape(translate(*points),-1) # translation vector
+        #timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames()])
         timeview = lambda pts: np.array([line_reslice3(frame, *pts) for frame in frames])
 
-	if hwidth > 0:
-	    plist = [points]
-	    plist += [points + s*k*tv for k in range(1, hwidth+1) for s in -1,1]
-	    out = np.mean(map(timeview, plist), axis=0)
-	else:
-	    out = timeview(points)
+        if hwidth > 0:
+            plist = [points]
+            plist += [points + s*k*tv for k in range(1, hwidth+1) for s in (-1,1)]
+            out = np.mean(list(map(timeview, plist)), axis=0)
+        else:
+            out = timeview(points)
         return np.squeeze(np.rot90(out)),points
 
 
     def get_zview(self,hwidth=2,frange=None):
-	if frange is None:
-	    if hasattr(self.parent, 'caller'): # is called from frame_viewer?
-		caller = self.parent.caller
-		hwidth = caller.fso.linescan_width # overrides argument
-		half_scope = caller.fso.linescan_scope
-		if half_scope <= 0:
-		    frames = self.parent.active_stack
-		else:
-		    fi = caller.frame_index
-		    fstart = max(0,fi-half_scope)
-		    fstop = min(len(self.parent.active_stack),fi+half_scope)
-		    frange = slice(fstart,fstop)
-		    frames = self.parent.active_stack[frange]
-	    else:
-		frames = self.parent.active_stack
-	else:
-	    frames = self.parent.active_stack[frange]
+        if frange is None:
+            if hasattr(self.parent, 'caller'): # is called from frame_viewer?
+                caller = self.parent.caller
+                hwidth = caller.fso.linescan_width # overrides argument
+                half_scope = caller.fso.linescan_scope
+                if half_scope <= 0:
+                    frames = self.parent.active_stack
+                else:
+                    fi = caller.frame_index
+                    fstart = max(0,fi-half_scope)
+                    fstop = min(len(self.parent.active_stack),fi+half_scope)
+                    frange = slice(fstart,fstop)
+                    frames = self.parent.active_stack[frange]
+            else:
+                frames = self.parent.active_stack
+        else:
+            frames = self.parent.active_stack[frange]
         return self.get_zview_at_frames(frames, hwidth=hwidth)
 
     def _get_full_projection(self, fn = np.mean,axis=1,
-			    mode='constant',
-			    output = 'result'):
-	"""
-	if "output" is 'function' return a function to rotate and project any  data
-	if "output is 'result', return a projection of rotated data, associated
-	with the frame sequence of the Picker.
-	"""
-	from scipy.ndimage.interpolation import rotate
-	points = map(self.transform_point, self.check_endpoints())
-	k, b = line_from_points(*points)
-	phi = np.rad2deg(np.arctan(k))
-	def _(data):
-	    rot = rotate(data, phi, (1,2), mode=mode)
-	    rot = np.ma.masked_less_equal(rot, 0)
-	    return np.array(fn(rot, axis=axis))
-	if output=='result':
+                            mode='constant',
+                            output = 'result'):
+        """
+        if "output" is 'function' return a function to rotate and project any  data
+        if "output is 'result', return a projection of rotated data, associated
+        with the frame sequence of the Picker.
+        """
+        from scipy.ndimage.interpolation import rotate
+        points = list(map(self.transform_point, self.check_endpoints()))
+        k, b = line_from_points(*points)
+        phi = np.rad2deg(np.arctan(k))
+        def _(data):
+            rot = rotate(data, phi, (1,2), mode=mode)
+            rot = np.ma.masked_less_equal(rot, 0)
+            return np.array(fn(rot, axis=axis))
+        if output=='result':
             return _(self.parent.frame_coll[:])
-	elif output == 'function':
-	    return _
+        elif output == 'function':
+            return _
 
     def show_zview(self,frange=None,hwidth=2):
         timeview,points = self.get_zview(frange=frange,hwidth=hwidth)
@@ -394,7 +396,7 @@ class LineScan(DraggableObj):
                            #VesselTracker window
 
             def _vessel_callback(event):
-                print 'Vessel wall tracking'
+                print('Vessel wall tracking')
                 self.vconts = VesselContours(data[0],self.tag)
                 plt.show() #this should solve the issue with non-activated
                            #VesselTracker window
@@ -447,7 +449,7 @@ class CircleROI(DraggableObj):
     def on_type(self, event):
         if not self.event_ok(event, True): return
         if self.verbose:
-            print event.key
+            print(event.key)
         tags = [self.tag]
         if event.key in ['t', '1']:
             self.parent.show_zview(tags)
@@ -465,11 +467,11 @@ class CircleROI(DraggableObj):
     def on_press(self, event):
         if not self.event_ok(event, True): return
         x0,y0 = self.obj.center
-        if event.button is 1:
+        if event.button == 1:
             self.pressed = event.xdata, event.ydata, x0, y0
-        elif event.button is 2:
+        elif event.button == 2:
             self.parent.show_zview([self.tag])
-        elif event.button is 3:
+        elif event.button == 3:
             self.destroy()
 
     def destroy(self):
@@ -495,7 +497,7 @@ class CircleROI(DraggableObj):
 
         if self.parent.roi_layout_freeze:
             # drag all other ROIs along
-            for roi in self.parent.roi_objs.values():
+            for roi in list(self.parent.roi_objs.values()):
                 if not roi == self:
                     roi.shift(shift)
         self.set_tagtext()
@@ -537,20 +539,20 @@ class CircleROI(DraggableObj):
         dx,dy = [x.value for x in self.axes[1:3]]
         c = roi.center[0]/dx, roi.center[1]/dy
         fn = coords.in_circle(c, roi.radius/dx)
-        X,Y = np.meshgrid(*map(range, shape[::-1]))
+        X,Y = np.meshgrid(*list(map(range, shape[::-1])))
         return fn(X,Y)
 
     def get_zview(self, normp=False):
-	"""return z-series (for timelapse --- timeseries) from roi
+        """return z-series (for timelapse --- timeseries) from roi
 
-	Parameters:
-	  - if normp is False, returns raw timeseries v
-	  - if normp is a function f, returns f(v)
-	  - if normp is a number N, returns :math:`\\Delta v/v_0`, where
+        Parameters:
+          - if normp is False, returns raw timeseries v
+          - if normp is a function f, returns f(v)
+          - if normp is a number N, returns :math:`\\Delta v/v_0`, where
             :math:`v_0` is calculated over N first points
-	  - else, returns :math:`\\Delta v/\\bar v`
+          - else, returns :math:`\\Delta v/\\bar v`
 
-	"""
+        """
 
         fullshape = self.parent.active_stack.frame_shape
         sh = fullshape[:2]
@@ -560,11 +562,11 @@ class CircleROI(DraggableObj):
            and (self.parent.active_stack.ch is not None):
             v = v[:,self.parent.active_stack.ch]
         if normp:
-	    if callable(normp):
-		return normp(v)
-	    else:
-		Lnorm = isinstance(normp,int) and normp or len(v)
-		return DFoF(v, Lnorm)
+            if isinstance(normp, collections.Callable):
+                return normp(v)
+            else:
+                Lnorm = isinstance(normp,int) and normp or len(v)
+                return DFoF(v, Lnorm)
         else: return v
 
     def to_struct(self):
@@ -616,7 +618,7 @@ class RectFollower(DragRect):
     def on_type(self, event):
         if not self.event_ok(event, True): return
     def xy(self):
-        return map(int, self.obj.get_xy())
+        return list(map(int, self.obj.get_xy()))
     def toslice(self,xoff=0,yoff=0):
         start2,start1 = self.xy()
         start2 += xoff
@@ -632,7 +634,7 @@ class RectFollower(DragRect):
                 s = self.toslice(h,w)
                 d = measure(core.rescale(frame[s]), template)
                 acc[(w,h)] = d
-        pos = sorted(acc.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
+        pos = sorted(list(acc.items()), lambda x, y: cmp(x[1], y[1]), reverse=True)
         pos = pos[0][0]
         x,y = self.xy()
         return x+pos[0], y+pos[1]
@@ -647,7 +649,7 @@ def synthetic_vessel(nframes, width = 80, shape=(512,512), noise = 0.5):
     xw2 = core.ar1()
     for i in range(nframes):
         f = np.zeros(shape)
-        l,r= 2*left+xw1.next(),2*right+xw2.next()
+        l,r= 2*left+next(xw1),2*right+next(xw2)
         f[:,l:l+4] = 1.0
         f[:,r:r+4] = 1.0
         f += np.random.randn(*shape)*noise
@@ -752,7 +754,7 @@ class VesselContours(object):
 
         th = self.th_line.get_value()
         lcv = track.LCV_Contours(start, data, thresh=th)
-        for i in xrange(nmax):
+        for i in range(nmax):
             lh = lcv.verlet_step()
             for c,v in zip(self.contlines,lh):
                 c.set_ydata(v/upsample)
@@ -785,7 +787,7 @@ class VesselContours(object):
             if np.abs(seeds[1]-seeds[0]) < margin:
                 locw,highc = 2*margin, ext-2*margin
         except Exception as e:
-            print "couldn't automatically set starting seeds:", e
+            print("couldn't automatically set starting seeds:", e)
             seeds = ext*0.1+margin, ext*0.9-margin
         lowc = np.ones(d.shape[1])*seeds[0] - margin
         lowc = np.where(lowc < 0, margin, lowc)

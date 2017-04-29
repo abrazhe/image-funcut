@@ -26,7 +26,7 @@ def cwt_iter(fseq,
              wavelet = pycwt.Morlet(),
              normL = None,
              max_pixels = None,
-	     cwtfn = pycwt.eds,
+             cwtfn = pycwt.eds,
              verbose = False,
              **kwargs):
     """
@@ -49,7 +49,7 @@ def cwt_iter(fseq,
     """
     tick = time.clock()
     L = len(fseq)
-    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    subframe = 'sliceobj' in kwargs and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
     npix = shape[0]*shape[1]
     normL = ifnot(normL, L)
@@ -69,7 +69,7 @@ def cwt_iter(fseq,
     dt = dt.to('s').value
     #tunits = dt.unit
     for s,i,j in pixel_iter:
-	# todo: normalization should be optional or as an argument to pix_iter
+        # todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
         eds = pycwt.eds(cwtf(s, freqs, 1./dt, wavelet, 'zpd'))
         pixel_counter+= 1
@@ -100,14 +100,14 @@ def cwtmap(fseq,
     Returns:
       - a 2D array as a result of application of the `func` to wavelet spectrograms
     """
-    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    subframe = 'sliceobj' in kwargs and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
 
     dt = fseq.meta['axes'][0]
     dt = dt.to('s').value
 
-    tstarts = map(lambda x: int(x[0]/dt), tranges)
-    tstops = map(lambda x: int(x[1]/dt), tranges)
+    tstarts = [int(x[0]/dt) for x in tranges]
+    tstops = [int(x[1]/dt) for x in tranges]
 
     out = np.zeros((len(tranges),)+shape, np.float64)
     for eds,i,j in cwt_iter(fseq,frange,**kwargs):
@@ -119,11 +119,11 @@ def cwtphase_map(fseq, ):
     pass
 
 def loc_max_pos(v):
-    x = range(0,len(v))
+    x = list(range(0,len(v)))
     p = np.polyfit(x,v,1)
     vx = v - np.polyval(p,x)
     vx[1:]-vx[:-1] > 0
-    return [i for i in xrange(1,len(v)-1)
+    return [i for i in range(1,len(v)-1)
             if (vx[i] > vx[i-1]) and (vx[i] > vx[i+1])]
 
 def cwt_freqmap(fseq,
@@ -143,10 +143,10 @@ def cwt_freqmap(fseq,
     def _dominant_freq(arr):
         ma = np.mean(arr,1)
         if np.max(ma) < 1e-7:
-            print "mean wavelet power %e too low"%np.mean(ma)
+            print("mean wavelet power %e too low"%np.mean(ma))
             return np.nan
-	i = np.argmax(mlab.detrend_linear(ma))
-	return freqs[i]
+        i = np.argmax(mlab.detrend_linear(ma))
+        return freqs[i]
     return cwtmap(fseq,tranges,freqs,func=_dominant_freq,**kwargs)
 
 
@@ -157,7 +157,7 @@ def avg_eds(fseq, *args, **kwargs):
     `*args`, `**kwargs` are passed to cwt_iter
     """
     cwit = cwt_iter(fseq, *args, **kwargs)
-    out,i,j = cwit.next()
+    out,i,j = next(cwit)
     counter = 1.0
     for eds, i, j in cwit:
         out += eds
@@ -166,13 +166,13 @@ def avg_eds(fseq, *args, **kwargs):
 
 def _feature_map(fseq, rhythm, freqs, **kwargs):
     from scipy.interpolate import splrep,splev
-    subframe = kwargs.has_key('sliceobj') and kwargs['sliceobj'] or None
+    subframe = 'sliceobj' in kwargs and kwargs['sliceobj'] or None
     shape = fseq.shape(subframe)
 
     L = len(fseq)
     tinds = np.arange(L)
     tck = splrep(rhythm[:,0], rhythm[:,1])
-    rhfreqs = map(int, np.round(splev(tinds, tck)))
+    rhfreqs = list(map(int, np.round(splev(tinds, tck))))
     rhsd = 6
 
     out = np.ones((L,)+shape, np.float64)
@@ -209,23 +209,25 @@ def detrend(y, ord=2, take=None):
     return y - np.polyval(p, x)
 
 
-def meanactmap(fseq, (start,stop), normL=None):
+def meanactmap(fseq, start_stop, normL=None):
     "Average activation map"
+    (start,stop) = start_stop
     L = len(fseq)
     normL = ifnot(normL, L)
     out = np.zeros(fseq.shape())
     tv = fseq.frame_idx()
     mrange = (tv > start)*(tv < stop)
     for s,j,k in fseq.pix_iter():
-        sx = detrend(s,take=range(330))
+        sx = detrend(s,take=list(range(330)))
         out[j,k] = np.mean(DFoSD(s,normL)[mrange])
     return out
 
 
-def actcorrmap(fseq, (start, stop), normL=None,
+def actcorrmap(fseq, start_stop, normL=None,
                normfn = DFoSD,
                sigfunc = tanh_step):
     "Activation correlation-based mapping"
+    (start, stop) = start_stop
     comp_sig = sigfunc(start, stop)(fseq.frame_idx())
     return xcorrmap(fseq, comp_sig, normL, normfn)
 
@@ -238,7 +240,7 @@ _corrfuncs = {'pearson':stats.pearsonr,
 def xcorrmap(fseq, signal, normL=None, normfn = DFoSD,
              corrfn = 'pearson',
              keyfn = lambda x:x[0],
-	     normalize_data = False,
+             normalize_data = False,
              normalize_signal=False):
     """
     Arguments:
@@ -262,10 +264,10 @@ def xcorrmap(fseq, signal, normL=None, normfn = DFoSD,
     if normalize_signal:
         signal = normfn(signal, normL)
     for s,j,k in fseq.pix_iter():
-	if normalize_data:
-	    out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
-	else:
-	    out[j,k] = keyfn(corrfn(s, signal))
+        if normalize_data:
+            out[j,k] = keyfn(corrfn(normfn(s,normL), signal))
+        else:
+            out[j,k] = keyfn(corrfn(s, signal))
     return out
 
 
@@ -279,9 +281,9 @@ def simple_corrlag(v1):
     L = len(v1)
     v1n = DFoSD(v1)
     def _(v2):
-	v2n = DFoSD(v2)
-	xcorr = np.correlate(v1n, v2n, mode='same')
-	return np.argmax(xcorr)-L/2
+        v2n = DFoSD(v2)
+        xcorr = np.correlate(v1n, v2n, mode='same')
+        return np.argmax(xcorr)-L/2
     return _
 
 
@@ -293,12 +295,12 @@ def corrlag(timevec):
     from imfun.multiscale import atrous
     tv1 = np.concatenate((-timevec[::-1], timevec[1:]))
     def _(v1,v2):
-	v1n = DFoSD(v1)/len(v1)
-	xcorr = np.correlate(v1n, DFoSD(v2), mode='full')
-	xcorr = atrous.smooth(xcorr, 2)
-	maxima = core.extrema.locextr(xcorr, x=tv1, output='max')
-	k = np.argmax([x[1] for x in maxima])
-	return maxima[k]
+        v1n = DFoSD(v1)/len(v1)
+        xcorr = np.correlate(v1n, DFoSD(v2), mode='full')
+        xcorr = atrous.smooth(xcorr, 2)
+        maxima = core.extrema.locextr(xcorr, x=tv1, output='max')
+        k = np.argmax([x[1] for x in maxima])
+        return maxima[k]
     return _
 
 
@@ -306,7 +308,7 @@ def xcorr_lag(fseq, **kwargs):
     from imfun import atrous
     tv = fseq.frame_idx()
     return xcorrmap(fseq, signal, corrfn=corrlag(tv),
-		    **kwargs)
+                    **kwargs)
 
 def local_corr_map(arr, normfn=DFoSD,
                    corrfn=np.correlate,
@@ -319,10 +321,10 @@ def local_corr_map(arr, normfn=DFoSD,
     pixel_counter,npix = 0,np.prod(sh)
     def _v(l):
         v =  arr[:,l[0],l[1]]
-	if normfn:
-	    return normfn(v)
-	else:
-	    return v
+        if normfn:
+            return normfn(v)
+        else:
+            return v
     for loc in locations(sh):
         pixel_counter+= 1
         if verbose and not (pixel_counter % 100):
@@ -332,22 +334,22 @@ def local_corr_map(arr, normfn=DFoSD,
     return out
 
 def simple_local_coherence(arr, normfn=lambda v: v-v.mean(),
-			   verbose=False):
+                           verbose=False):
     sh = arr.shape[1:]
     L = float(arr.shape[0])
     out = np.zeros(sh)
     pixel_counter,npix = 0,np.prod(sh)
     def _v(l):
         v =  arr[:,l[0],l[1]]
-	if normfn:
-	    return normfn(v)
-	else:
-	    return v
+        if normfn:
+            return normfn(v)
+        else:
+            return v
     for loc in locations(sh):
         if verbose and not (pixel_counter % 100):
             sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
-	local_cov = [np.sum((_v(loc)*_v(n))>0)/L for n in neighbours(loc,sh)]
-	out[loc] = np.mean(local_cov)
+        local_cov = [np.sum((_v(loc)*_v(n))>0)/L for n in neighbours(loc,sh)]
+        out[loc] = np.mean(local_cov)
     return out
 
 
@@ -364,7 +366,7 @@ def fftmap(fseq, frange, func=np.mean,
         """
         tick = time.clock()
         L = len(fseq)
-        shape = fseq.shape(kwargs.has_key('sliceobj') and
+        shape = fseq.shape('sliceobj' in kwargs and
                            kwargs['sliceobj'] or None)
         total = shape[0]*shape[1]
         out = np.ones(shape, np.float64)

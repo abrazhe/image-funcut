@@ -1,6 +1,6 @@
 # Routines and classes to read MES files (as produced by Femtonics microscopes)
 
-from __future__ import division
+
 
 import itertools as itt
 import numpy as np
@@ -16,14 +16,14 @@ def guess_format(file_name):
     file format is Matlab v5 or Matlab > v7, which is HDF5
     """
     result = None
-    with open(file_name, 'r') as fid:
+    with open(file_name, 'rb') as fid:
         magic = fid.read(19)
-        if 'MATLAB' in magic and '5.' in magic:
+        if b'MATLAB' in magic and b'5.' in magic:
             result = 'mat'
-        elif 'MATLAB' in magic and '7.' in magic:
+        elif b'MATLAB' in magic and b'7.' in magic:
             result = 'h5'
         else:
-            print "Unknown MES file format"
+            print("Unknown MES file format")
     return result
 
 def load_file_info(file_name):
@@ -37,10 +37,10 @@ def load_file_info(file_name):
         handler = MAT_Record
     elif variant == 'h5':
         with h5py.File(file_name) as f:
-            vars = [k for k in f.keys() if 'Df' in k]
+            vars = [k for k in list(f.keys()) if 'Df' in k]
         handler = H5_Record
     else:
-        print "Can't load description"
+        print("Can't load description")
         vars = None
     records = [handler(file_name, v) for v in vars]
     return records
@@ -53,11 +53,11 @@ def load_record(file_name, recordName):
     """
     valid_records = load_file_info(file_name)
     #valid_names = [r.record for r in valid_records]
-    r = filter(lambda r: recordName == r.record, valid_records)
+    r = [r for r in valid_records if recordName == r.record]
     if len(r) == 0:
-        print "Can't find record {} in file {}".format(recordName, file_name)
-        print "valid records:", valid_records
-        print "WARNING: falling back to first available record"
+        print("Can't find record {} in file {}".format(recordName, file_name))
+        print("valid records:", valid_records)
+        print("WARNING: falling back to first available record")
         r = [valid_records[0]]
         recordName = r[0].record
 
@@ -72,7 +72,7 @@ def load_record(file_name, recordName):
     if not 'U' in key:
         obj = handlers[key](file_name, recordName)
     else:
-        print "Unknown type of file or record"
+        print("Unknown type of file or record")
         obj = None
     return obj
 
@@ -120,7 +120,7 @@ class MAT_Record(MES_Record):
         self.dx = self.get_field(self.entry['WidthStep'])
         self.timestamps = [x[0][0] for x in self.entry['MeasurementDate']
                            if np.prod(x[0].shape)>0 ]
-        self.img_names = map(self.get_field, self.entry['ImageName'])
+        self.img_names = list(map(self.get_field, self.entry['ImageName']))
         self.channels = [self.get_field(x).lower() for x in self.entry['Channel']]
         self.nchannels = len(np.unique(self.channels))
 
@@ -183,21 +183,21 @@ class ZStack:
                                 ah.rescale)
         names = self.img_names[k:k+self.nchannels][self._ch2ind(ch)]
 
-        cstack = np.array(map(pipeline, names))
+        cstack = np.array(list(map(pipeline, names)))
         return np.squeeze(np.dstack(cstack))
     def __getitem__(self, val):
         indices = np.arange(self.base_shape[0])[val]
         #print indices, np.ndim(indices)
         if np.ndim(indices) < 1:
             return self._read_frame(indices)
-        return np.array(map(self._read_frame, indices))
+        return np.array(list(map(self._read_frame, indices)))
 
     def _ch2ind(self, ch):
         if ch is None or ch == 'all':
             out = slice(0,self.nchannels)
         elif isinstance(ch, int):
             out = [ch]
-        elif isinstance(ch,basestring):
+        elif isinstance(ch,str):
             out = np.where([ch in s for s in 'rgb'])[0][()]
         return out
 
@@ -219,14 +219,14 @@ class ZStack:
             data = np.zeros(sh)
             framecount = 0
             #print 'Shape2:', stream[0].shape
-            for k in xrange(0, self.nframes//nchannels,nchannels):
-                for j in xrange(nchannels):
+            for k in range(0, self.nframes//nchannels,nchannels):
+                for j in range(nchannels):
                     data[framecount,...,j] = stream[k+j]
                 framecount += 1
         else:
             if isinstance(ch,int) :
                 var_names = var_names[ch::nchannels]
-            elif isinstance(ch,basestring) :
+            elif isinstance(ch,str) :
                 var_names = [n for n,c in zip(var_names,self.channels) if ch.lower() in c]
             recs = self._get_recs(var_names)
             data = np.array([recs[n] for n in var_names])
@@ -244,7 +244,7 @@ class ZStack_mat(ZStack, MAT_Record):
     def _get_zstep(self):
         ch1 = self.get_field(self.entry[0]['Channel'])
         levels = self.entry[self.entry['Channel']==ch1]['Zlevel']
-        return np.mean(np.diff(map(self.get_field, levels)))
+        return np.mean(np.diff(list(map(self.get_field, levels))))
 
 
 class ZStack_h5(ZStack, H5_Record):
@@ -270,7 +270,7 @@ class Timelapse:
         #outmeta['axes'] = ah.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
         outmeta['axes'] = [Q(self.dt, 's'), Q(self.dx, 'um'), Q(self.dx, 'um')]
         nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
-        base_shape = map(np.int, (nframes-1, nlines, line_len))
+        base_shape = list(map(np.int, (nframes-1, nlines, line_len)))
         streams = self._load_streams(ch=ch)
         if len(streams) == 1:
             data = np.zeros(base_shape, dtype=streams[0].dtype)
@@ -278,7 +278,7 @@ class Timelapse:
                 data[k] = f
         else:
             #streams = [ah.clip_and_rescale(s) for s in streams]
-            reshape_iter = itt.izip(*map(self._reshape_frames, streams))
+            reshape_iter = itt.izip(*list(map(self._reshape_frames, streams)))
             sh = base_shape + (max(3, len(streams)),)
             data = np.zeros(sh, dtype=streams[0].dtype)
             for k, a in enumerate(reshape_iter):
@@ -293,11 +293,11 @@ class Timelapse:
         if not (ch is None or ch=='all'):
             if isinstance(ch, int):
                 var_names = [var_names[ch]]
-            elif isinstance(ch, basestring):
+            elif isinstance(ch, str):
                 var_names = [n for n,c
                              in zip(var_names, self.channels)
                              if ch.lower() in c.lower()]
-        streams = map(self._get_stream, var_names)
+        streams = list(map(self._get_stream, var_names))
         if len(streams)==0:
             raise IndexError("MES.Timelapse: can't load record%s"%self.recordName)
         return streams
@@ -312,8 +312,8 @@ class  Timelapse_mat(Timelapse, MAT_Record):
         self.img_names = [x[0] for x in self.measures['ImageName']]
         self.channels = [x[0].lower() for x in self.measures['Channel']]
     def _reshape_frames(self, stream):
-        nlines,nframes = map(int, (self.nlines, self.nframes))
-        return (stream[:,k*nlines:(k+1)*nlines].T for k in xrange(1,nframes))
+        nlines,nframes = list(map(int, (self.nlines, self.nframes)))
+        return (stream[:,k*nlines:(k+1)*nlines].T for k in range(1,nframes))
     def get_xyt_shape(self,):
         'return (numFrames, (side1,side2))'
         m = first_measure_mat(self.entry)
@@ -342,8 +342,8 @@ class Timelapse_h5(Timelapse, H5_Record):
         self.dt /= 1000. # convert to seconds
         #self.dt = (self.tstop-self.tstart)/self.nframes
     def _reshape_frames(self, stream):
-        nlines,nframes = map(int, (self.nlines, self.nframes))
-        return (stream[k*nlines:(k+1)*nlines,:] for k in xrange(1,nframes))
+        nlines,nframes = list(map(int, (self.nlines, self.nframes)))
+        return (stream[k*nlines:(k+1)*nlines,:] for k in range(1,nframes))
     def _get_stream(self, name):
         return self.h5file[name]
 
@@ -352,7 +352,7 @@ class Timelapse_h5(Timelapse, H5_Record):
 import h5py
 
 def field_to_string_h5(h5file, objref):
-    return ''.join(unichr(c) for c in h5file[objref])
+    return ''.join(chr(c) for c in h5file[objref])
 
 def read_txtentry_h5(h5file, refstr):
     refs = h5file[refstr]
@@ -377,9 +377,9 @@ def get_ffi_h5(h5file, record):
 ## TODO: make class with __repr__ instead
 def describe_file_h5(file_name):
     with h5py.File(file_name) as f:
-        record_keys = [k for k in f.keys() if 'Df' in k]
+        record_keys = [k for k in list(f.keys()) if 'Df' in k]
         for key in record_keys:
-            print key, ':', describe_record_h5(f,key, f[key])
+            print(key, ':', describe_record_h5(f,key, f[key]))
 
 def describe_record_h5(h5file, key, h5group):
     contexts = read_txtentry_h5(h5file, key+'/Context')

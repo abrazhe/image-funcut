@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import numpy as np
 
@@ -50,11 +50,11 @@ def l2spline1d(v, s=25., weights=None, eps=1e-3, niter=1000, s_is_scale=True,
     if weights is None or np.allclose(weights, ones(N)):
         return zprev
     
-    for nit_ in xrange(niter):
+    for nit_ in range(niter):
         z = idct(gamma*dct(weights*(v - zprev) + zprev, norm='ortho'),norm='ortho')
         if norm(z-zprev)/norm(zprev) < eps:
             if verbose:
-                print 'weights: reached convergence at %d iterations'%nit_
+                print('weights: reached convergence at %d iterations'%nit_)
             break
         zprev = z
     return z
@@ -67,12 +67,12 @@ def dct2d(m,norm='ortho'):
 
 def dctnd(m,norm='ortho'):
     fa = lambda a: lambda m_: dct(m_,norm=norm,axis=a)
-    f = fnutils.flcompose(*map(fa, xrange(np.ndim(m))))
+    f = fnutils.flcompose(*list(map(fa, range(np.ndim(m)))))
     return f(m)
     
 def idctnd(m,norm='ortho'):
     fa = lambda a: lambda m_: idct(m_,norm=norm,axis=a)
-    f = fnutils.flcompose(*map(fa, xrange(np.ndim(m))))
+    f = fnutils.flcompose(*list(map(fa, range(np.ndim(m)))))
     return f(m)    
 
 def idct2d(m,norm='ortho'):
@@ -105,11 +105,11 @@ def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=
     if weights is None or np.allclose(weights, ones(sh)):
         return zprev
     
-    for nit_ in xrange(niter):
+    for nit_ in range(niter):
         z = idctnd(g*dctnd(weights*(m - zprev) + zprev))
         if norm(z-zprev)/norm(zprev) < eps:
             if verbose:
-                print 'weights: reached convergence at %d iterations'%nit_
+                print('weights: reached convergence at %d iterations'%nit_)
             break
         zprev = z
     return z
@@ -139,7 +139,7 @@ def l1spline1d(y, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
             err = norm(z-zprev)/(1e-8 + norm(zprev))
             if err < eps:
                 if verbose:
-                    print 'converged after',_i,'iterations'
+                    print('converged after',_i,'iterations')
                 break
         zprev = np.copy(z)
     return z#, acc
@@ -170,7 +170,7 @@ def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         if noweights:
             z = zprev_w
         else:
-            for wi_ in xrange(weight_niter):
+            for wi_ in range(weight_niter):
                 z = idctnd(g*dctnd(weights*(x_-zprev_w)+zprev))
                 if norm(z-zprev_w)/norm(zprev_w)<eps:
                     break
@@ -182,7 +182,7 @@ def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
             err = norm(z-zprev)/(1e-8+norm(zprev))
             if err < eps:
                 if verbose:
-                    print 'converged after',_i,'iterations'
+                    print('converged after',_i,'iterations')
                 break
         zprev = np.copy(z)
     return z#, acc
@@ -193,7 +193,7 @@ def sp_decompose(s,level=24, base=2.,smoother=l1spline,s_is_scale=True):
     if np.iterable(level):
         levels = level
     else:
-        levels = (base**l for l in xrange(0,level))
+        levels = (base**l for l in range(0,level))
     approx_prev = s
     for l in levels:
         approx = smoother(approx_prev, l, s_is_scale=s_is_scale)

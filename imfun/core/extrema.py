@@ -2,8 +2,8 @@ import numpy as np
 import scipy.interpolate as ip
 
 def locextr(v, x=None, refine = True, output='full',
-	    sort_values = True,
-	    **kwargs):
+            sort_values = True,
+            **kwargs):
        "Finds local extrema "
        if x is None: x = np.arange(len(v))
        tck = ip.splrep(x,v, **kwargs) # spline representation
@@ -24,9 +24,9 @@ def locextr(v, x=None, refine = True, output='full',
        if output=='full':
            return xfit, yfit, der1, maxima, minima 
        elif output=='max':
-           return zip(xfit[maxima], yfit[maxima])
+           return list(zip(xfit[maxima], yfit[maxima]))
        elif output =='min':
-           return zip(xfit[minima], yfit[minima])
+           return list(zip(xfit[minima], yfit[minima]))
 
 def locextr_lsq_splines(v, x=None, points_per_knot=5,
                         refine=True, output='full',sort_values=True):
@@ -49,9 +49,9 @@ def locextr_lsq_splines(v, x=None, points_per_knot=5,
     if output=='full':
         return xfit, yfit, der1, maxima, minima 
     elif output=='max':
-        return zip(xfit[maxima], yfit[maxima])
+        return list(zip(xfit[maxima], yfit[maxima]))
     elif output =='min':
-        return zip(xfit[minima], yfit[minima])
+        return list(zip(xfit[minima], yfit[minima]))
 
 def extrema2(v, *args, **kwargs):
    "First and second order extrema"

@@ -25,13 +25,13 @@ from .utils import sort_clusters_by_size
 def quality_threshold(points, max_diam, dist_fn = metrics.euclidean):
     # unfinished, unoptimized, slow, but works
     def _qt_step():
-        print "\n"
+        print("\n")
         clusters = []
         for j,point in enumerate(points): # this can be done in parallel
             clusters.append(_grow_cluster(point))
             sys.stderr.write('\r point %04d'%(j+1))
         x = [c.mass() for c in clusters]
-        print "step done"
+        print("step done")
         return clusters[np.argmax(x)]
     def _grow_cluster(point):
         newc = Cluster([point], dist_fn=dist_fn)

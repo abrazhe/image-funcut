@@ -1,4 +1,4 @@
-from __future__ import division # a/b will always return float
+ # a/b will always return float
 
 
 from .Picker_ import Picker, color_walker
@@ -29,7 +29,7 @@ def harmonize_clims(pickers, mode='extend'):
 
     lows = lowfn(np.vstack(lows),0)
     highs = highfn(np.vstack(highs),0)
-    return np.array(zip(lows, highs))
+    return np.array(list(zip(lows, highs)))
 
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      ncols=None, figsize=None, figscale=4, with_header=True,
@@ -45,7 +45,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     marker_idx = ifnot(marker_idx, [])
     stop = ifnot(stop, np.min([len(p.frame_coll) for p in pickers]))
     L = stop-start
-    print 'number of frames:', L
+    print('number of frames:', L)
     dz = pickers[0].frame_coll.meta['axes'][0] # units of the first frame sequence are used
     zunits = str(dz.unit)
     #dz = dz.value

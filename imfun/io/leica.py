@@ -15,9 +15,9 @@ def get_xmljob(name, patt = "*[0-9].xml"):
         return name
     
     folder,filepattern = os.path.split(name)
-    print 'leica: ', folder, filepattern
+    print('leica: ', folder, filepattern)
     if folder =='': folder='./'
-    print 'leica: ', os.sep.join((folder,patt)) or filepattern
+    print('leica: ', os.sep.join((folder,patt)) or filepattern)
     candidates = glob.glob(os.sep.join((folder,patt)))
     
     if len(candidates)==0: return None
@@ -29,12 +29,12 @@ def ticks_to_ms(lo,hi):
     idea tacken from DateTools.java from loci:
     http://skyking.microscopy.wisc.edu/svn/java/trunk/components/common/src/loci/common/DateTools.java
     """
-    ticks = (long(hi)<<32)|long(lo)
+    ticks = (int(hi)<<32)|int(lo)
     return ticks/10000.0 # 100 ns = 0.0001 ms
 
 def low_high_pair(a):
-    return map(long, (get_prop(a, "LowInteger"),
-                      get_prop(a, "HighInteger")))
+    return list(map(int, (get_prop(a, "LowInteger"),
+                      get_prop(a, "HighInteger"))))
 
 
 class LeicaProps():
@@ -112,13 +112,13 @@ class FindVal(xml.sax.ContentHandler):
                 self.res[stepkey] = length/num_elem
 
         elif name == 'TimeStamp':
-            high = long(attrs.get('HighInteger',None))
-            low = long(attrs.get('LowInteger',None))
+            high = int(attrs.get('HighInteger',None))
+            low = int(attrs.get('LowInteger',None))
             self.timestamps.append(ticks_to_ms(low,high)/1000)
     def endDocument(self):
         self.res['start_time'] = self.timestamps[0]
         self.res['stop_time'] = self.timestamps[-1]
-	self.res['tstamps'] = self.timestamps
+        self.res['tstamps'] = self.timestamps
         #print self.res
             
 
@@ -140,21 +140,21 @@ class Struct:
 def lasaf_line_atof(str, sep=';'):
     #replacer = lambda s: string.replace(s, ',', '.')
     def replacer(s): return string.replace(s, ',', '.')
-    strlst = map(replacer, str.split(sep))
-    return map(np.float, strlst)
+    strlst = list(map(replacer, str.split(sep)))
+    return list(map(np.float, strlst))
 
 def read_lasaf_txt(fname):
     try:
         lines = [s.strip() for s in file(fname).readlines()]
         channel = lines[0]
         keys = lines[1].strip().split(';')
-        data = np.asarray(map(lasaf_line_atof, lines[2:]))
+        data = np.asarray(list(map(lasaf_line_atof, lines[2:])))
         dt = data[1:,0]-data[:-1,0]
         j = pl.find(dt>=max(dt))[0] + 1
         f_s = 1./np.mean(dt[dt<max(dt)])
         return Struct(data=data, jsplit=j, keys = keys, ch=channel, f_s = f_s)
     except Exception as inst:
-        print "%s: Exception"%fname, type(inst)
+        print("%s: Exception"%fname, type(inst))
         return None
         
         

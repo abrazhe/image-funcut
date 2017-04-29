@@ -58,14 +58,14 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     ica_filters = dot(W, pc_f)
 
     if _skew_loaded:
-	skews = array([skew(f.ravel()) for f in ica_filters])
-	skew_signs = np.sign(skews)
+        skews = array([skew(f.ravel()) for f in ica_filters])
+        skew_signs = np.sign(skews)
         skewsorted = np.argsort(np.abs(skews))[::-1]
-	for fnumber,s in enumerate(skew_signs):
-	    ica_signals[fnumber] *= s
-	    ica_filters[fnumber] *= s
+        for fnumber,s in enumerate(skew_signs):
+            ica_signals[fnumber] *= s
+            ica_filters[fnumber] *= s
     else:
-        skewsorted = range(ncomp)
+        skewsorted = list(range(ncomp))
     if reshape_filters:
         ica_filters = ah.shape_frames(ica_filters[skewsorted], sh)
     else:
@@ -111,7 +111,7 @@ def _ica_symm(X, nIC=None, guess=None,
               termtol = 5e-7, max_iter = 2e3,
               verbose=False):
     "Simplistic ICA with FastICA algorithm"
-    nPC, siglen = map(np.float, X.shape)
+    nPC, siglen = list(map(np.float, X.shape))
     nIC = nIC or nPC
 
 
@@ -135,9 +135,9 @@ def _ica_symm(X, nIC=None, guess=None,
         iters += 1
     if verbose:
         if iters < max_iter:
-            print "Success: ICA Converged in %d tries" %iters
+            print("Success: ICA Converged in %d tries" %iters)
         else:
-            print "Fail: reached maximum number of iterations %d reached"%max_iter
+            print("Fail: reached maximum number of iterations %d reached"%max_iter)
     return B.real
 
 
@@ -161,7 +161,7 @@ def fastica(X, ncomp=None, whiten = True,
      - S -- estimated sources (in rows)
      - W -- unmixing matrix
     """
-    n,p = map(np.float, X.shape)
+    n,p = list(map(np.float, X.shape))
     if whiten:
         XW, Uh, s, _ = pca.pca(X, ncomp) # whitened data and projection matrix
         #XW, Uh, _ = whitenmat(X, ncomp) # whitened data and projection matrix
@@ -175,7 +175,7 @@ def fastica(X, ncomp=None, whiten = True,
     fun = algorithms.get(algorithm, 'symmetric')
     W  = fun(XW, **kwargs)
     if whiten:
-        print X.shape, W.shape, Uh.shape, XW.shape
+        print(X.shape, W.shape, Uh.shape, XW.shape)
         #S = dot(dot(W,Uh),X)
         S = W.dot(XW).dot(Uh)
     else:
@@ -202,7 +202,7 @@ def fastica_defl(X, nIC=None, guess=None,
         w /= norm(w)
 
         wprev = zeros(w.shape)
-        for i in xrange(long(maxiters) +1):
+        for i in range(int(maxiters) +1):
             w -= dot(dot(B, transp(B)), w)
             w /= norm(w)
             #wprev = w.copy()

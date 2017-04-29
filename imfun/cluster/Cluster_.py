@@ -26,45 +26,43 @@ class Cluster:
     def __repr__(self):
         return str(self.points)
     def set_points(self, points):
-	"set points that belong to the cluster"
+        "set points that belong to the cluster"
         if len(points) < 1:
             raise Exception("Cluster problem: \
             each cluster should have at least one point")
         self.points = points
     def distortion(self):
-	"sum of distances of all points from the centroid"
+        "sum of distances of all points from the centroid"
         c = self.centroid()
-        return np.sum(map(lambda x: self.dist_fn(c,x),
-                          self.points))
+        return np.sum([self.dist_fn(c,x) for x in self.points])
     def distortion_mean(self):
-	"mean of distances of all points from the centroid"
+        "mean of distances of all points from the centroid"
         c = self.centroid()
-        return np.mean(map(lambda x: self.dist_fn(c,x),
-                          self.points))
+        return np.mean([self.dist_fn(c,x) for x in self.points])
     def diam(self):
-	"maximal distance between two points in the cluster"
+        "maximal distance between two points in the cluster"
         if len(self.points) > 1:
             return np.max([self.dist_fn(*pair)
                            for pair in itt.combinations(self.points,2)])
         else:
             return 0
     def farthest_linkage(self, point):
-	"maximal distance from a given point to points in the cluster"
+        "maximal distance from a given point to points in the cluster"
         return np.max([self.dist_fn(p,point) for p in self.points])
     def addpoint(self, point):
-	"add a point to the cluster"
+        "add a point to the cluster"
         self.points.append(point)
     def update(self, points):
-	'''replace old points with new ones and return the change in centroid position'''
+        '''replace old points with new ones and return the change in centroid position'''
         old_center = self.centroid()
         self.set_points(points)
         new_center = self.centroid()
         return self.dist_fn(old_center, new_center)
     def centroid(self,):
-	"return coordinates of the centroid"
+        "return coordinates of the centroid"
         pcoords = [p for p in self.points]
         return self.center_fn(pcoords,0)
     def mass(self):
-	"return number of points in the cluster"
+        "return number of points in the cluster"
         return len(self.points)
     pass

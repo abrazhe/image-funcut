@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 from functools import partial
 
@@ -33,7 +33,7 @@ class LKP_image_aligner ():
         wsize = self.wsize
         if self.mesh is None:
             mstride = self.mstride
-            granges = [range(wsize//2, shi-wsize//2+mstride, mstride) for shi in sh[:2]]
+            granges = [list(range(wsize//2, shi-wsize//2+mstride, mstride)) for shi in sh[:2]]
             self.mesh = np.array([(i,j) for i in granges[0] for j in granges[1]])
 
         mesh = self.mesh
@@ -41,7 +41,7 @@ class LKP_image_aligner ():
         gshape = (len(ygrid), len(xgrid))
         p = np.zeros((2,)+gshape)
         imx = source.copy()
-        for niter in xrange(maxiter):
+        for niter in range(maxiter):
             vx = lk_opflow(target,imx, mesh, wsize=self.wsize)
 
             if weigh_by_shitomasi:
@@ -60,7 +60,7 @@ class LKP_image_aligner ():
                     smoothf_ = partial(filt.l2spline, s=smooth_vfield)
                 else:
                     smoothf_ = partial(atrous.smooth, level=smooth_vfield)
-                vfields = map(smoothf_, vfields)
+                vfields = list(map(smoothf_, vfields))
             p += vfields
             imx = self.warp_image(source, p)
         return imx, p
@@ -71,7 +71,7 @@ class LKP_image_aligner ():
         xgrid, ygrid = np.unique(mesh[:,1]), np.unique(mesh[:,0])
         #print '---[grid_shift_coords] outshape', outshape
         #print '---[grid_shift_coords] vfields.shape', vfields.shape
-        dxsampler,dysampler = [RectBivariateSpline(ygrid, xgrid, vfields[dim]) for dim in 1,0]
+        dxsampler,dysampler = [RectBivariateSpline(ygrid, xgrid, vfields[dim]) for dim in (1,0)]
         dx = dxsampler(yi,xi)
         dy = dysampler(yi,xi)
         #print '---[grid_shift_coords], dx.shape:',dx.shape,

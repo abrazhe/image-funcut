@@ -1,4 +1,4 @@
-from __future__ import division # a/b will always return float
+ # a/b will always return float
 
 import numpy as np
 
@@ -9,12 +9,12 @@ def memsafe_arr(shape, dtype=_dtype_):
     shape = tuple(shape)
     N = np.prod(shape)
     if N < _maxshape_:
-	return np.zeros(shape, dtype=dtype)
+        return np.zeros(shape, dtype=dtype)
     else:
-	print "Using memory-mapped arrays..."
-	_tmpfile = tmpf.TemporaryFile()
-	out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
-	_tmpfile.close()
+        print("Using memory-mapped arrays...")
+        _tmpfile = tmpf.TemporaryFile()
+        out = np.memmap(_tmpfile, dtype=dtype, shape=shape)
+        _tmpfile.close()
     return out
     
 
@@ -27,7 +27,8 @@ def ravel_frames(frames):
     else:
         return np.array([np.ravel(f) for f in frames])
 
-def shape_frames(X,(nrows,ncols)):
+def shape_frames(X, shape):
+    (nrows,ncols) = shape
     if isinstance(X, np.ndarray):
         Nt,Np = X.shape
         return X.reshape(Nt, nrows, ncols)
@@ -47,8 +48,8 @@ def embedding(arr, delarrp=True):
     Returns tuple ``(out, (sh, slices))`` of:
         * out: array, which is a bounding box around non-zero elements of an input
           array
-	* sh:  full shape of the input data
-	* slices: a list of slices which define the bounding box
+        * sh:  full shape of the input data
+        * slices: a list of slices which define the bounding box
     
     
     """

@@ -4,7 +4,7 @@
 ### Synonyms: stationary wavelet transform, non-decimated wavelet transform,
 ### starlet transform
 
-from __future__ import division
+
 
 import numpy as np
 from scipy import signal
@@ -23,11 +23,11 @@ from .constants import *
 #[0.700, 0.323, 0.210, 0.141, 0.099, 0.071, 0.054],   # 1D
 
 sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
-	   [7.235e-01, 2.854e-01, 1.779e-01, 1.222e-01, 8.581e-02, 6.057e-02,  4.280e-02, 3.025e-02, 2.138e-02, 1.511e-02, 1.067e-02, 7.512e-03], #1D
+           [7.235e-01, 2.854e-01, 1.779e-01, 1.222e-01, 8.581e-02, 6.057e-02,  4.280e-02, 3.025e-02, 2.138e-02, 1.511e-02, 1.067e-02, 7.512e-03], #1D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]]  # 3D
 
-    	   
+           
 
 ## Default spline wavelet scaling function
 _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
@@ -35,7 +35,7 @@ _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
 def locations(shape):
     """ Return all locations within shape as iterator
     """
-    return itt.product(*map(xrange, shape))
+    return itt.product(*map(range, shape))
 
 ### version with direct convolution (scales better with decomposition level)
 ## import itertools as itt
@@ -48,8 +48,8 @@ def locations(shape):
 ##     coefs = np.ones((level+1, L),dtype='float64')
 ##     for j in xrange(level):
 ##         phiind = (2**j)*phirange
-## 	approx = reduce(np.add,
-## 			(p*cprev[(Ll+pi)%L] for p,pi in itt.izip(phi, phiind)))
+##      approx = reduce(np.add,
+##                      (p*cprev[(Ll+pi)%L] for p,pi in itt.izip(phi, phiind)))
 ##         coefs[j] = cprev - approx
 ##         cprev = approx
 ##     coefs[j+1] = approx
@@ -62,7 +62,7 @@ def locations(shape):
 
 # def weave_conv1d_wholes(vout,v,phi,ind):
 #     if vout.shape != v.shape:
-# 	raise ValueError("Input and output arrays must have the same shape")
+#       raise ValueError("Input and output arrays must have the same shape")
 #     code = """
 #     long L,i,k,ki;
 #     L = Nv[0];
@@ -70,9 +70,9 @@ def locations(shape):
 #        VOUT1(i) = 0;
 #        for(k=0; k<Nphi[0]; k++){
 #           ki = i+IND1(k);
-# 	  if (ki < 0){ki = -ki%L;}
-# 	  else if (ki >= L){ki = L-2-ki%L;}
-# 	  VOUT1(i) += PHI1(k)*V1(ki);
+#         if (ki < 0){ki = -ki%L;}
+#         else if (ki >= L){ki = L-2-ki%L;}
+#         VOUT1(i) += PHI1(k)*V1(ki);
 #        }
 #     }
 #     """
@@ -87,17 +87,17 @@ def locations(shape):
 #     for(i=0; i<Nr; i++){
 #        for(j=0; j<Nc; j++){
 #           UOUT2(i,j) = 0;
-# 	  for(k=0; k<Nphi[0]; k++){
-# 	     ki = i+IND1(k);
-# 	     if (ki < 0){ki = -ki%Nr;}
-# 	     else if (ki >= Nr){ki = Nr-2-ki%Nr;}
-# 	     for(l=0; l<Nphi[1]; l++){
-# 		li = j + IND1(l);
-# 		if (li < 0){li = -li%Nc;}
-# 		else if (li >= Nc){li = Nc-2-li%Nc;}
-# 		UOUT2(i,j) += PHI2(k,l)*U2(ki,li);
-# 	     }
-# 	  }
+#         for(k=0; k<Nphi[0]; k++){
+#            ki = i+IND1(k);
+#            if (ki < 0){ki = -ki%Nr;}
+#            else if (ki >= Nr){ki = Nr-2-ki%Nr;}
+#            for(l=0; l<Nphi[1]; l++){
+#               li = j + IND1(l);
+#               if (li < 0){li = -li%Nc;}
+#               else if (li >= Nc){li = Nc-2-li%Nc;}
+#               UOUT2(i,j) += PHI2(k,l)*U2(ki,li);
+#            }
+#         }
 #        }
 #     }
 #     """
@@ -138,7 +138,7 @@ try:
     numba_conv1d_wholes = jit(conv1d_wholes)
     numba_conv2d_wholes = jit(conv2d_wholes)
 except ImportError as ex:
-    print ex
+    print(ex)
     _has_numba_ = False
         
 
@@ -160,7 +160,7 @@ def decompose1d_weave(sig, level,
     L,lphi = len(sig), len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
     coefs = np.ones((level+1, L),dtype=dtype)
-    for j in xrange(int(level)):
+    for j in range(int(level)):
         phiind = (2**j)*phirange
         approx = np.zeros(sig.shape, dtype=dtype)
         if _has_numba_:
@@ -169,8 +169,8 @@ def decompose1d_weave(sig, level,
             try:
                 weave_conv1d_wholes(approx, cprev, phi, phiind)
             except Exception as ex:
-                print ex
-                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                print(ex)
+                print("don't have numba and can't use weave, reverting to pure Python (slow)")
                 conv1d_wholes(approx, cprev, phi, phiind)
         coefs[j] = cprev - approx
         cprev = approx
@@ -206,7 +206,7 @@ def decompose2d_weave(arr2d, level,
     phirange = np.arange(lphi) - int(lphi/2)
     phi2d = make_phi2d(phi)
     coefs = np.ones((level+1, sh[0], sh[1]),dtype=dtype)
-    for j in xrange(int(level)):
+    for j in range(int(level)):
         phiind = (2**j)*phirange
         approx = np.zeros(sh, dtype=dtype)
         if _has_numba_:
@@ -215,8 +215,8 @@ def decompose2d_weave(arr2d, level,
             try:
                 weave_conv2d_wholes(approx, cprev, phi2d, phiind)
             except Exception as ex:
-                print ex
-                print "don't have numba and can't use weave, reverting to pure Python (slow)"
+                print(ex)
+                print("don't have numba and can't use weave, reverting to pure Python (slow)")
                 conv2d_wholes(approx, cprev,phi2d, phiind)
         coefs[j] = cprev - approx
         cprev = approx
@@ -275,7 +275,7 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
     _b3spl2d = np.dot(__x.T,__x)
     if phi is None: phi = _b3spl2d
     if level <= 0: return arr2d
-    shapecheck = map(lambda a,b:a>b, arr2d.shape, phi.shape)
+    shapecheck = list(map(lambda a,b:a>b, arr2d.shape, phi.shape))
     assert np.all(shapecheck)
     arr2d = arr2d.astype(_dtype_)
     # approximation:
@@ -283,11 +283,11 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
                                boundary=boundary)  
     w = arr2d - approx   # wavelet details
     upphi = zupsample(phi)
-    shapecheck = map(lambda a,b:a>b, arr2d.shape, upphi.shape)
+    shapecheck = list(map(lambda a,b:a>b, arr2d.shape, upphi.shape))
     if level == 1:
         return [w, approx]
     elif not np.all(shapecheck):
-        print "Maximum allowed decomposition level reached, not advancing any more"
+        print("Maximum allowed decomposition level reached, not advancing any more")
         return [w, approx]
     else:
         return [w] + decompose2d_numpy(approx,level-1,upphi,boundary=boundary) 
@@ -319,23 +319,23 @@ def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary
         v = arr[:,loc[0], loc[1]]
         tapprox[:,loc[0], loc[1]] = convolve1d(v, phi, mode=boundary1d)
     approx = np.zeros(arr.shape,_dtype_)
-    for k in xrange(arr.shape[0]):
+    for k in range(arr.shape[0]):
         approx[k] = signal.convolve2d(tapprox[k], phi2d, mode='same',
                                       boundary=boundary2d)
     details = arr - approx
     upkern = zupsample(phi)
-    shapecheck = map(lambda a,b:a>b, arr.shape, upkern.shape)
+    shapecheck = list(map(lambda a,b:a>b, arr.shape, upkern.shape))
     if level == 1:
         return [details, approx]
     elif not np.all(shapecheck):
-        print "Maximum allowed decomposition level reached, returning"
+        print("Maximum allowed decomposition level reached, returning")
         return [details, approx]
     else:
         return [details] + decompose3d_numpy(approx, level-1, upkern)
 
 ## def decompose3d_weave(arr, level=1,
-## 		      phi = _phi_,
-## 		      curr_j = 0):
+##                    phi = _phi_,
+##                    curr_j = 0):
 ##     """Semi-separable a trous wavelet decomposition for 3D data
 ##     with B3-spline scaling function
     
@@ -362,7 +362,7 @@ def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary
 ##     tapprox = np.zeros(arr.shape,_dtype_)
 ##     for loc in locations(arr.shape[1:]):
 ##         v = arr[:,loc[0], loc[1]]
-## 	vo = np.zeros(v.shape, _dtype_)
+##      vo = np.zeros(v.shape, _dtype_)
 ##         weave_conv1d_wholes(tapprox[:,loc[0], loc[1]], v, phi, phiind)
 ##     approx = np.zeros(arr.shape,_dtype_)
 ##     for k in xrange(arr.shape[0]):
@@ -414,7 +414,7 @@ def decompose3d_weave(arr, level=1,
         f1d(tapprox[:,loc[0], loc[1]], v, phi, phiind)
     if axis is None:
         approx = np.zeros(arr.shape,_dtype_)
-        for k in xrange(arr.shape[0]):
+        for k in range(arr.shape[0]):
             f2d(approx[k],tapprox[k], phi2d, phiind)
     else:
         approx = tapprox
@@ -440,7 +440,7 @@ def decompose(arr, *args, **kwargs):
     elif ndim == 3:
         decfn = decompose3d
     else:
-        print "Can't work with %d dimensions yet, returning"%ndim
+        print("Can't work with %d dimensions yet, returning"%ndim)
         return
     return decfn(arr, *args, **kwargs)
 
@@ -476,9 +476,9 @@ def estimate_sigma(arr, coefs=None, k=3, eps=0.01, max_iter=1e9):
       - estimation of standard deviation (:math:`\\sigma`) as a number.
     """
     if coefs is None:
-	coefs = decompose(arr)
+        coefs = decompose(arr)
     sprev = estimate_sigma_mad(coefs[0], True)
-    for j in xrange(int(max_iter)):
+    for j in range(int(max_iter)):
         supp = get_support(coefs, sprev*k, neg=True)
         mask = np.prod(supp[:-1], axis=0)
         snext =  np.std((arr-coefs[-1])[mask])
@@ -491,7 +491,7 @@ def estimate_sigma_kclip(arr, k=3.0, max_iter=3):
     """Estimate standard deviation of noise in data using the K-clip algorithm.
     """
     d = np.ravel(decompose(arr,1)[0])
-    for j in xrange(int(max_iter)):
+    for j in range(int(max_iter)):
         d = d[abs(d) < k*np.std(d)]
     return np.std(d)
 
@@ -549,15 +549,15 @@ def smooth_with_detrend(arr,smooth_level=1,detrend_level=7):
  
         
 def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None,
-		    modulus=False,
-		    soft=False):
+                    modulus=False,
+                    soft=False):
     """Denoise input data through a trous wavelet transform.
 
     Parameters:
       - `f`: input array (dimensions can be 1D, 2D or 3D)
       - `k`: (`num` or `iterable`) -- threshold it :math:`\\times` noise S.D. If
         iterable, defines separate thresholds for different levels of
-	decomposition
+        decomposition
       - `level`: (`num`) -- level of decomposition. If `k` is iterable, and its
         length is smaller than `level`, then it limits the decomposition leve
       - `modulus`: (`bool`) -- if `True`, absolute values of coefficients are
@@ -632,7 +632,7 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
     vcurr = np.copy(v)
     sd = estimate_sigma_mad(v)
     sprev = None
-    for i in xrange(int(niter)):
+    for i in range(int(niter)):
         s = smooth(vcurr, level)
         sd = np.std(vcurr-s)
         clip = (vcurr > s+r*sd)
@@ -642,7 +642,7 @@ def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
             conv = np.std(s-sprev)
             if conv < tol:
                 if verbose:
-                    print 'converged after %d iterations' %(i+1)
+                    print('converged after %d iterations' %(i+1))
                 break
         sprev = s
     return s

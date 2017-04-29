@@ -1,5 +1,5 @@
 # Algorithm by Bruhn, Weickert, Schnorr
-from __future__ import division
+
 
 import sys
 
@@ -52,7 +52,7 @@ class MSCLG(object):
         u = [np.zeros_like(p) for p in pt]
         v = [np.zeros_like(p) for p in pt]
         clg_args = dict(alpha=alpha,rho=rho,wt=wt)
-        for level in xrange(nl-1,-1,-1):
+        for level in range(nl-1,-1,-1):
             h = 2.0**level
             if level < nl-1:
                 psx = Warp.from_array((u[level],v[level]))(ps[level], mode=_boundary_mode)
@@ -104,7 +104,7 @@ class MSCLG(object):
 
         if rho > 0:
             smoother = lambda _f: ndimage.gaussian_filter(_f,rho)
-            J11,J12,J13,J22,J23 = map(smoother, (J11,J12,J13,J22,J23))
+            J11,J12,J13,J22,J23 = list(map(smoother, (J11,J12,J13,J22,J23)))
 
         J11,J12,J13,J22,J23 = [_f*h2a for _f in (J11,J12,J13,J22,J23)]
 
@@ -121,7 +121,7 @@ class MSCLG(object):
             relax_step = lambda u,v: pcgs_update(u,v,J11,J12,J13,J22,J23)
 
         stopcount =0
-        for ni in xrange(int(self.niter)):
+        for ni in range(int(self.niter)):
             #cerr[ni] = sor_update(u,v,omega,J11,J12,J13,J22,J23)
             conv_err = relax_step(u,v)
             cerr[ni] = conv_err
@@ -152,8 +152,8 @@ def pcgs_update(u,v,J11,J12,J13,J22,J23):
     J21 = J12
     changed = 0
     #M = np.array([[J11+4, J12], [J21, J22+4]])
-    for r in xrange(1,nrows-1):
-        for c in xrange(1,ncols-1):
+    for r in range(1,nrows-1):
+        for c in range(1,ncols-1):
             l = (r,c)
             M = (J11[l]+4.0,  J12[l],
                  J21[l],      J22[l]+4.0)
@@ -191,8 +191,8 @@ def sor_update(u,v,omega,J11,J12,J13,J22,J23):
     nrows,ncols = u.shape
     changed = 0
     J21 = J12
-    for r in xrange(1,nrows-1):
-        for c in xrange(1,ncols-1):
+    for r in range(1,nrows-1):
+        for c in range(1,ncols-1):
             l = (r,c)
             changed += sor_at(u,v,l,omega,J11,J12,J13,J22,J23)
     changed += boundary_conditions(u)

@@ -30,17 +30,17 @@ distance_fns = {
 def _iterative_som(patterns, max_rec=50, *args, **kwargs):
     membs_p, gr_p = som1(patterns, *args, output='both',  **kwargs)
     hist = []
-    for count in xrange(max_rec):
-	membs_n, gr_n = som1(patterns, *args, output='both',
-			    init_templates = [g[0] for g in gr_p],
-			    **kwargs)
-	err = np.sum(abs(gr_n-gr_p))
-	
-	if np.allclose(_sorted_memberships(membs_p), _sorted_memberships(membs_n)):
-	    return membs_n, gr_n
-	hist.append(err)
-	print count, np.sum(abs(_sorted_memberships(membs_n) - _sorted_memberships(membs_p))) 
-	membs_p, gr_p = membs_n, gr_n
+    for count in range(max_rec):
+        membs_n, gr_n = som1(patterns, *args, output='both',
+                            init_templates = [g[0] for g in gr_p],
+                            **kwargs)
+        err = np.sum(abs(gr_n-gr_p))
+        
+        if np.allclose(_sorted_memberships(membs_p), _sorted_memberships(membs_n)):
+            return membs_n, gr_n
+        hist.append(err)
+        print(count, np.sum(abs(_sorted_memberships(membs_n) - _sorted_memberships(membs_p)))) 
+        membs_p, gr_p = membs_n, gr_n
     return membs_n, gr_n
 
 
@@ -50,10 +50,10 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
          min_reassign=10,
          max_iter = 1e5,
          distance=euclidean,
-	 init_templates = None,
-	 init_pca = False,
+         init_templates = None,
+         init_pca = False,
          random_query = True,
-	 output = 'last',
+         output = 'last',
          verbose = 0):
     """SOM as described in Bacao, Lobo and Painho, 2005
     Parameters:
@@ -74,7 +74,7 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
          first N principal components
       - `output` - string to define output, can be 'last', 'both' or 'full'
       - `verbose` - whether to be verboze 
- 	 
+         
     """
 
     if (isinstance(distance,str)) and distance in distance_fns:
@@ -90,18 +90,18 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
     Npts = len(patterns)            # number of patterns
     sh = patterns[0].shape          # dimensionality
     grid = np.zeros(np.concatenate((gridshape, sh)))
-    locs = list(itt.product(*map(xrange,gridshape)))
+    locs = list(itt.product(*map(range,gridshape)))
     L = len(locs)            # total dictionary size
 
     if init_templates is None:
-	if init_pca:
-	    patt = np.array([x.ravel() for x in patterns])
-	    u,s,vh = np.linalg.svd(patt, full_matrices=False)
-	    init_templates = [c.reshape(sh) for c in u[:len(locs)]]
-	    del u,s,vh,patt
-	else:
-	    init_ks = np.random.randint(Npts, size=len(locs))
-	    init_templates = [patterns[k] for k in init_ks]
+        if init_pca:
+            patt = np.array([x.ravel() for x in patterns])
+            u,s,vh = np.linalg.svd(patt, full_matrices=False)
+            init_templates = [c.reshape(sh) for c in u[:len(locs)]]
+            del u,s,vh,patt
+        else:
+            init_ks = np.random.randint(Npts, size=len(locs))
+            init_templates = [patterns[k] for k in init_ks]
     for k,l in enumerate(locs):
         grid[l] = init_templates[k]
 
@@ -115,7 +115,7 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
     
     while alpha > 1e-6 and niter < max_iter and reassigned > min_reassign:
         memberships_prev = memberships.copy()
-        for k1,k2 in itt.combinations(range(L),2):
+        for k1,k2 in itt.combinations(list(range(L)),2):
             grid_pdists[k1,k2] = neighbor_fn(locs[k1],locs[k2],r)
             grid_pdists[k2,k1] = grid_pdists[k1,k2]
         for k,loc in enumerate(locs):
@@ -141,13 +141,13 @@ def som(patterns, gridshape=(10,1), alpha=0.99, r=2.0,
         r *= fade_coeff
         reassigned = np.sum(memberships != memberships_prev)
         niter +=1
-	out.append(memberships.copy())
+        out.append(memberships.copy())
     if output == 'last':
-	return memberships
+        return memberships
     elif output == 'grid':
-	return grid
+        return grid
     elif output == 'both':
-	return memberships, grid
+        return memberships, grid
     elif output == 'full':
         return out, grid
     return out
@@ -180,10 +180,10 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
          first N principal components
       - `output` - string to define output, can be 'last', 'both' or 'full'
       - `verbose` - whether to be verboze 
- 	 
+         
     """
 
-    if (isinstance(distance,str)) and distance_fns.has_key(distance):
+    if (isinstance(distance,str)) and distance in distance_fns:
         distance = distance_fns[distance]
 
     ### TODOs:
@@ -195,16 +195,16 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
     L = len(patterns[0])            # dimensionality
     sh = patterns[0].shape          # dimensionality
     grid = np.zeros(np.concatenate((shape, sh)))
-    locs = list(itt.product(*map(xrange,shape)))
+    locs = list(itt.product(*map(range,shape)))
     if init_templates is None:
-	if init_pca:
-	    patt = np.array([x.ravel() for x in patterns])
-	    u,s,vh = np.linalg.svd(patt.T,full_matrices=False)
-	    init_templates = [c.reshape(sh) for c in u.T[:len(locs)]]
-	    del u,s,vh,patt
-	else:
-	    init_ks = np.random.randint(len(patterns), size=len(locs))
-	    init_templates = [patterns[k] for k in init_ks]
+        if init_pca:
+            patt = np.array([x.ravel() for x in patterns])
+            u,s,vh = np.linalg.svd(patt.T,full_matrices=False)
+            init_templates = [c.reshape(sh) for c in u.T[:len(locs)]]
+            del u,s,vh,patt
+        else:
+            init_ks = np.random.randint(len(patterns), size=len(locs))
+            init_templates = [patterns[k] for k in init_ks]
     for k,l in enumerate(locs):
         grid[l] = init_templates[k]
     #memberships = np.ones(Npts)*-1
@@ -227,18 +227,18 @@ def _som1_old(patterns, shape=(10,1), alpha=0.99, r=2.0, neighbor_fn=neigh_gauss
         r *= fade_coeff
         reassigned = np.sum(memberships != memberships_prev)
         niter +=1
-	out.append(memberships.copy())
+        out.append(memberships.copy())
     if output == 'last':
-	return memberships
+        return memberships
     elif output == 'grid':
-	return grid
+        return grid
     elif output == 'both':
-	return memberships, grid
+        return memberships, grid
     return out
 
 def classify(pattern, grid, distance = euclidean):
     sh = grid.shape[:2] # shape of grid
-    locs = list(itt.product(*map(xrange,sh)))
+    locs = list(itt.product(*map(range,sh)))
     flatgrid_sh = (-1, ) + pattern.shape
     dists = distance(grid.reshape(flatgrid_sh), pattern)
     k = np.argmin(dists)
@@ -247,21 +247,21 @@ def classify(pattern, grid, distance = euclidean):
 
 def _classify_old(pattern, grid, distance = euclidean):
     sh = grid.shape[:2] # shape of grid
-    locs = list(itt.product(*map(xrange,sh)))
+    locs = list(itt.product(*map(range,sh)))
     dists = [distance(grid[loc],pattern) for loc in locs]
     k = np.argmin(dists)
     return k, locs[k]
 
 def som_batch(patterns, shape=(10,1), neighbor_fn = neigh_gauss,
               distance=euclidean):
-    print "Not implemented yet"
+    print("Not implemented yet")
     pass
 
 def cluster_map_permutation(membs, perms, shape):
     "auxiliary function to map memberships to 2D image"
     import itertools as itt
     out = np.zeros(shape)
-    coordinates = list(itt.product(*map(xrange,shape)))
+    coordinates = list(itt.product(*map(range,shape)))
     for k,a in enumerate(membs):
         out[coordinates[perms[k]]] = a
     return out

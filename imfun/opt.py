@@ -7,7 +7,8 @@ leastsq = optimize.leastsq
 
 exp = np.exp
 
-def gaussian(x, (a, b, c,f)):
+def gaussian(x, params):
+    (a, b, c,f) = params
     return a * np.exp(-(x-b)**2/(2*c**2))+f
 
 def fwhm(c):
@@ -25,23 +26,30 @@ def residuals_f(f):
 def score_f(f):
     return lambda p, v, x: np.sum((v - f(x,p))**2)
 
-def rising_exp(t, (a,b,tau)):
+def rising_exp(t, a_b_tau):
+    (a,b,tau) = a_b_tau
     return a - b*exp(-t/tau)
 
-def expf(t, (a,b,tau)):
+def expf(t, a_b_tau):
+    (a,b,tau) = a_b_tau
     return a + b*exp(-t/tau)
 
 
-def double_rising_exp(t, (a,b1,b2,tau1,tau2)):
+def double_rising_exp(t, params):
+    "params are (a,b1,b2,tau1,tau2"
+    (a,b1,b2,tau1,tau2) = params
     return a - b1*exp(-t/tau1) - b2*exp(-t/tau2)
 
-def logistic(t, (a,b,tau)):
+def logistic(t, a_b_tau):
+    (a,b,tau) = a_b_tau
     return a / (1 + b*exp(-t/tau))
 
-def rising_pow(t, (a,b,alpha)):
+def rising_pow(t, a_b_alpha):
+    (a,b,alpha) = a_b_alpha
     return a - b*t**(-alpha)
 
-def mmenten(t, (a, km, alpha)):
+def mmenten(t, a_km_alpha):
+    (a, km, alpha) = a_km_alpha
     return a*t/(km + t**alpha)
 
 def search_halfrise(tx, fn, p):

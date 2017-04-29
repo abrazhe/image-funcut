@@ -4,20 +4,20 @@ import numpy as np
 def locations(shape):
     """ all locations for a shape; substitutes nested cycles
     """
-    return itt.product(*map(xrange, shape))
+    return itt.product(*map(range, shape))
     
 def n_random_locs(n, shape):
     """
     return a list of n random locations within shape
     """
-    return zip(*[tuple(np.random.choice(dim, n)) for dim in shape])
+    return list(zip(*[tuple(np.random.choice(dim, n)) for dim in shape]))
 
 
 def make_grid(shape,size,stride):
     """Make a generator over sets of slices which go through the provided shape
        by a stride
     """
-    origins =  itt.product(*[range(0,dim,stride) for dim in shape])
+    origins =  itt.product(*[list(range(0,dim,stride)) for dim in shape])
     squares = ([slice(a,a+size) for a in o] for o in origins)
     return squares
 

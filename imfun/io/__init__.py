@@ -9,13 +9,13 @@ from . import olympus
 
 def write_table_csv(table, fname):
     import csv
-    with open(fname, 'w') as f:
+    with open(fname, 'wt') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         for row in table:
             writer.writerow(row)
 
 def write_dict_hdf(dict, fname):
-    print 'write_dict_hdf not supported yet'
+    print('write_dict_hdf not supported yet')
     return
 
 
@@ -34,7 +34,7 @@ def _prepare_dict_for_tabular(dict):
                 vals.append(col)
                 ext_keys.append('%s:%d'%(k,i+1))
         else :
-            print "can't write values with ndim>2"
+            print("can't write values with ndim>2")
     return ext_keys, vals
 
 
@@ -57,14 +57,14 @@ def write_dict_tab(dict, fname, index=None, topheader=None):
         out_string += '\t'.join(['{}'.format(index_vals[k])]+
                                 ['%e'%v[k] for v in vals])+'\n'
 
-    with open(fname, 'w') as f:
+    with open(fname, 'wt') as f:
         f.write(out_string)
     return
 
 
 def write_dict_csv(dict, fname, index=None, **kwargs):
     import csv
-    with open(fname, 'w') as f:
+    with open(fname, 'wt') as f:
         #writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer = csv.writer(f, **kwargs)
         keys, vals = _prepare_dict_for_tabular(dict)
@@ -77,6 +77,6 @@ def write_dict_csv(dict, fname, index=None, **kwargs):
         Lmax = np.max([len(v) for v in vals] + [len(index_vals)])
         
         writer.writerow([index_name]+ keys)
-        for i in xrange(Lmax):
+        for i in range(Lmax):
             row = [index_vals[i]] + [v[i] if len(v) >i and v[i] is not None and not np.isnan(v[i]) else 'NA' for v in vals]
             writer.writerow(row)

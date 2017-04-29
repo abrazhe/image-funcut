@@ -10,10 +10,11 @@ from scipy import ndimage
 
 from . import core
 from .core import ifnot, coords
+from functools import reduce
 
 def locations(shape):
     """locations from a given shape (Cartesian product) as an iterator"""
-    return itt.product(*map(xrange, shape))
+    return itt.product(*map(range, shape))
 
 
 def adaptive_threshold(arr, n = 3, k = 0,binfn=np.mean):
@@ -30,12 +31,12 @@ def adaptive_threshold(arr, n = 3, k = 0,binfn=np.mean):
     nrows,ncols = arr.shape
     out = np.zeros(arr.shape)
     for row,col in locations(arr.shape):
-	sl = (slice((row-n)%nrows,(row+n+1)%nrows),
-	      slice((col-n)%ncols,(col+n+1)%ncols))
-	#m = np.mean(arr[sl])
+        sl = (slice((row-n)%nrows,(row+n+1)%nrows),
+              slice((col-n)%ncols,(col+n+1)%ncols))
+        #m = np.mean(arr[sl])
         m = binfn(arr[sl])
-	if arr[row,col] > m - k:
-	    out[row,col] = 1
+        if arr[row,col] > m - k:
+            out[row,col] = 1
     return out
 
 
@@ -57,13 +58,13 @@ def auto_threshold(arr, init_th = None, max_iter = 1e7):
     1978.
     """
     thprev = ifnot(init_th, np.median(arr))
-    for i in xrange(int(max_iter)):
-	ab = np.mean(arr[np.where(arr <= thprev)])
-	av = np.mean(arr[np.where(arr > thprev)])
-	thnext = 0.5*(ab+av)
-	if thnext <= thprev:
-		break
-	thprev = thnext
+    for i in range(int(max_iter)):
+        ab = np.mean(arr[np.where(arr <= thprev)])
+        av = np.mean(arr[np.where(arr > thprev)])
+        thnext = 0.5*(ab+av)
+        if thnext <= thprev:
+                break
+        thprev = thnext
     return thnext
 
 
@@ -85,10 +86,10 @@ def contiguous_regions(binarr):
         origin =  np.asarray([x.start for x in o])
         #x1 = np.asarray(np.where(labels[o] == j+1)).T
         x1 = np.argwhere(labels[o] == j+1)
-        regions.append( map(tuple, (x1 + origin)))
+        regions.append( list(map(tuple, (x1 + origin))))
 
     regions.sort(key = lambda x: len(x), reverse=True)
-    return map(lambda x: RegionND(x, binarr.shape), regions)
+    return [RegionND(x, binarr.shape) for x in regions]
 
 
 def neighbours_x(loc,shape):
@@ -104,17 +105,16 @@ def neighbours_x(loc,shape):
     n = len(loc)
     d = np.diag(np.ones(n))
     x = np.concatenate((d,-d)) + loc
-    return filter(partial(valid_loc, shape=shape), map(tuple, x))
+    return list(filter(partial(valid_loc, shape=shape), list(map(tuple, x))))
 
 
 def neighbours_2(loc, shape):
     """Return list of adjacent locations"""
     r,c = loc
-    return filter(lambda x: valid_loc(x, shape),
-                  ((r,c+1), (r,c-1),
-		   (r+1,c), (r-1,c),
+    return [x for x in ((r,c+1), (r,c-1),
+                   (r+1,c), (r-1,c),
                    (r-1,c-1), (r+1,c-1),
-		   (r-1, c+1), (r+1,c+1)))
+                   (r-1, c+1), (r+1,c+1)) if valid_loc(x, shape)]
 
 neighbours = neighbours_x
 
@@ -139,23 +139,23 @@ def filter_density(mask, rad=3, size=5, fn = lambda m,i,j: m[i,j]):
       - filtered mask
     """
     rows, cols = mask.shape
-    X,Y = np.meshgrid(xrange(cols), xrange(rows))
+    X,Y = np.meshgrid(range(cols), range(rows))
     in_circle = coords.in_circle
     out = np.zeros((rows,cols), np.bool)
     for row,col in locations(mask.shape):
-	if fn(mask,row,col):
-	    a = in_circle((col,row),rad)
-	    if np.sum(mask*a(X,Y))>size:
-		out[row,col] = True
+        if fn(mask,row,col):
+            a = in_circle((col,row),rad)
+            if np.sum(mask*a(X,Y))>size:
+                out[row,col] = True
     return out
 
 def majority(bimage, th = 5, mod = False):
     """Perform majority operation on the input binary image"""
     rows, cols = bimage.shape
     out = np.zeros((rows,cols), np.bool)
-    for row in xrange(1,rows):
-        for col in xrange(1,cols):
-	    sl = (slice(row-1,row+2), slice(col-1,col+2))
+    for row in range(1,rows):
+        for col in range(1,cols):
+            sl = (slice(row-1,row+2), slice(col-1,col+2))
             x = np.sum(bimage[sl])
             out[(row,col)] = (x >= th)
             if mod:
@@ -200,7 +200,7 @@ def glue_adjacent_regions(regions, max_distance=10):
             acc.append(regs[0]); return
         if len(regs) < 1: return
         first,rest = regs[0], regs[1:]
-        x = filter(None, map(lambda x: _glue_if(first,x),rest))
+        x = [_f for _f in [_glue_if(first,x) for x in rest] if _f]
         if x == []:
             acc.append(first)
             _loop(rest)
@@ -254,7 +254,7 @@ class RegionND:
         return np.mean(self.locs,0)
     def borders(self):
         return (l for l in self.locs if
-                len(filter(lambda x: x not in self.locs, neighbours(l,self.shape))))
+                len([x for x in neighbours(l,self.shape) if x not in self.locs]))
     def linsize(self,):
         dists = [coords.eu_dist(*pair) for pair in core.misc.allpairs(self.borders())]
         return reduce(max, dists, 0)

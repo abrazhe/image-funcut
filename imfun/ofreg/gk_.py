@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import itertools as itt
 
@@ -30,7 +30,7 @@ class GK_image_aligner:
 
         for niter in range(maxiter):
             T = self.warp_image(template,px,py)
-            gTy,gTx = map(np.ravel, np.gradient(T))
+            gTy,gTx = list(map(np.ravel, np.gradient(T)))
 
             dDdp2 = np.vstack([dDdp*gTx, dDdp*gTy])
 

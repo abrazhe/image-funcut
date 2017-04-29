@@ -11,12 +11,12 @@ try:
     from pathos.pools import ProcessPool
     _with_pathos_ = True
 except ImportError:
-    print """Can't load `pathos` package, parallel maps won't work.
+    print("""Can't load `pathos` package, parallel maps won't work.
 Consider installing it by one of the following commands:
 > pip install git+https://github.com/uqfoundation/pathos
 OR
 > pip install https://github.com/uqfoundation/pathos/archive/master.zip
-"""
+""")
 
 
 from imfun.components import pca
@@ -34,7 +34,7 @@ def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
     all_warps = []
 
     for k,template in enumerate(templates):
-        print "Doing template %d"%k
+        print("Doing template %d"%k)
         correction = Warp.from_array(np.zeros((2,)+frames[0].shape))
         if k > 0:
             correction = regfn(template, templates[0],**fnargs)
@@ -63,7 +63,7 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
         #pool.close()
     else:
-        print 'Running on one core'
+        print('Running on one core')
         out = [regfn(img, template, **fnargs) for img in frames]
     return out
 

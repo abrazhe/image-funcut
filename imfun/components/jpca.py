@@ -40,7 +40,7 @@ def jpca(X, npc=12, symm=-1,verbose=False):
     Mskew = skew_symm_solve(dU, U[:-1], symm=symm,verbose=verbose)
     evals, evecs = eig(Mskew)
     jPCs = [make_eigv_real(evecs[:,p]) for p in 
-            by_chunks(xrange(len(evals)))]
+            by_chunks(range(len(evals)))]
     return array(jPCs), Vh, s, Xc
 
 def make_eigv_real(p_vec, p_vals=None):
@@ -68,7 +68,7 @@ def skew_symm_solve(dX, X, symm=-1, sp_lambda = 0,verbose=False):
     #####res = opt.fmin_l_bfgs_b(skew_objective_fn, m0, approx_grad=True,)
     #res = opt.minimize(skew_objective_fn, m0)
     if verbose:
-        print 'Optimization', res.success and 'success' or 'failure'
+        print('Optimization', res.success and 'success' or 'failure')
     return reshape_skew(res.x,symm)
 
 
@@ -85,21 +85,21 @@ def reshape_skew(m, s=-1):
     if ndim(m) == 1: # m is a vector, we need a matrix
         n = 0.5*(1 + np.sqrt(1 + 8*len(m)))
         if not (n==round(n)):
-            print "length of m doesn't lead to a square-sized matrix of size n(n-1)/2"
+            print("length of m doesn't lead to a square-sized matrix of size n(n-1)/2")
             return
         n = int(n)
         out = zeros((n,n))
         ind_start = 0
-        for i in xrange(n):
+        for i in range(n):
             out[i,i+1:] = m[ind_start:ind_start+n-i-1]
             ind_start += n-i-1
         out += s*out.T
     elif ndim(m) == 2: # m is a matrix, we need a vector
         if not np.equal(*m.shape):
-            print "matrix m is not square"
+            print("matrix m is not square")
             return
         if (norm(m - s*m.T)) > _small_number:
-            print "matrix m is not skew-symmetric or symmetric"
+            print("matrix m is not skew-symmetric or symmetric")
             return
         n = m.shape[0]
         out = zeros(n*(n-1)/2)

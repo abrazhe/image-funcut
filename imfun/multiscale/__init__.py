@@ -39,9 +39,9 @@ def threshold_w(coefs, th, neg=False, modulus=True, soft=False, sigmaej=atrous.s
       - coefs : wavelet coefficients
       - th : (`num` or `iterable`) -- threshold. If a number, this number is
         used as a threshold (but is scaled usign the ``sigmaej`` table for
-	different levels). If a 1D array, different thresholds are used for
-	different levels. If a 2D array, at each level retain only coefficients
-	that are within bounds provided as columns.
+        different levels). If a 1D array, different thresholds are used for
+        different levels. If a 2D array, at each level retain only coefficients
+        that are within bounds provided as columns.
       - neg: (`Bool`) -- if `True` keep coefficients that are *smaller* than
         the threshold
       - modulus: (`Bool`) -- if `True`, absolute value of coefficients is
@@ -55,22 +55,22 @@ def threshold_w(coefs, th, neg=False, modulus=True, soft=False, sigmaej=atrous.s
     nd = len(coefs[0].shape)
     fn = neg and np.less or np.greater
     for j,w in enumerate(coefs[:-1]):
-	sj= sigmaej[nd][j]
+        sj= sigmaej[nd][j]
 
-	if np.iterable(th): t = th[j]
-	else: t = th
+        if np.iterable(th): t = th[j]
+        else: t = th
 
-	if modulus: wa = np.abs(w)
-	else: wa = w
+        if modulus: wa = np.abs(w)
+        else: wa = w
 
-	if np.iterable(t):
-	    out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
-	else:
-	    mask = fn(wa, t*sj)
-	    if soft:
-		out.append(1.0*mask*np.sign(w)*(np.abs(w)-t*sj))
-	    else:
-		out.append(mask)
+        if np.iterable(t):
+            out.append((wa > t[0]*sj)*(wa<=t[1]*sj))
+        else:
+            mask = fn(wa, t*sj)
+            if soft:
+                out.append(1.0*mask*np.sign(w)*(np.abs(w)-t*sj))
+            else:
+                out.append(mask)
     out.append(np.ones(coefs[-1].shape)*(not neg))
     return out
 

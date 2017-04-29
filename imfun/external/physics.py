@@ -12,19 +12,21 @@ import sys
 from math import pi
 
 import numpy as np
+from functools import reduce
 
 # allow uncertain values if the "uncertainties" package is available
 try:
     from uncertainties import ufloat, Variable, AffineScalarFunc
     import uncertainties.umath as unp
     uncertain = (Variable, AffineScalarFunc)
-    def valuetype((v, u)):
+    def valuetype(vu):
+        v,u = vu
         if isinstance(v, uncertain):
             return v
         return ufloat((v, u))
 except ImportError:
     uncertain = ()
-    valuetype = lambda (v, u): v
+    valuetype = lambda vu: vu[0]
     unp = np
 
 
@@ -58,30 +60,30 @@ class NumberDict(dict):
 
     def __add__(self, other):
         sum_dict = NumberDict()
-        for key in self.keys():
+        for key in list(self.keys()):
             sum_dict[key] = self[key]
-        for key in other.keys():
+        for key in list(other.keys()):
             sum_dict[key] = sum_dict[key] + other[key]
         return sum_dict
 
     def __sub__(self, other):
         sum_dict = NumberDict()
-        for key in self.keys():
+        for key in list(self.keys()):
             sum_dict[key] = self[key]
-        for key in other.keys():
+        for key in list(other.keys()):
             sum_dict[key] = sum_dict[key] - other[key]
         return sum_dict
 
     def __mul__(self, other):
         new = NumberDict()
-        for key in self.keys():
+        for key in list(self.keys()):
             new[key] = other*self[key]
         return new
     __rmul__ = __mul__
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         new = NumberDict()
-        for key in self.keys():
+        for key in list(self.keys()):
             new[key] = self[key]/other
         return new
 
@@ -114,7 +116,7 @@ class PhysicalUnit(object):
         @param offset: an additive offset to the base unit (used only for
                        temperatures)
         """
-        if isinstance(names, basestring):
+        if isinstance(names, str):
             self.names = NumberDict()
             self.names[names] = 1
         else:
@@ -130,7 +132,7 @@ class PhysicalUnit(object):
     def name(self):
         num = ''
         denom = ''
-        for unit in self.names.keys():
+        for unit in list(self.names.keys()):
             power = self.names[unit]
             if power < 0:
                 denom = denom + '/' + unit
@@ -174,7 +176,7 @@ class PhysicalUnit(object):
         if isPhysicalUnit(other):
             return PhysicalUnit(self.names + other.names,
                                 self.factor * other.factor,
-                                map(lambda a,b: a+b, self.powers, other.powers))
+                                list(map(lambda a,b: a+b, self.powers, other.powers)))
         else:
             return PhysicalUnit(self.names + {str(other): 1},
                                 self.factor * other, self.powers,
@@ -182,46 +184,46 @@ class PhysicalUnit(object):
 
     __rmul__ = __mul__
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         if self.offset != 0 or (isPhysicalUnit(other) and other.offset != 0):
             raise UnitError('Cannot divide units with non-zero offset')
         if isPhysicalUnit(other):
             return PhysicalUnit(self.names - other.names,
                                 self.factor / other.factor,
-                                map(lambda a, b: a-b, self.powers, other.powers))
+                                list(map(lambda a, b: a-b, self.powers, other.powers)))
         else:
-            return PhysicalUnit(self.names+{str(other): -1},
+            return PhysicalUnit(self.names+NumberDict({str(other): -1}),
                                 self.factor/other, self.powers)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         if self.offset != 0 or (isPhysicalUnit(other) and other.offset != 0):
             raise UnitError('Cannot divide units with non-zero offset')
         if isPhysicalUnit(other):
             return PhysicalUnit(other.names - self.names,
                                 other.factor/self.factor,
-                                map(lambda a,b: a-b, other.powers, self.powers))
+                                list(map(lambda a,b: a-b, other.powers, self.powers)))
         else:
-            return PhysicalUnit({str(other): 1} - self.names,
+            return PhysicalUnit(NumberDict({str(other): 1}) - self.names,
                                 other / self.factor,
-                                map(lambda x: -x, self.powers))
+                                [-x for x in self.powers])
 
     def __pow__(self, other):
         if self.offset != 0:
             raise UnitError('Cannot exponentiate units with non-zero offset')
         if isinstance(other, int):
             return PhysicalUnit(other*self.names, pow(self.factor, other),
-                                map(lambda x,p=other: x*p, self.powers))
+                                list(map(lambda x,p=other: x*p, self.powers)))
         if isinstance(other, float):
             inv_exp = 1./other
             rounded = int(np.floor(inv_exp + 0.5))
             if abs(inv_exp-rounded) < 1.e-10:
                 if reduce(lambda a, b: a and b,
-                          map(lambda x, e=rounded: x%e == 0, self.powers)):
+                          list(map(lambda x, e=rounded: x%e == 0, self.powers))):
                     f = pow(self.factor, other)
-                    p = map(lambda x,p=rounded: x/p, self.powers)
+                    p = list(map(lambda x,p=rounded: x/p, self.powers))
                     if reduce(lambda a, b: a and b,
-                              map(lambda x, e=rounded: x%e == 0,
-                                  self.names.values())):
+                              list(map(lambda x, e=rounded: x%e == 0,
+                                  list(self.names.values())))):
                         names = self.names/rounded
                     else:
                         names = NumberDict()
@@ -272,7 +274,7 @@ class PhysicalUnit(object):
 # Helper functions
 
 def _findUnit(unit):
-    if isinstance(unit, basestring):
+    if isinstance(unit, str):
         name = unit.strip().replace('^', '**').replace('µ', 'mu').replace('°', 'deg')
         try:
             unit = eval(name, _unit_table)
@@ -377,7 +379,7 @@ class PhysicalQuantity(object):
 
     __rmul__ = __mul__
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         if not isPhysicalQuantity(other):
             return self.__class__(self.value / other, self.unit)
         value = self.value / other.value
@@ -387,7 +389,7 @@ class PhysicalQuantity(object):
         else:
             return self.__class__(value, unit)
 
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         if not isPhysicalQuantity(other):
             return self.__class__(other / self.value, pow(self.unit, -1))
         value = other.value / self.value
@@ -397,8 +399,8 @@ class PhysicalQuantity(object):
         else:
             return self.__class__(value, unit)
 
-    __truediv__ = __div__
-    __rtruediv__ = __rdiv__
+    #__truediv__ = __div__
+    #__rtruediv__ = __rdiv__
 
     def __pow__(self, other):
         if isPhysicalQuantity(other):
@@ -417,7 +419,7 @@ class PhysicalQuantity(object):
     def __neg__(self):
         return self.__class__(-self.value, self.unit)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.value != 0
 
     def __format__(self, *args, **kw):
@@ -447,7 +449,7 @@ class PhysicalQuantity(object):
         all the values except for the last one are integers. This is used to
         convert to irregular unit systems like hour/minute/second.
         """
-        units = map(_findUnit, units)
+        units = list(map(_findUnit, units))
         if len(units) == 1:
             unit = units[0]
             value = _convertValue(self.value, self.unit, unit)
@@ -480,7 +482,7 @@ class PhysicalQuantity(object):
         new_value = self.value * self.unit.factor
         num = ''
         denom = ''
-        for i in xrange(9):
+        for i in range(9):
             unit = _base_names[i]
             power = self.unit.powers[i]
             if power < 0:
@@ -505,7 +507,7 @@ class PhysicalQuantity(object):
         new_value = self.value * self.unit.factor
         num = ''
         denom = ''
-        for i in xrange(9):
+        for i in range(9):
 
             unit_name = _base_names[i]
             cgs_name = _cgs_names[i]
@@ -563,7 +565,7 @@ Q = PhysicalQuantity
 
 # SI unit definitions
 
-_base_names = ['_','m', 'kg', 's', 'A', 'K', 'mol', 'cd', 'rad', 'sr']
+_base_names = ['_', 'm', 'kg', 's', 'A', 'K', 'mol', 'cd', 'rad', 'sr']
 
 _base_units = [
     ('_',   PhysicalUnit('_',   1.,    [0,0,0,0,0,0,0,0,0])),
@@ -584,8 +586,7 @@ _cgs_names = ['cm', 'g', 's', 'abA', 'K', 'mol', 'cd', 'rad', 'sr']
 _prefixes = [
     ('Y',  1.e24), ('Z',  1.e21), ('E',  1.e18), ('P',  1.e15), ('T',  1.e12),
     ('G',  1.e9),  ('M',  1.e6),  ('k',  1.e3),  ('h',  1.e2),  ('da', 1.e1),
-    ('d',  1.e-1), ('c',  1.e-2), ('m',  1.e-3), ('mu', 1.e-6), ('u',1.e-6),
-    ('n',  1.e-9),
+    ('d',  1.e-1), ('c',  1.e-2), ('m',  1.e-3), ('mu', 1.e-6),  ('u',1.e-6), ('n',  1.e-9),
     ('p',  1.e-12), ('f',  1.e-15), ('a',  1.e-18), ('z',  1.e-21),
     ('y',  1.e-24),
 ]
@@ -596,7 +597,7 @@ for unit in _base_units:
     _unit_table[unit[0]] = unit[1]
 
 def _addUnit(name, unit, comment=''):
-    if _unit_table.has_key(name):
+    if name in _unit_table:
         raise KeyError('Unit ' + name + ' already defined')
     if type(unit) == type(''):
         unit = eval(unit, _unit_table)
@@ -641,7 +642,7 @@ _addUnit('abA', '10*A', 'Abampere')
 
 del _unit_table['kg']
 
-for unit in _unit_table.keys():
+for unit in list(_unit_table.keys()):
     _addPrefixed(unit)
 
 # Fundamental constants, as far as needed to define other units
@@ -897,7 +898,7 @@ def tbl_magic(shell, arg):
         expr = arg
         for subst in substs:
             try:
-                val = raw_input('%s = ' % subst)
+                val = input('%s = ' % subst)
             except EOFError:
                 sys.stdout.write('\n')
                 return
@@ -937,14 +938,14 @@ def load_ipython_extension(ip):
         ip.define_magic('tbl', tbl_magic)
 
     # active true float division
-    exec ip.compile('from __future__ import division', '<input>', 'single') \
-        in ip.user_ns
+    #exec ip.compile('from __future__ import division', '<input>', 'single') \
+    #    in ip.user_ns
 
     # add constants of nature
     for const, value in _constants:
         ip.user_ns[const] = value
 
-    print 'Unit calculation and physics extensions activated.'
+    print('Unit calculation and physics extensions activated.')
 
 def unload_ipython_extension(ip):
     ip.prefilter_manager.unregister_transformer(q_transformer)

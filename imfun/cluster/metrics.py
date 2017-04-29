@@ -15,7 +15,7 @@ def minkowski(p1,p2,k):
         return np.power(np.sum(np.abs((p1-p2)).T**k, 0), 1./k) # do axis sum
                                         # to allow for vectorized input
     else:
-        x = map(lambda x,y: abs((x-y)**k), p1, p2)
+        x = list(map(lambda x,y: abs((x-y)**k), p1, p2))
         return np.power(np.sum(x), 1./k)
 
 def euclidean(p1,p2):

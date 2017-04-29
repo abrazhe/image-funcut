@@ -42,7 +42,7 @@ def MAD(x):
 #    return np.median(np.abs(x - np.median(x)))
 
 
-import atrous
+from . import atrous
 def decompose_mwt(arr,level, s=2, tau=5, upto=2):
     """Median-Wavelet transform (up to level 'upto', then followed by starlet transform"""
     out = []
@@ -78,7 +78,7 @@ def _asymmetric_smooth(v, level=9, niter=10, smooth=0, tol=1e-7):
 #     N = len(coefs)-1
 #     for j,w in enumerate(coefs[:-1]):
 #         if np.iterable(th): t = th[j]
-# 	else: t = th
+#       else: t = th
 #         #if len(sigmaej[nd]):
 #         sj = sigmaej[nd][j]
 #         if modulus: wa = np.abs(w)

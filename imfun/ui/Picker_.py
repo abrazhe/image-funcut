@@ -1,4 +1,4 @@
-from __future__ import division # a/b will always return float
+ # a/b will always return float
 
 import itertools as itt
 import os
@@ -18,6 +18,8 @@ from matplotlib import path
 
 import pickle
 import random
+import collections
+from functools import reduce
 
 try:
     from swan import pycwt, utils
@@ -84,7 +86,7 @@ def color_walker():
     ar1 = core.ar1
     red, green, blue = ar1(), ar1(), ar1()
     while True:
-        yield map(lambda x: np.mod(x.next(),1.0), (red,green,blue))
+        yield [np.mod(next(x),1.0) for x in (red,green,blue)]
 
 
 def rand_tag():
@@ -103,7 +105,7 @@ def rand_tags_iter():
 def unique_tag(tags, max_tries = 1e4, tagger = tags_iter()):
     n = 0
     while n < max_tries:
-        tag = tagger.next()
+        tag = next(tagger)
         n += 1
         if not tag in tags:
             return tag
@@ -129,7 +131,7 @@ class Picker (object):
         elif isinstance(frames, fseq.FrameStackMono):
             frame_coll = fseq.FStackColl([frames])
         else:
-            print "Unrecognized frame stack format. Must be either derived from fseq.FrameStackMono or fseq.FStackColl"
+            print("Unrecognized frame stack format. Must be either derived from fseq.FrameStackMono or fseq.FStackColl")
             return
         self.frame_coll = frame_coll
         self._Nf = None
@@ -137,10 +139,10 @@ class Picker (object):
         self.roi_objs = {}
         self._tag_pallette = {}
         self.roi_prefix = roi_prefix
-        self.current_color = self.cw.next()
+        self.current_color = next(self.cw)
         self.default_circle_rad = default_circle_rad
         self.min_length = min_linescan_length
-	self.frame_index = 0
+        self.frame_index = 0
         self.shift_on = False
         self.roi_layout_freeze = False
         #self.widgetcolor = 'lightyellow'
@@ -155,7 +157,7 @@ class Picker (object):
         splitted = np.split(f, frame_coll.nCh,-1)
         clims = [(np.min(_x),np.max(_x)) for _x in splitted]
         self.clims = clims
-	self.home_frame = f
+        self.home_frame = f
         self.frame_cache = {}
         self._use_cache_flag = True
         self.cmap='gray'
@@ -165,12 +167,12 @@ class Picker (object):
         ## set home_frame
         dtype = self.frame_coll[0].dtype
         if isinstance(home_frame,  np.ndarray):
-	    f = home_frame
-        elif callable(home_frame):
+            f = home_frame
+        elif isinstance(home_frame, collections.Callable):
             f = self.frame_coll.time_project(home_frame)
             f = f.astype(dtype)
             pass
-	elif home_frame == 'mean' or (isinstance(home_frame, bool) and home_frame):
+        elif home_frame == 'mean' or (isinstance(home_frame, bool) and home_frame):
             f = self.frame_coll.mean_frame().astype(dtype)
         else:
             f = self.frame_coll[0]
@@ -183,7 +185,7 @@ class Picker (object):
         if nCh == 1:
             self._ccmap['i'] = 0
         else:
-            for k,c in zip(range(nCh),'rgb'):
+            for k,c in zip(list(range(nCh)),'rgb'):
                 self._ccmap[c] = k
 
     def _lut_controls(self,event=None):
@@ -206,7 +208,7 @@ class Picker (object):
         el_h = (1-(1+len(channels))*spacing)/len(channels)
 
         def _update_choices(event):
-            for key,val in self.channel_ctrls.items():
+            for key,val in list(self.channel_ctrls.items()):
                 selected = val.value_selected
                 if selected == '--' or selected is None:
                     ch = None
@@ -248,9 +250,9 @@ class Picker (object):
         for k,stack in enumerate(self.frame_coll.stacks):
             channel_name = stack.meta['channel']
             ax_high = fig.add_axes([0.2, 1- (2*k+1)*(el_h+spacing)-spacing, el_w, el_h],
-                                   aspect='auto', axisbg=_widgetcolor)
+                                   aspect='auto', facecolor=_widgetcolor)
             ax_low = fig.add_axes([0.2, 1- (2*k+2)*(el_h+spacing), el_w, el_h],
-                                  aspect='auto', axisbg=_widgetcolor)
+                                  aspect='auto', facecolor=_widgetcolor)
 
             lmin,lmax = stack.data_range()
             low,high = self.clims[k]
@@ -306,7 +308,7 @@ class Picker (object):
         button_height = 0.05
         self.ui_buttons = {}
 
-	if ax is None:
+        if ax is None:
 
             self.fig, self.ax1 = plt.subplots()
             if self.suptitle:
@@ -316,7 +318,7 @@ class Picker (object):
             #print corners
             axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=_widgetcolor)
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf-1, valinit=0,
-                                          valfmt=u'%d')
+                                          valfmt='%d')
             self.frame_slider.on_changed(self.set_frame_index)
             self._init_active_channel_setter()
 
@@ -353,11 +355,11 @@ class Picker (object):
             drop_but.on_clicked(self.drop_all_rois)
             self.ui_buttons['drop'] = drop_but
 
-            for button in self.ui_buttons.values():
+            for button in list(self.ui_buttons.values()):
                 button.label.set_fontsize('small')
-	else:
-	    self.ax1 = ax
-	    self.fig = self.ax1.figure
+        else:
+            self.ax1 = ax
+            self.fig = self.ax1.figure
         self.legtype = legend_type
         self.pressed = None
 
@@ -366,7 +368,7 @@ class Picker (object):
 
         dy,dx = axes[1:3]
         yunits, xunits = (str(x.unit) for x in (dy,dx))
-	sy,sx = self.frame_coll[0].shape[:2]
+        sy,sx = self.frame_coll[0].shape[:2]
 
         iorigin = mpl.rcParams['image.origin']
         lowp = [1,-1][iorigin == 'upper']
@@ -386,9 +388,9 @@ class Picker (object):
 
         self.disconnect()
         self.connect()
-	self.fig.canvas.draw()
+        self.fig.canvas.draw()
         if self._verbose:
-            print _picker_help_msg
+            print(_picker_help_msg)
         return self.ax1, self.plh, self
 
 
@@ -411,14 +413,14 @@ class Picker (object):
                     self.ax1.axis(axs)
                     self.redraw()
             except Exception as e:
-                    print "Picker: can't make legend because ", e
+                    print("Picker: can't make legend because ", e)
 
     def event_canvas_ok(self, event):
         "check if event is correct axes and toolbar is not in use"
-	pred = event.inaxes !=self.ax1 or \
-		   self.any_roi_contains(event) or \
-		   self.fig.canvas.toolbar.mode !=''
-	return not pred
+        pred = event.inaxes !=self.ax1 or \
+                   self.any_roi_contains(event) or \
+                   self.fig.canvas.toolbar.mode !=''
+        return not pred
 
 
     def on_modkey(self, event):
@@ -427,12 +429,12 @@ class Picker (object):
         if event.key == 'shift':
             if not self.shift_on:
                 self.shift_on = True
-                for spine in self.ax1.spines.values():
+                for spine in list(self.ax1.spines.values()):
                     spine.set_color('r')
                     spine.set_linewidth(4)
             else:
                 self.shift_on = False
-                for spine in self.ax1.spines.values():
+                for spine in list(self.ax1.spines.values()):
                     spine.set_color('k')
                     spine.set_linewidth(1)
         self.ax1.figure.canvas.draw()
@@ -450,7 +452,7 @@ class Picker (object):
         "make new tag/label for a ROI"
         pref = self.roi_prefix
         matching_tags = [t for t in self.roi_tags() if t.startswith(pref)]
-        for n in xrange(1,int(1e5)):
+        for n in range(1,int(1e5)):
             newtag = pref + '{:02d}'.format(n)
             if newtag not in matching_tags:
                 break
@@ -458,12 +460,12 @@ class Picker (object):
 
     def new_color(self):
         if self.roi_coloring_model == 'allrandom':
-            self.current_color = self.cw.next()
+            self.current_color = next(self.cw)
         elif self.roi_coloring_model == 'groupsame':
             self.current_color = self._tag_pallette[self.roi_prefix]
         elif self.roi_coloring_model == 'groupvar':
             base_color = self._tag_pallette[self.roi_prefix]
-            var_color = np.array(self.cw.next())*0.1
+            var_color = np.array(next(self.cw))*0.1
             self.current_color = list(np.clip(base_color+var_color, 0,1))
         return self.current_color
 
@@ -475,22 +477,27 @@ class Picker (object):
     def roi_prefix(self, pref):
         matching_rois = self.roi_tags(lambda x: x.startswith(pref))
         if not len(matching_rois):
-            self._tag_pallette[pref] = self.cw.next()
+            self._tag_pallette[pref] = next(self.cw)
         self.current_color = self._tag_pallette[pref]
         self._roi_prefix_x = pref
 
 
     def on_click(self,event):
         if not self.event_canvas_ok(event): return
-
+        #print('in on click')
         #x,y = round(event.xdata), round(event.ydata)
         x,y = event.xdata, event.ydata # do I really need to round?
-        if event.button is 1 and \
+        #print('button is', event.button, event.button == 1)
+        #print (self.any_roi_contains(event), 
+        #       self.shift_on, self.roi_layout_freeze)
+        if event.button == 1 and \
            not self.any_roi_contains(event) and \
            not self.shift_on and \
            not self.roi_layout_freeze:
+            #print("In if statement!")
             #label = unique_tag(self.roi_tags(), tagger=self.tagger)
             label = self.new_roi_tag()
+            #print("new label", label)
             dx,dy = self.frame_coll.meta['axes'][1:3]
 
             #color = self.cw.next()
@@ -526,8 +533,8 @@ class Picker (object):
         # TODO! update to usage of FStackColl
         p = path.Path(verts)
         sh = self.active_stack.frame_shape
-        print 'Active stack shape', sh
-        locs = list(itt.product(*map(xrange, sh[::-1])))
+        print('Active stack shape', sh)
+        locs = list(itt.product(*map(range, sh[::-1])))
         dy,dx = self.active_stack.meta['axes'][1:3]
         out = np.zeros(sh)
         xys = np.array(locs, 'float')
@@ -542,12 +549,12 @@ class Picker (object):
         f = plt.figure()
         ax = f.add_subplot(111)
         vmin,vmax = self.plh.get_clim()
-        print vmin, vmax
-        print out.shape
+        print(vmin, vmax)
+        print(out.shape)
         #print self.home_frame.shape
         #ax.imshow(self.home_frame, cmap='gray',vmin=vmin,vmax=vmax)
         hf = self._lutconv(self.home_frame)
-        print hf.shape
+        print(hf.shape)
         ax.imshow(hf, cmap=self.cmap)
         ax.contour(out, levels=[0],colors=['g'])
         self.pmask = out
@@ -584,7 +591,7 @@ class Picker (object):
             try:
                 self.curr_line_handle.remove()
             except Exception as e:
-                print "Can't remove line handle because", e
+                print("Can't remove line handle because", e)
         self.curr_line_handle = self.init_line_handle()
         self.legend()
         self.fig.canvas.draw() #todo BLIT!
@@ -596,45 +603,53 @@ class Picker (object):
         if len(self.roi_objs) < 1 : return False
         return reduce(lambda x,y: x or y,
                       [roi.obj.contains(event)[0]
-                       for roi in self.roi_objs.values()])
+                       for roi in list(self.roi_objs.values())])
 
     def roi_tags(self, filt = lambda x:True):
         "List of tags for all ROIs"
-        return sorted(filter(filt, self.roi_objs.keys()))
+        return sorted(list(filter(filt, self.roi_objs.keys())))
 
     def export_rois(self, fname=None):
         """Exports picked ROIs as structures to a file and/or returns as list"""
-        out = [x.to_struct() for x in self.roi_objs.values()]
+        out = [x.to_struct() for x in list(self.roi_objs.values())]
         if fname:
             pickle.dump(out,
                         open(fname, 'w'), protocol=0)
             if self._verbose:
-                print "Saved ROIs to ", fname
+                print("Saved ROIs to ", fname)
         return out
 
     def load_rois(self, source):
         "Load stored ROIs from a file"
-        if isinstance(source, (str,unicode)):
+        if isinstance(source, str):
             data = pickle.load(file(source))
         elif isinstance(source, file):
             data = pickle.load(source)
         else:
             data = source
         rois = [x['func'](x) for x in data]
-        circles = filter(lambda x: isinstance(x, plt.Circle), rois)
-        lines = filter(lambda x: isinstance(x, plt.Line2D), rois)
-        map(self.ax1.add_patch, circles) # add points to the axes
-        map(self.ax1.add_line, lines) # add points to the axes
-        self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
-                                   for c in circles]))
-        self.roi_objs.update(dict([(l.get_label(), LineScan(l,self))
-                                   for l in lines]))
+        #circles = [x for x in rois if isinstance(x, plt.Circle)]
+        #lines = [x for x in rois if isinstance(x, plt.Line2D)]
+        for x in rois:
+            if isinstance(x,plt.Circle):
+                self.ax1.add_patch(x)
+                constructor = CircleROI
+            if isinstance(x,plt.Line2D):
+                self.ax1.add_line(x)
+                constructor = LineScan
+            self.roi_objs.update(dict((x.get_label(),constructor(x,self))))                
+        #list(map(self.ax1.add_patch, circles)) # add points to the axes
+        #list(map(self.ax1.add_line, lines)) # add points to the axes
+        #self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
+        #                           for c in circles]))
+        #self.roi_objs.update(dict([(l.get_label(), LineScan(l,self))
+        #                           for l in lines]))
 
         #self.ax1.legend()
         self.ax1.figure.canvas.draw() # redraw the axes
         return
     def drop_all_rois(self,event):
-        for roi in self.roi_objs.values():
+        for roi in list(self.roi_objs.values()):
             roi.destroy()
 
     def trace_vessel_contours_in_all_linescans(self, hwidth=2):
@@ -651,7 +666,7 @@ class Picker (object):
                 if self.isLineROI(k) and objs[k].has_traced_vessels]
         if not len(keys):
             if self._verbose:
-                print "No LineScane ROIs with traced vesels found"
+                print("No LineScane ROIs with traced vesels found")
             return
         if save_figs_to is not None:
             for k in keys:
@@ -676,7 +691,7 @@ class Picker (object):
             elif format == 'mat':
                writer = lambda data, name: scipy.io.matlab.savemat(name, data)
             else:
-               print "Don't know how to save to format %s"%format
+               print("Don't know how to save to format %s"%format)
                writer = lambda data, name: None
             if fname is not None:
                 writer(out, fname)
@@ -703,7 +718,7 @@ class Picker (object):
 
     def _get_show_f(self, n):
         Nf = len(self.frame_coll)
-	fi = int(n)%Nf
+        fi = int(n)%Nf
         if fi in self.frame_cache:
             show_f = self.frame_cache[fi]
         else:
@@ -714,7 +729,7 @@ class Picker (object):
 
     def set_frame_index(self,n):
         Nf = len(self.frame_coll)
-	fi = int(n)%Nf
+        fi = int(n)%Nf
         self.frame_index = fi
 
         dz,zunits = quantity_to_pair(self.frame_coll.meta['axes'][0])
@@ -732,7 +747,7 @@ class Picker (object):
             if self.frame_slider.val !=n:
                 #print 'updating frame slider'
                 self.frame_slider.set_val(n)
-        for h in self.frame_hooks.values():
+        for h in list(self.frame_hooks.values()):
             h(n)
         self.fig.canvas.draw()
 
@@ -748,45 +763,46 @@ class Picker (object):
         #    self.caller.frame_index = self.frame_index
 
     def frame_skip(self,event, n=1):
-	if not self.event_canvas_ok(event):
-	    return
-	fi = self.frame_index
-	key = hasattr(event, 'button') and event.button or event.key
-	prev_keys = [4,'4','down','left','p']
-	next_keys = [5,'5','up','right','n']
-	home_keys =  ['h','q','z']
-	known_keys = prev_keys+ next_keys+home_keys
-	if key in known_keys:
-	    if key in home_keys:
+        if not self.event_canvas_ok(event):
+            return
+        fi = self.frame_index
+        key = hasattr(event, 'button') and event.button or event.key
+        prev_keys = [4,'4','down','left','p']
+        next_keys = [5,'5','up','right','n']
+        home_keys =  ['h','q','z']
+        known_keys = prev_keys+ next_keys+home_keys
+        if key in known_keys:
+            if key in home_keys:
                 self.show_home_frame()
-	    else:
-		if key in prev_keys:
-		    fi -= n
-		elif key in next_keys:
-		    fi += n
-		self.set_frame_index(fi)
+            else:
+                if key in prev_keys:
+                    fi -= n
+                elif key in next_keys:
+                    fi += n
+                self.set_frame_index(fi)
         if hasattr(self, 'caller'): #called from frame_viewer
             self.caller.frame_index = self.frame_index
 
     def connect(self):
         "connect all the needed events"
         if self._verbose:
-            print "connecting callbacks to picker"
+            print("connecting callbacks to picker")
         cf = self.fig.canvas.mpl_connect
         self.cid = {
             'click': cf('button_press_event', self.on_click),
             'release': cf('button_release_event', self.on_release),
             'motion': cf('motion_notify_event', self.on_motion),
-	    'scroll':cf('scroll_event',self.frame_skip),
-	    'type':cf('key_press_event',self.frame_skip),
+            'scroll':cf('scroll_event',self.frame_skip),
+            'type':cf('key_press_event',self.frame_skip),
             'modkey_on':cf('key_press_event', self.on_modkey),
             'key_release':cf('key_release_event', self.on_keyrelease)
             }
     def disconnect(self):
         if hasattr(self, 'cid'):
             if self._verbose:
-                print "disconnecting old callbacks"
-            map(self.fig.canvas.mpl_disconnect, self.cid.values())
+                print("disconnecting old callbacks")
+            for cc in self.cid.values():
+                self.fig.canvas.mpl_disconnect(cc)
 
     def isAreaROI(self, tag):
         return self.roi_objs[tag].roi_type == 'area'
@@ -796,13 +812,12 @@ class Picker (object):
         return isinstance(self.roi_objs[tag], LineScan)
 
     def get_area_roi_tags(self):
-	return sorted(filter(self.isAreaROI, self.roi_objs.keys()))
+        return sorted(list(filter(self.isAreaROI, self.roi_objs.keys())))
 
     def get_timeseries(self, rois=None, **zview_kwargs):
         rois = ifnot(rois,
-                     sorted(filter(self.isAreaROI, self.roi_objs.keys())))
-        return [self.roi_objs[tag].get_zview(**zview_kwargs)
-                for tag in  rois]
+                     sorted(list(filter(self.isAreaROI, self.roi_objs.keys()))))
+        return [self.roi_objs[tag].get_zview(**zview_kwargs)    for tag in  rois]
     def pandize(self, data,index=None):
         """If has Pandas loaded, return pandas.DataFrame from data"""
         if _with_pandas:
@@ -810,8 +825,8 @@ class Picker (object):
         return data
     def get_roi_data(self, only_1d=False,with_diameters=True, use_pandas=True):
         robjs = self.roi_objs
-        area_rois = sorted(filter(self.isAreaROI, robjs))
-        linescan_rois = sorted(filter(self.isLineROI, robjs))
+        area_rois = sorted(list(filter(self.isAreaROI, robjs)))
+        linescan_rois = sorted(list(filter(self.isLineROI, robjs)))
 
         rdata = {tag:robjs[tag].get_zview() for tag in area_rois}
         dx = self.frame_coll.meta['axes'][1]
@@ -822,7 +837,7 @@ class Picker (object):
         if use_pandas:
             rdata = self.pandize(rdata,index=self.active_stack.frame_idx())
         if not only_1d:
-            print linescan_rois
+            print(linescan_rois)
             acc2d = {r:robjs[r].get_zview() for r in linescan_rois}
             if not use_pandas:
                 rdata.extend(acc2d)
@@ -869,21 +884,21 @@ class Picker (object):
         #TODO: multiple color save to csv and tab
         known_formats = ['csv', 'tab', 'pickle', 'hdf', 'mat', 'npy']
         if format not in known_formats:
-            print 'Pickle.export_roi_signals: unknown save format'
-            print 'can only save to {}'.format(known_formats)
+            print('Pickle.export_roi_signals: unknown save format')
+            print('can only save to {}'.format(known_formats))
             return
         def _dict_copy_no_nones(d):
-            return {k:(v if v is not None else 'None') for k,v in d.items()}
+            return {k:(v if v is not None else 'None') for k,v in list(d.items())}
         all_rois = self.roi_tags()
         tv = self.active_stack.frame_idx()
         if format in ['csv', 'tab']:
             # only save 1D signals to csv and tab
-            all_rois = filter(self.isAreaROI, all_rois)
+            all_rois = list(filter(self.isAreaROI, all_rois))
 
         all_zv = {t:self.roi_objs[t].get_zview() for t in all_rois}
         if format in ['mat', 'pickle', 'hdf']:
             all_zv['meta'] = _dict_copy_no_nones(self.frame_coll.meta)
-            all_zv['roi_props'] = map(_dict_copy_no_nones, self.export_rois())
+            all_zv['roi_props'] = list(map(_dict_copy_no_nones, self.export_rois()))
             #print all_zv['roi_props']
         if format == 'mat':
             # drop constructor functions for mat files
@@ -903,11 +918,11 @@ class Picker (object):
         elif format == 'hdf':
             io.write_dict_hdf(all_zv, fname)
         if self._verbose:
-            print 'Picker: saved time-views for rois to ', fname
+            print('Picker: saved time-views for rois to ', fname)
         return
 
     def show_zview(self, rois = None, **kwargs):
-	print 'in Picker.show_zview()'
+        print('in Picker.show_zview()')
 
         tx = self.active_stack.frame_idx()
         t0 = tx[self.frame_index]
@@ -919,12 +934,12 @@ class Picker (object):
         #roi_groups = [(t,[r for r in rois if _key(r)==t]) for t in roi_types]
         roi_groups = itt.groupby(sorted(rois, key=_key), _key)
         for roi_type, roi_tgroup in roi_groups:
-            print roi_type, roi_tgroup
+            print(roi_type, roi_tgroup)
             roi_tgroup = list(roi_tgroup)
 
             prefs = self.roi_prefixes(roi_tgroup)
             if roi_type is 'area':
-                print prefs
+                print(prefs)
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
 
                 fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
@@ -996,16 +1011,16 @@ class Picker (object):
                 # #TODO: may be use on_click event?
                 fig.canvas.mpl_connect('motion_notify_event', _line_highlighter)
             elif roi_type is 'path':
-                print 'path'
+                print('path')
                 roi_tgroup = list(roi_tgroup)
                 slices = [self.roi_objs[t].get_zview(**kwargs)[0] for t in roi_tgroup]
                 ncols = int(np.ceil(len(slices)/5.))
-                group_maps(map(self._lutconv, slices),
+                group_maps(list(map(self._lutconv, slices)),
                                ncols=ncols, titles = roi_tgroup,
                                colorbar=(np.ndim(self.active_stack[0])<2))
                 figs.append(plt.gcf())
             else:
-                print 'ui.Picker.show_zview: unknown roi type, %s'%roi_type
+                print('ui.Picker.show_zview: unknown roi type, %s'%roi_type)
             for f in figs:
                  f.show()
         return figs
@@ -1049,7 +1064,7 @@ class Picker (object):
         axlist = []
         for x,tag,roi,ax in self.roi_show_iterator_subplots(**keywords):
             utils.wavelet_specgram(x, f_s, freqs,  ax,
-				   wavelet, vmin=vmin, vmax=vmax)
+                                   wavelet, vmin=vmin, vmax=vmax)
             axlist.append(ax)
         return axlist
 
@@ -1061,10 +1076,10 @@ class Picker (object):
                                  vmax = None,
                                  normp = True,
                                  **keywords):
-	from swan import utils as swu
+        from swan import utils as swu
         "Create a figure of a signal, spectrogram and a colorbar"
         if not self.isAreaROI(roitag):
-            print "This is not an area ROI, exiting"
+            print("This is not an area ROI, exiting")
             return
         signal = self.get_timeseries([roitag],normp=DFoSD)[0]
         Ns = len(signal)
@@ -1079,8 +1094,8 @@ class Picker (object):
         fig,axlist = swu.setup_axes_for_spectrogram((8,4))
         axlist[1].plot(tvec, signal,'-',color=lc)
         utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
-			       wavelet=wavelet,
-			       cax = axlist[2])
+                               wavelet=wavelet,
+                               cax = axlist[2])
         axlist[0].set_title(title_string)
         #zunits = hasattr(dz, 'unit') and dz.unit or ''
         zunits = str(dz.unit)
@@ -1112,25 +1127,25 @@ class Picker (object):
 
     def roi_show_iterator_subplots(self, rois = None,
                               **kwargs):
-	#rois = ifnot(rois,
+        #rois = ifnot(rois,
         #             sorted(filter(self.isAreaROI, self.roi_objs.keys())))
-	#print 'in Picker.roi_show_iterator'
-	rois = ifnot(rois, sorted(self.roi_objs.keys()))
+        #print 'in Picker.roi_show_iterator'
+        rois = ifnot(rois, sorted(self.roi_objs.keys()))
 
-	L = len(rois)
-	if L < 1: return
-	fig,axlist = plt.subplots(len(rois),1,sharey=True,sharex=True,
+        L = len(rois)
+        if L < 1: return
+        fig,axlist = plt.subplots(len(rois),1,sharey=True,sharex=True,
                                  squeeze = False,
                                  figsize=(5*L,4.5))
 
-	for i, roi_label in enumerate(rois):
-	    roi = self.roi_objs[roi_label]
+        for i, roi_label in enumerate(rois):
+            roi = self.roi_objs[roi_label]
             ax = axlist[i,0]
-	    if self.isAreaROI(roi_label):
-		x = roi.get_zview(**kwargs)
-	    else:
-		x,points = roi.get_zview(**kwargs)
-	    if i == L-1:
+            if self.isAreaROI(roi_label):
+                x = roi.get_zview(**kwargs)
+            else:
+                x,points = roi.get_zview(**kwargs)
+            if i == L-1:
                 dz = self.active_stack.meta['axes'][0]
                 if dz.unit != '_':
                     ax.set_xlabel("time, %s"%dz.unit)
@@ -1141,14 +1156,14 @@ class Picker (object):
                              backgroundcolor='w', size='large')
             else:
                 ax.set_ylabel(roi_label, color=roi.color,size='large')
-	    yield x, roi_label, roi, ax
+            yield x, roi_label, roi, ax
 
     def roi_prefixes(self, tags=None):
         import re
         if tags is None: tags = self.roi_tags()
         def nonempty(x): return len(x)
-        def get_prefix(tag): return filter(nonempty, re.findall('[a-z]*',tag))[0]
-        return np.unique(map(get_prefix, tags))
+        def get_prefix(tag): return list(filter(nonempty, re.findall('[a-z]*',tag)))[0]
+        return np.unique(list(map(get_prefix, tags)))
 
 
     def show_xwt_roi(self, tag1, tag2, freqs=None,
@@ -1160,7 +1175,7 @@ class Picker (object):
         self.extent=[0,self.length()*dz.value, freqs[0], freqs[-1]]
 
         if not (self.isAreaROI(tag1) and self.isAreaROI(tag2)):
-            print "Both tags should be for area-type ROIs"
+            print("Both tags should be for area-type ROIs")
             return
 
         s1 = self.roi_objs[tag1].get_zview(True)
@@ -1183,30 +1198,30 @@ class Picker (object):
         #self.confidence_contour(res,2.0)
 
     def show_roi_xcorrs(self, corrfn = None, normp = DFoSD,
-			getter = lambda x: x[0]):
-	if corrfn == None:
-	    corrfn = fnmap.stats.pearsonr
-	rois = sorted(filter(self.isAreaROI, self.roi_objs.keys()))
-	ts = self.get_timeseries(normp=normp)
+                        getter = lambda x: x[0]):
+        if corrfn == None:
+            corrfn = fnmap.stats.pearsonr
+        rois = sorted(filter(self.isAreaROI, list(self.roi_objs.keys())))
+        ts = self.get_timeseries(normp=normp)
         t = self.active_stack.frame_idx()
-	nrois = len(rois)
-	if nrois < 2:
-	    print "not enough rois, pick more"
-	    return
+        nrois = len(rois)
+        if nrois < 2:
+            print("not enough rois, pick more")
+            return
         out = np.zeros((nrois, nrois))
-	#for k1, k2 in lib.allpairs(range(nrois)):
-        for k1,k2 in itt.combinations(range(nrois),2):
-	    coef = getter(corrfn(ts[k1], ts[k2]))
-	    out[k2,k1] = coef
-	f = plt.figure();
-	ax = plt.imshow(out, aspect='equal', interpolation='nearest')
-	ticks = np.arange(nrois)
-	plt.setp(ax.axes, xticks=ticks, yticks=ticks),
-	plt.setp(ax.axes, xticklabels=rois, yticklabels=rois)
-	plt.colorbar()
-	return out
+        #for k1, k2 in lib.allpairs(range(nrois)):
+        for k1,k2 in itt.combinations(list(range(nrois)),2):
+            coef = getter(corrfn(ts[k1], ts[k2]))
+            out[k2,k1] = coef
+        f = plt.figure();
+        ax = plt.imshow(out, aspect='equal', interpolation='nearest')
+        ticks = np.arange(nrois)
+        plt.setp(ax.axes, xticks=ticks, yticks=ticks),
+        plt.setp(ax.axes, xticklabels=rois, yticklabels=rois)
+        plt.colorbar()
+        return out
 
     def show_xwt(self, **kwargs):
         #for p in lib.allpairs(filter(self.isAreaROI, self.roi_objs.keys())):
-        for p in itt.combinations(filter(self.isAreaROI, self.roi_objs.keys()),2):
+        for p in itt.combinations(list(filter(self.isAreaROI, list(self.roi_objs.keys()))),2):
             self.show_xwt_roi(*p,**kwargs)

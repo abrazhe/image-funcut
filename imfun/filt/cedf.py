@@ -23,13 +23,13 @@ def calc_structure_tensor(Ix, Iy,rho=3):
     # so far no smoothing
     J = np.zeros(Ix.shape+(3,))
     nrows, ncols = Ix.shape
-    for r in xrange(nrows):
-        for c in xrange(ncols):
+    for r in range(nrows):
+        for c in range(ncols):
             dx = Ix[r,c]
             dy = Iy[r,c]
             J[r,c] = dx*dx, dx*dy,dy*dy
     if rho > 0:
-        for i in xrange(3):
+        for i in range(3):
             J[...,i] = ndimage.gaussian_filter(J[...,i],rho)
     return J#.reshape(nrows,ncols,2,2)
 
@@ -38,8 +38,8 @@ def calc_structure_tensor(Ix, Iy,rho=3):
 def orientations_from_structure_tensor(J):
     nrows, ncols = J.shape[:2]
     out = np.zeros((nrows,ncols,2))
-    for r in xrange(nrows):
-        for c in xrange(ncols):
+    for r in range(nrows):
+        for c in range(ncols):
             j11,j12,j22 = J[r,c]
             dx = (j11-j22)**2 + 4*j12**2
             dxsr = dx**0.5            
@@ -56,8 +56,8 @@ def calc_flowness(im,sigma=1.0):
     J = calc_structure_tensor(Ix, Iy, sigma)
     nrows, ncols = im.shape
     out = np.zeros((nrows,ncols))
-    for r in xrange(nrows):
-        for c in xrange(ncols):
+    for r in range(nrows):
+        for c in range(ncols):
             j11,j12,j22 = J[r,c]
             dx = (j11-j22)**2 + 4*j12**2
             dxsr = np.sqrt(dx)#**0.5
@@ -84,8 +84,8 @@ def calc_diffusion_tensor(J, c1=0.001, c2=1.0,r_cutoff=0.2):
     lam1 = lam2 = c1
     cosa,sina = 0,1
     v1,v2,vnorm = 0,0,0
-    for row in xrange(nrows):
-        for col in xrange(ncols):
+    for row in range(nrows):
+        for col in range(ncols):
             j11,j12,j22 = J[row,col]
             dxr = (j11-j22)**2 + 4*j12**2
             dxsr = np.sqrt(dxr)#**0.5
@@ -160,7 +160,7 @@ def adams_bashforth(rhs, init_state, dt=0.25,tstart=0, tstop=100,  fnkwargs=None
 def coherence_shockf(img, niter=10,line_sigma=0.5):
     rho = 3*line_sigma
     u = img.copy()
-    for i in xrange(niter):
+    for i in range(niter):
         v = ndimage.gaussian_filter(u, line_sigma)
         Ix,Iy = calculate_gradient(u)
         J = calc_structure_tensor(Ix,Iy,rho)

@@ -2,7 +2,7 @@
 Helper functions for some special plot kinds
 """
 
-from __future__ import division
+
 
 import numpy as np
 
@@ -35,14 +35,14 @@ def guess_gridshape(nelements):
 def group_maps(maplist, ncols=None,
                titles=None,
                figscale = 2,
-	       figsize = None,
-	       suptitle = None,
-	       background = None,
-	       individual_colorbars = False,
-	       colorbar = None,
-	       show_ticks = False,
-	       samerange = True,
-	       imkw=None, cbkw ={}):
+               figsize = None,
+               suptitle = None,
+               background = None,
+               individual_colorbars = False,
+               colorbar = None,
+               show_ticks = False,
+               samerange = True,
+               imkw=None, cbkw ={}):
     import pylab as pl
     if imkw is None:
         imkw = {}
@@ -59,37 +59,37 @@ def group_maps(maplist, ncols=None,
     figh = pl.figure(figsize=figsize)
     #print samerange
     if samerange:
-	vmin,vmax = data_range(maplist)
-	imkw.update(dict(vmin=vmin, vmax=vmax))
-	if colorbar is None:
-	    colorbar = True
+        vmin,vmax = data_range(maplist)
+        imkw.update(dict(vmin=vmin, vmax=vmax))
+        if colorbar is None:
+            colorbar = True
     else:
-	if colorbar is None:
-	    colorbar=False
-    if not imkw.has_key('aspect'):
-	imkw['aspect'] = 'equal'
+        if colorbar is None:
+            colorbar=False
+    if 'aspect' not in imkw:
+        imkw['aspect'] = 'equal'
     for i,f in enumerate(maplist):
-	ax = pl.subplot(nrows,ncols,i+1)
-	if background is not None:
-	    ax.imshow(background, cmap='gray', aspect='equal')
-	im = ax.imshow(f, **imkw);
-	if not show_ticks:
-	    pl.setp(ax, 'xticks', [], 'yticks', [],
-		    'frame_on', False)
-	if individual_colorbars:
-	    figh.colorbar(im, ax=ax);
-	if titles is not None: pl.title(titles[i])
+        ax = pl.subplot(nrows,ncols,i+1)
+        if background is not None:
+            ax.imshow(background, cmap='gray', aspect='equal')
+        im = ax.imshow(f, **imkw);
+        if not show_ticks:
+            pl.setp(ax, 'xticks', [], 'yticks', [],
+                    'frame_on', False)
+        if individual_colorbars:
+            figh.colorbar(im, ax=ax);
+        if titles is not None: pl.title(titles[i])
     if colorbar:
-	pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
-	cax = pl.axes([0.85, 0.1, 0.03, 0.618])
-	pl.colorbar(im, cax=cax, **cbkw)
+        pl.subplots_adjust(bottom=0.1, top=0.9, right=0.8)
+        cax = pl.axes([0.85, 0.1, 0.03, 0.618])
+        pl.colorbar(im, cax=cax, **cbkw)
     if suptitle:
         pl.suptitle(suptitle)
     return
 
 def data_range(datalist):
-   vmin = np.min(map(np.min, datalist))
-   vmax = np.max(map(np.max, datalist))
+   vmin = np.min(list(map(np.min, datalist)))
+   vmax = np.max(list(map(np.max, datalist)))
    return vmin, vmax
 
 
@@ -99,7 +99,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
               frame_on=False,
               labels = None,
               **kwargs):
-    from itertools import izip
+    
 
     if sep is None:
         mean_range = np.mean([np.max(v)-np.min(v) for v in vecs])
@@ -107,35 +107,35 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
 
     if colors is None: colors = 'b'
     if labels is None: labels = [None]*len(vecs)
-    if isinstance(colors, basestring):
+    if isinstance(colors, str):
         c = colors
-        colors = (c for i in xrange(int(1e6)))
+        colors = (c for i in range(int(1e6)))
     if positions is None:
         prevpos,positions = 0,[0]
         ranges = [(v.min(),v.max()) for v in vecs]
-        for r,rnext,v in izip(ranges, ranges[1:],vecs):
+        for r,rnext,v in zip(ranges, ranges[1:],vecs):
             pos = prevpos + r[1] + sep -np.min(rnext[0])
             positions.append(pos)
             prevpos = pos
-    L = np.min(map(len, vecs))
+    L = np.min(list(map(len, vecs)))
     if x is None:
         x = np.arange(L)
     if ax is None:
         f,ax = pl.subplots(1,1,figsize=figsize)
-    for v,p,c,l in izip(vecs,positions[::-1],colors,labels):
+    for v,p,c,l in zip(vecs,positions[::-1],colors,labels):
         ax.plot(x, v[:L]+p, color=c, label=l, **kwargs)
         #a.axhline(p, color='b')
     pl.setp(ax, yticks=[],frame_on=frame_on)
     ax.axis('tight')
 
 def group_plots(ylist, ncols=None, x = None,
-		titles = None,
-		suptitle = None,
-		ylabels = None,
-		figsize = None,
-		sameyscale = True,
+                titles = None,
+                suptitle = None,
+                ylabels = None,
+                figsize = None,
+                sameyscale = True,
                 order='C',
-		imkw={}):
+                imkw={}):
     import pylab as pl
 
     if ncols is None:
@@ -151,11 +151,11 @@ def group_plots(ylist, ncols=None, x = None,
     ymin,ymax = data_range(ylist)
     axlist = axs.ravel(order=order)
     for i,f in enumerate(ylist):
-	x1 = ifnot(x, range(len(f)))
+        x1 = ifnot(x, list(range(len(f))))
         _im = axlist[i].plot(x1,f,**imkw)
-	if titles is not None:
+        if titles is not None:
             pl.setp(axlist[i], title = titles[i])
-	if ylabels is not None:
+        if ylabels is not None:
             pl.setp(axlist[i], ylabel=ylabels[i])
     if suptitle:
         pl.suptitle(suptitle)

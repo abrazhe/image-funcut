@@ -18,6 +18,7 @@ from imfun.core import fnutils
 from .constants import *
 
 import sys
+from functools import reduce
 
 sys.setrecursionlimit(10000)
 
@@ -41,7 +42,7 @@ class MVMNode:
         self.slice = xslice
         self.mass = self.selfmass()
     def locations(self):
-        return map(tuple, np.argwhere(self.labels==self.ind))
+        return list(map(tuple, np.argwhere(self.labels==self.ind)))
     def selfmass(self):
         return np.sum(self.labels[self.slice] == self.ind)
     def cut(self):
@@ -63,7 +64,7 @@ def cut_branch(stem, branch):
     Returns branch
     """
     if branch in stem.branches:
-	stem.branches = filter(lambda x: x is not branch, stem.branches)
+        stem.branches = [x for x in stem.branches if x is not branch]
         branch.stem = None
     return branch
 
@@ -88,12 +89,12 @@ def get_structures(coefs, support):
     TODO: Switch from coefs and support to numpy masked arrays
     """
     acc = []
-    for level,c,s in zip(xrange(len(support[:-1])), coefs[:-1], support[:-1]):
+    for level,c,s in zip(range(len(support[:-1])), coefs[:-1], support[:-1]):
         labels,nlabs = ndimage.label(s)
         slices = ndimage.find_objects(labels)
         mps = [max_pos(c, labels, k+1, slices[k]) for k in range(nlabs)]
         acc.append([[MVMNode(k+1, labels, slices[k], mp, level)
-		for k,mp in enumerate(mps)], labels])
+                for k,mp in enumerate(mps)], labels])
     return acc
 
 
@@ -127,7 +128,7 @@ def connectivity_graph(structures, min_nscales=2):
             else: 
                 acc.append(n)
     for n in structs[-1]:
-	acc.append(n)
+        acc.append(n)
     return [s  for s in acc
             if len(s.branches) and nscales(s)>=min_nscales]
 
@@ -155,9 +156,9 @@ def tree_locations(root):
     acc = {}
     for node in flat_tree(root):
         for l in node.locations():
-            if not acc.has_key(l):
+            if l not in acc:
                 acc[l] = True
-    return len(acc.keys())
+    return len(list(acc.keys()))
 
 
 def tree_locations2(root):
@@ -223,14 +224,14 @@ def supp_from_connectivity(graph,nlevels):
     new_shape = [nlevels] + list(sh)
     out = ah.memsafe_arr(new_shape, _dtype_)*0.0
     for n in nodes:
-	out[n.level][n.labels>0] = 1.0
+        out[n.level][n.labels>0] = 1.0
     return out
     
 
 #@deco.with_time_dec            
 def supp_from_obj(object, min_level=0, max_level= 10,
-		  verbose=0, mode=0,
-		  weights = None):
+                  verbose=0, mode=0,
+                  weights = None):
     """Return support arrays from object"""
     sh = object.labels.shape
     new_shape = [object.level+1] + list(sh)
@@ -238,18 +239,18 @@ def supp_from_obj(object, min_level=0, max_level= 10,
     flat = flat_tree(object)
     nfl = len(flat)
     if weights is None:
-	weights = [1]*(object.level+1)
+        weights = [1]*(object.level+1)
     for j,n in enumerate(flat):
-	if verbose :
-	    sys.stderr.write('\rnode %d out of %d'%(j+1, nfl))
+        if verbose :
+            sys.stderr.write('\rnode %d out of %d'%(j+1, nfl))
         if n.level > min_level and n.level <=max_level:
-	    val = weights[n.level]
-	    if mode == 1:
-		out[n.level][n.labels==n.ind] = val
-	    elif mode == 2:
-		out[n.level][n.labels==n.ind] = n.ind
-	    else:
-		out[n.level][n.slice] = np.where(n.labels[n.slice]==n.ind, val, 0)
+            val = weights[n.level]
+            if mode == 1:
+                out[n.level][n.labels==n.ind] = val
+            elif mode == 2:
+                out[n.level][n.labels==n.ind] = n.ind
+            else:
+                out[n.level][n.slice] = np.where(n.labels[n.slice]==n.ind, val, 0)
     return out
 
 
@@ -302,31 +303,31 @@ def deblend_node(node, coefs, acc = None):
     tocut = []
     ## for each branch we decide if we want to cut it off
     for b in node.branches:
-	wjm = mxcoef(b.level, b.max_pos)
-	if len(b.branches) == 0:
-	    wjm1m = 0
-	else:
-	    positions = [x.max_pos for x in b.branches]
-	    i = np.argmin([distance(b.max_pos, p) for p in positions])
-	    wjm1m = mxcoef(b.level-1, tuple(positions[i]))
-	wjp1m = np.max(coefs[b.level+1][b.labels==b.ind])
-	## NB! only cut if there are more than one structure at the same level
-	## which belongs to the same tree!
-	#print wjm, wjm1m, wjp1m
-	if (wjm1m < wjm > wjp1m):
-	    #print 'True!'
-	    atlevel = sublevel(node.level)
-	    if len(atlevel)>1:
-		tocut.append(b)
+        wjm = mxcoef(b.level, b.max_pos)
+        if len(b.branches) == 0:
+            wjm1m = 0
+        else:
+            positions = [x.max_pos for x in b.branches]
+            i = np.argmin([distance(b.max_pos, p) for p in positions])
+            wjm1m = mxcoef(b.level-1, tuple(positions[i]))
+        wjp1m = np.max(coefs[b.level+1][b.labels==b.ind])
+        ## NB! only cut if there are more than one structure at the same level
+        ## which belongs to the same tree!
+        #print wjm, wjm1m, wjp1m
+        if (wjm1m < wjm > wjp1m):
+            #print 'True!'
+            atlevel = sublevel(node.level)
+            if len(atlevel)>1:
+                tocut.append(b)
     for c in tocut:
-	free = c.cut()
+        free = c.cut()
         acc.append(free)
-	deblend_node(free, coefs, acc) # this is important to add freely-cut
+        deblend_node(free, coefs, acc) # this is important to add freely-cut
                                        # nodes to the acc, not the base (we are
                                        # already dealing with it)
     # check if we will need to deblend further down
     for b in node.branches:
-    	deblend_node(b, coefs, acc)
+        deblend_node(b, coefs, acc)
     return acc
 
 
@@ -362,8 +363,8 @@ def deblend_all(objects, coefs, min_scales=2):
 ##     Returns tuple ``(out, (sh, slices))`` of:
 ##         * out: array, which is a bounding box around non-zero elements of an input
 ##           array
-## 	* sh:  full shape of the input data
-## 	* slices: a list of slices which define the bounding box
+##      * sh:  full shape of the input data
+##      * slices: a list of slices which define the bounding box
     
     
 ##     """
@@ -377,17 +378,17 @@ def deblend_all(objects, coefs, min_scales=2):
 
 
 def just_denoise(arr, k=3, level=5, noise_std=None,
-		 coefs=None, supp=None,
-		 min_nscales=2):
+                 coefs=None, supp=None,
+                 min_nscales=2):
     if np.iterable(k):
         level = len(k)
     if coefs is None:
         coefs = atrous.decompose(arr, level)
     if noise_std is None:
-	if arr.ndim > 2:
-	    noise_std = atrous.estimate_sigma_mad(coefs[0], True)
-	else:
-	    noise_std = atrous.estimate_sigma(arr, coefs)
+        if arr.ndim > 2:
+            noise_std = atrous.estimate_sigma_mad(coefs[0], True)
+        else:
+            noise_std = atrous.estimate_sigma(arr, coefs)
     ## calculate support taking only positive coefficients (light sources)
     if supp is None:
         supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
@@ -407,14 +408,14 @@ def find_objects(arr, k=3, level=5, noise_std=None,
                  coefs=None,
                  supp=None,
                  dec_fn = atrous.decompose,
-		 retraw=False, # return raw, only used for testing
-		 start_scale=0,
-		 weights=None,
+                 retraw=False, # return raw, only used for testing
+                 start_scale=0,
+                 weights=None,
                  deblendp=True,
                  min_px_size=200,
                  min_nscales=2,
                  rec_variant=2,
-		 modulus = False):
+                 modulus = False):
     """Use MVM to find objects in the input array.
 
     Parameters:
@@ -428,7 +429,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
       - `supp`: if already calculated, provide support of significant wavelet
         coefficients
       - `start_scale`: (`int`) -- start reconstruction at this scale
-	(decomposition level)
+        (decomposition level)
       - `weights`: (`list` of numbers) -- weight coefficients at different
         levels before reconstruction
       - `min_px_size`: an `MVMNode` should contain at least this number of
@@ -447,11 +448,11 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if coefs is None:
         coefs = dec_fn(arr, level)
     if noise_std is None:
-	noise_std =  atrous.estimate_sigma_mad(coefs[0], True)
-	## if arr.ndim > 2:
-	##     noise_std = atrous.estimate_sigma_mad(coefs[0], True)
-	## else:
-	##     noise_std = atrous.estimate_sigma(arr, coefs)
+        noise_std =  atrous.estimate_sigma_mad(coefs[0], True)
+        ## if arr.ndim > 2:
+        ##     noise_std = atrous.estimate_sigma_mad(coefs[0], True)
+        ## else:
+        ##     noise_std = atrous.estimate_sigma(arr, coefs)
     ## calculate support taking only positive coefficients (light sources)
     sigmaej = atrous.sigmaej
     if dec_fn == mmt.decompose_mwt:
@@ -471,9 +472,9 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     #check = lambda x: len(tree_locations2(x)) > min_px_size
     def check(x): return len(tree_locations2(x)) > min_px_size
     objects = sorted([x for x in gdeblended if check(x)],
-		     key = lambda u: tree_mass(u), reverse=True)
+                     key = lambda u: tree_mass(u), reverse=True)
     if retraw == 1:
-	return objects
+        return objects
     if retraw == 2:
         return [supp_from_obj(o,start_scale) for o in objects]
     # note: even if we decompose with mmt.decompose_mwt
@@ -490,7 +491,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
                                                                positive_only=(not modulus)),
                                embedding)]
     recovered = (pipelines[rec_variant-1](obj, start_scale) for obj in objects)
-    return filter(lambda x: np.sum(x[0]>0) > min_px_size, recovered)
+    return [x for x in recovered if np.sum(x[0]>0) > min_px_size]
 # ----------
 
 
@@ -519,22 +520,22 @@ def energy(obj):
 ### Obvious todo: parallelize!
 @deco.with_time_dec
 def _framewise_find_objects_old(frames, min_frames=5,
-				binary_structure = (3,2),
-				*args, **kwargs):
+                                binary_structure = (3,2),
+                                *args, **kwargs):
     framewise = deco.with_time(list, (find_objects(f, *args, **kwargs) for f in frames))
-    print "all frames computed"
+    print("all frames computed")
     fullrestored = objects_to_array(framewise)
     if fullrestored is None:
-	print "No objects in any frame"
-	return
+        print("No objects in any frame")
+        return
     s = ndimage.generate_binary_structure(*binary_structure)
     labels,nlab = ndimage.label(fullrestored) # re-label 3D-contiguous objects
     "re-labeled"
     pre_objs = ndimage.find_objects(labels)
     taking = [o[0].stop-o[0].start >= min_frames for o in pre_objs]
     masks = (labels == ind+1 for ind in range(len(pre_objs))
-	     if taking[ind])
-    print "calculating final objects"
+             if taking[ind])
+    print("calculating final objects")
     objects = [embedding(np.where(m,fullrestored,0)) for m in masks]
     return objects
 
@@ -551,10 +552,10 @@ def recobjs_lm_connected(o1, o2):
 
 @deco.with_time_dec
 def framewise_find_objects(frames, min_frames=5,
-			   framewise=None,
-			   verbose=True,
-			   testfn = recobjs_overlap,
-			   *args, **kwargs):
+                           framewise=None,
+                           verbose=True,
+                           testfn = recobjs_overlap,
+                           *args, **kwargs):
     """Framewise search for objects with multiscale vision model (MVM)
 
     Parameters:
@@ -574,12 +575,12 @@ def framewise_find_objects(frames, min_frames=5,
     """
     L = len(frames)
     if framewise is None:
-	framewise = []
-	for fcount,frame in enumerate(frames):
-	    framewise.append(find_objects(frame, *args, **kwargs))
-	    if verbose:
-		sys.stderr.write('\rframe %d out of %d'%(fcount+1, L))
-    print ""
+        framewise = []
+        for fcount,frame in enumerate(frames):
+            framewise.append(find_objects(frame, *args, **kwargs))
+            if verbose:
+                sys.stderr.write('\rframe %d out of %d'%(fcount+1, L))
+    print("")
     linkables = make_linkable(framewise)
     res = connect_framewise_objs(linkables, testfn=testfn)
     res = filter_linked(res, min_frames)
@@ -595,7 +596,7 @@ def slice2range(_slice):
 
 def slices_intersect(*slices):
     "1d intersection between slices as arange"
-    return reduce(np.intersect1d, map(slice2range, slices))
+    return reduce(np.intersect1d, list(map(slice2range, slices)))
 
 def xslices_intersect(*xslices):
     "n-dimensional intersection of xslices (tuples of slices)"
@@ -606,22 +607,22 @@ class LinkableObj:
     """A class used in framewise-MVM, used to link 2D objects between different frames.
     """
     def __init__(self, obj, framenumber):
-	self.frame = framenumber
-	self.obj = obj
-	self.prev = []
-	self.branches = []
+        self.frame = framenumber
+        self.obj = obj
+        self.prev = []
+        self.branches = []
     def isroot(self):
-	return (self.prev == []) and len(self.branches)
+        return (self.prev == []) and len(self.branches)
     def linknext(self, obj):
-	self.branches.append(obj)
-	obj.prev.append(self)
+        self.branches.append(obj)
+        obj.prev.append(self)
     def linked(self, obj):
-	return (obj in self.branches) or (obj in self.prev)
+        return (obj in self.branches) or (obj in self.prev)
 
 
 def make_linkable(framelist):
     return [[LinkableObj(o,j) for o in frame] for j,frame
-	    in enumerate(framelist)]
+            in enumerate(framelist)]
 
 def last_leaf(root):
     if root.branches == []: return root.frame
@@ -646,35 +647,35 @@ def prune_multiple_prevs(objlist):
     each object in a frame n can only have one
     'ancestor' object in frame n-1"""
     for o in objlist:
-	full1 = embedded_to_full(o.obj)
-	#test = lambda other: recobjs_lm_connected(full1, other)
-	maxpos = ndimage.maximum_position(full1)
-	parents = o.prev
-	if len(parents) > 1:
-	    fulls = [embedded_to_full(x.obj) for x in o.prev]
-	    max_positions = map(ndimage.maximum_position, fulls)
-	    i = np.argmin([distance(maxpos, x) for x in max_positions])
-	    best_p = parents[i]
-	    o.prev = [best_p]
-	    for p in parents:
-		if p is not best_p:
-		    p.branches = excluding(o,p.branches)	    
+        full1 = embedded_to_full(o.obj)
+        #test = lambda other: recobjs_lm_connected(full1, other)
+        maxpos = ndimage.maximum_position(full1)
+        parents = o.prev
+        if len(parents) > 1:
+            fulls = [embedded_to_full(x.obj) for x in o.prev]
+            max_positions = list(map(ndimage.maximum_position, fulls))
+            i = np.argmin([distance(maxpos, x) for x in max_positions])
+            best_p = parents[i]
+            o.prev = [best_p]
+            for p in parents:
+                if p is not best_p:
+                    p.branches = excluding(o,p.branches)            
     return objlist
-	     
+             
 
 @deco.with_time_dec
 def connect_framewise_objs(objlist,testfn = recobjs_overlap, nnext=3):
     for j,frame in enumerate(objlist[:-nnext]):
-	nextframes = objlist[j+1:j+nnext+1]
-	for obj in frame:
-	    full = embedded_to_full(obj.obj)
-	    #test1 = lambda o: testfn(full, embedded_to_full(o.obj))
+        nextframes = objlist[j+1:j+nnext+1]
+        for obj in frame:
+            full = embedded_to_full(obj.obj)
+            #test1 = lambda o: testfn(full, embedded_to_full(o.obj))
             def test1(o): return testfn(full, embedded_to_full(o.obj))
-	    for nf in nextframes:
-		nx = filter(test1, nf)
-		if len(nx):
-		    for n in nx: obj.linknext(n)
-		    break
+            for nf in nextframes:
+                nx = list(filter(test1, nf))
+                if len(nx):
+                    for n in nx: obj.linknext(n)
+                    break
     objs = [o for o in misc.flatten(objlist) if len(o.prev) or len(o.branches)]
     objs = prune_multiple_prevs(objs)
     return roots_only(objs)
@@ -684,8 +685,8 @@ def linked_to_frames(root, acc = None):
     if acc is None: acc = [x]
     else: acc.append(x)
     if len(root.branches):
-	for n in root.branches:
-	    linked_to_frames(n, acc)
+        for n in root.branches:
+            linked_to_frames(n, acc)
     return acc
 
 def restore_linked(root,timespan):
@@ -693,7 +694,7 @@ def restore_linked(root,timespan):
     first,last = root.frame, last_leaf(root)
     out = np.zeros([timespan]+frame_shape)
     for j,rec in linked_to_frames(root):
-	out[j] += rec
+        out[j] += rec
     emb = embedding(out)
     return emb
 
@@ -703,16 +704,16 @@ def objects_to_array(objlist):
     out = []
     sh = None
     for frame in objlist:
-	if len(frame):
-	    sh = frame[0][1][0]
-	    break
+        if len(frame):
+            sh = frame[0][1][0]
+            break
     if sh is None:
-	return None
+        return None
     for frame in objlist:
-	if len(frame):
-	    out.append(np.sum(map(embedded_to_full, frame), axis=0))
-	else:
-	    out.append(np.zeros(sh, _dtype_))
+        if len(frame):
+            out.append(np.sum(list(map(embedded_to_full, frame)), axis=0))
+        else:
+            out.append(np.zeros(sh, _dtype_))
     return np.array(out, _dtype_)
 
 
@@ -734,11 +735,11 @@ def _atilda0(coefs):
     kernels = take(len(coefs), fniter(atrous.zupsample, _phi2d_))
     out = np.zeros(coefs[0].shape)
     for j, c in enumerate(coefs):
-	if j > 0:
-	    x = atrous.signal.convolve2d(c, kernels[j-1], **c2dkw)
-	else:
-	    x = c
-	out += x
+        if j > 0:
+            x = atrous.signal.convolve2d(c, kernels[j-1], **c2dkw)
+        else:
+            x = c
+        out += x
     return out
 
 def _atilda1(coefs):
@@ -747,14 +748,14 @@ def _atilda1(coefs):
     out = np.zeros(coefs[0].shape)
 
     for j, c in enumerate(coefs[:-1]):
-	if j > 0:
-	    kern = atrous.signal.convolve2d(kernels[j-1], kern_prev, **c2dkw)
-	    kern_prev = kern
-	else:
-	    kern = kernels[1]
-	    kern_prev =kern
-	x = atrous.signal.convolve2d(c, kern, **c2dkw)
-	out += x
+        if j > 0:
+            kern = atrous.signal.convolve2d(kernels[j-1], kern_prev, **c2dkw)
+            kern_prev = kern
+        else:
+            kern = kernels[1]
+            kern_prev =kern
+        x = atrous.signal.convolve2d(c, kern, **c2dkw)
+        out += x
     return out
 
 def _project(coefs, supp):
@@ -765,7 +766,7 @@ def conj_grad_rec(obj, coefs, thresh = 0.1, verbose=True):
     N = len(coefs)-1
     supp = [x for x in supp_from_obj(obj)]
     while len(supp) < len(coefs):
-	supp.append(np.zeros(coefs[0].shape))
+        supp.append(np.zeros(coefs[0].shape))
     WW = _project(coefs, supp)
     F0 = atrous.rec_atrous(WW)
     x = atrous.decompose(F0, N)
@@ -777,29 +778,29 @@ def conj_grad_rec(obj, coefs, thresh = 0.1, verbose=True):
     conv = []
     meas_prev = -1e-5
     while niter < 1000:
-	Fr_norm = np.sum(Fr**2)
-	AF_norm = np.sum([x**2 for x in AF[:-1]])
-	alpha = Fr_norm/AF_norm
-	_Fn = Fp + alpha*Fr
-	Fnext = _Fn*(_Fn >= 0)
-	AF = _project(atrous.decompose(Fnext,N), supp)
-	Wrn = [c1-c2 for c1, c2 in zip(WW, AF)]
-	meas_next = np.sum([c**2 for c in Wrn[:-1]])
-	if niter > 0:
-	    meas = 1 - meas_next/meas_prev
-	else:
-	    meas = 1
-	conv.append(meas)
-	if verbose:
-	    print meas, meas_next
-	if meas < thresh or meas_next < thresh:
-	    return Fnext, conv
-	meas_prev = meas_next
-	Frnext = adjoint(Wrn)
-	beta = np.sum(Frnext**2)/Fr_norm
-	Frnext = Frnext + beta*Fr
-	Fr, Wr, Fp = Frnext, Wrn, Fnext
-	niter += 1
+        Fr_norm = np.sum(Fr**2)
+        AF_norm = np.sum([x**2 for x in AF[:-1]])
+        alpha = Fr_norm/AF_norm
+        _Fn = Fp + alpha*Fr
+        Fnext = _Fn*(_Fn >= 0)
+        AF = _project(atrous.decompose(Fnext,N), supp)
+        Wrn = [c1-c2 for c1, c2 in zip(WW, AF)]
+        meas_next = np.sum([c**2 for c in Wrn[:-1]])
+        if niter > 0:
+            meas = 1 - meas_next/meas_prev
+        else:
+            meas = 1
+        conv.append(meas)
+        if verbose:
+            print(meas, meas_next)
+        if meas < thresh or meas_next < thresh:
+            return Fnext, conv
+        meas_prev = meas_next
+        Frnext = adjoint(Wrn)
+        beta = np.sum(Frnext**2)/Fr_norm
+        Frnext = Frnext + beta*Fr
+        Fr, Wr, Fp = Frnext, Wrn, Fnext
+        niter += 1
     return Fnext
     
     

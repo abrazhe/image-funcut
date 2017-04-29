@@ -31,7 +31,7 @@ def kmeans(points, k, tol=1e-3,
     #affiliations = np.random.randint(k, size=len(points))
     affiliations = np.ones(len(points))*-1
     random_pidx = np.random.randint(len(points),size= k)
-    print random_pidx
+    print(random_pidx)
     clusters = [Cluster([points[i]],
                         center_fn = center_fn,
                         dist_fn = distance)
@@ -42,7 +42,7 @@ def kmeans(points, k, tol=1e-3,
     while niter < max_iter:
         reassigned = 0
         affiliations_prev = affiliations.copy()
-        for i in xrange(k): updater[i] = []
+        for i in range(k): updater[i] = []
         centers = [c.centroid() for c in clusters]
         for j,p in enumerate(points):
             ind = np.argmin([distance(p,c) for c in centers])
@@ -53,14 +53,14 @@ def kmeans(points, k, tol=1e-3,
             c.set_points(u)
             shifts[j] = distance(centers[j], c.centroid())
         reassigned = np.sum(np.not_equal(affiliations, affiliations_prev))
-        print "Iteration %d, reassigned %d points, max shift %f"%(niter,
+        print("Iteration %d, reassigned %d points, max shift %f"%(niter,
                                                                   reassigned,
-                                                                  np.max(shifts))
+                                                                  np.max(shifts)))
         if reassigned == 0 or (np.max(shifts) < tol):
             break
         niter +=1
     if niter >= max_iter:
-        print "Warning: maximum number of iterations reached"
+        print("Warning: maximum number of iterations reached")
     clusters.sort(key = lambda x: x.mass(), reverse=True)
     if output=='clusters':
         return clusters
@@ -69,6 +69,6 @@ def kmeans(points, k, tol=1e-3,
     elif output == 'full':
         return clusters, affiliations
     else:
-	print """'output' must be one of 'clusters', 'indices', 'full', returning clusters"""
-	return clusters
+        print("""'output' must be one of 'clusters', 'indices', 'full', returning clusters""")
+        return clusters
         

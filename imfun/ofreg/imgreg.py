@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import numpy as np
 
@@ -17,7 +17,7 @@ try:
     import imreg.sampler # do we really need that?
     _with_imreg = True
 except ImportError:
-    print "Can't load imreg package, affine and homography registrations won't work"
+    print("Can't load imreg package, affine and homography registrations won't work")
     _with_imreg = False
 
 
@@ -37,7 +37,7 @@ def _imreg( image, template, tform):
     if not _with_imreg:
         raise ImportError("Don't have imreg module")
     aligner = imreg.register.Register()
-    template, image = map(imreg.register.RegisterData, (template,image))
+    template, image = list(map(imreg.register.RegisterData, (template,image)))
     step, search = aligner.register(image, template, tform)
     def _regfn(coordinates):
         ir_coords = imreg.model.Coordinates.fromTensor(coordinates)

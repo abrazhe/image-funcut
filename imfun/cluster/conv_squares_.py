@@ -13,7 +13,7 @@ def _child_slices(sl, step=1):
     
 def _child_squares(square, step=1):
     "split a nD square into a list of overlapping smaller squares"
-    lcsl = map(lambda s:_child_slices(s,step), square)
+    lcsl = [_child_slices(s,step) for s in square]
     return list(itt.product(*lcsl))
 
 def square_size(sq):
@@ -40,9 +40,9 @@ def converge_square(m, square, step=1,
         chsq = _child_squares(square, step)
         x = [efunc(m[sq]) for sq in chsq]
         return converge_square(m, chsq[np.argmax(x)],
-			       step, efunc, min_size)
+                               step, efunc, min_size)
     else:
-	return square # undeflatable
+        return square # undeflatable
 
 def csq_find_rois(m, threshold = None,
                   stride=5,
@@ -87,7 +87,7 @@ def csq_plot_rois(m,rois):
     pl.figure()
     pl.imshow(m, aspect='equal', cmap='gray')
     positions = [[[s.start] for s in r[::-1]] for r in rois]
-    points = map(csqroi2point, rois)
+    points = list(map(csqroi2point, rois))
     for p in points:
         pl.plot(*p,ls='none',color='r',marker='s')
 
@@ -100,6 +100,6 @@ def make_grid(shape,size,stride):
     """Make a generator over sets of slices which go through the provided shape
        by a stride
     """
-    origins =  itt.product(*[range(0,dim,stride) for dim in shape])
+    origins =  itt.product(*[list(range(0,dim,stride)) for dim in shape])
     squares = ([slice(a,a+size) for a in o] for o in origins)
     return squares

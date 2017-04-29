@@ -76,7 +76,7 @@ def pca_svd_project(X, Vh):
 
 def _whitenmat(X, ncomp=None):
     "Assumes data are nframes x npixels"
-    n,p = map(float, X.shape)
+    n,p = list(map(float, X.shape))
     Xc = X - X.mean(axis=-1)[:, np.newaxis]
     U, s, Vh = svd(Xc, full_matrices=False)
     #K = (U/s).T[:ncomp] # fixme: do I really have to scale by s?
@@ -136,7 +136,7 @@ def _pca_trick(X):
     Y = X - X_mean # remove mean
     Y = X
     e, C = eigh(dot(Y,Y.T))
-    print e
+    print(e)
     V = dot(Y.T, C)
     return dot(V, inv(diag(sqrt(e)))), sqrt(e), X_mean
 
@@ -153,13 +153,13 @@ def _pca1 (X, verbose=False):
      (eigenvalues of temporal covariance matrix). Signals are in columns
     - esq, vector of eigenvalues
     """
-    print "Please don't use this, it's not ready"
+    print("Please don't use this, it's not ready")
     #return
     n_data, n_dimension = X.shape # (m x n)
     Y = X - X.mean(axis=0)[np.newaxis,:] # remove mean
     #C = dot(Y, Y.T) # (n x n)  covariance matrix
     C = dot(Y.T, Y)
-    print C.shape
+    print(C.shape)
     es, EV = eigh(C)  # eigenvalues, eigenvectors
 
     ## take non-negative eigenvalues
@@ -167,7 +167,7 @@ def _pca1 (X, verbose=False):
     neg = where(es<0)
     if len(neg)>0:
         if verbose:
-            print "pca1: Warning, C have %d negative eigenvalues" %len(neg)
+            print("pca1: Warning, C have %d negative eigenvalues" %len(neg))
         es = es[non_neg]
         EV = EV[:,non_neg]
     #tmp = dot(Y.T, EV).T

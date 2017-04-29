@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import division
+
 
 import os
 import argparse
@@ -56,7 +56,7 @@ def main():
         '--bitrate':dict(default=16000,type=float, help='bitrate of exported movie'),
         '--no-zstacks': dict(action='store_true', help='try to avoid z-stacks')
         }
-    for arg,kw in argdict.items():
+    for arg,kw in list(argdict.items()):
         if isinstance(kw, dict):
             parser.add_argument(arg,  **argdict[arg])
         else:
@@ -70,7 +70,7 @@ def main():
         args.smooth = []
     else:
         for m in args.model:
-            if not isinstance(m, basestring) and len(m)>1:
+            if not isinstance(m, str) and len(m)>1:
                 params = json.loads(m[1])
                 m[1] = params
     for smoother in args.smooth:
@@ -82,28 +82,28 @@ def main():
     if args.json :
         with open(args.json) as jsonfile:
             pars = json.load(jsonfile)
-            for key,val in pars.items():
+            for key,val in list(pars.items()):
                 setattr(args, key, val)
             
     if args.verbose > 2:
-        print args
+        print(args)
 
     #registrators = opflowreg.RegistrationInterfaces
 
     def apply_reg(frames):
         if args.type == 'template':
             if args.verbose > 1:
-                print 'stabilization type is template'
+                print('stabilization type is template')
             tstart = int(len(frames)/2)
             tstop = min(len(frames),tstart+50)
             template = np.max(frames[tstart:tstop],axis=0)
             def register_stack(stack, registrator, **fnargs):
                 return stackreg.to_template(stack,template,registrator,njobs=args.ncpu,**fnargs)
         elif args.type in ['pca', 'pca-5']:
-            print 'in pca'
+            print('in pca')
             templates, indices = fseq.frame_exemplars_pca_som(frames,som_gridshape=(5,1))
             if args.verbose>1:
-                print "Created frame exemplars by clustering PCA coefficients"
+                print("Created frame exemplars by clustering PCA coefficients")
             def register_stack(stack, registrator, **fnargs):
                 return stackreg.to_templates(stack, templates,indices,registrator,njobs=args.ncpu,**fnargs)
         elif args.type == 'recursive':
@@ -122,7 +122,7 @@ def main():
         newframes = frames
         warp_history = []
         for movement_model in operations:
-            if not isinstance(movement_model, basestring):
+            if not isinstance(movement_model, str):
                 if len(movement_model)>1:
                     model, model_params = movement_model
                 else:
@@ -131,7 +131,7 @@ def main():
                 model = movement_model
                 model_params = {}
             if args.verbose > 1:
-                print 'correcting for {} with params: {}'.format(model, model_params)
+                print('correcting for {} with params: {}'.format(model, model_params))
             warps = register_stack(newframes, reg_dispatcher[model], **model_params)
             warp_history.append(warps)
             newframes = ofreg.warps.map_warps(warps, newframes, njobs=args.ncpu)
@@ -149,7 +149,7 @@ def main():
         #try:
         if True:
             if args.verbose:
-                print '\nCalculating motion stabilization for file {}'.format(stackname)
+                print('\nCalculating motion stabilization for file {}'.format(stackname))
                 
             if args.pretend: continue
             #fskwargs =
@@ -161,7 +161,7 @@ def main():
             ## use first 20 components just as test for now
             ncomp = 20
             if args.pca_denoise:
-                 print 'start PCA denoising'
+                 print('start PCA denoising')
                  data = fs.as3darray()
                  emp_mean = data.mean(0)
                  from imfun import pica
@@ -170,17 +170,17 @@ def main():
                  rec = u[:,:ncomp].dot(np.diag(s[:ncomp]).dot(vh[:ncomp]))
                  rec = pica.reshape_to_movie(rec, emp_mean.shape)+emp_mean
                  fs = fseq.from_array(rec)
-                 print 'PCA denoising done'
+                 print('PCA denoising done')
 
             smoothers = get_smoothing_pipeline(args.smooth)
             if args.verbose>1:
-                print 'created smoothers list'
+                print('created smoothers list')
             fs.frame_filters = smoothers[:]
             if args.verbose> 1:
-                print 'starting warps'
+                print('starting warps')
             warps = apply_reg(fs)
             if args.verbose >1:
-                print 'Calculated warps'
+                print('Calculated warps')
             if args.dct_encode:
                 ofreg.warps.to_dct_encoded(out_stab_name, warps)
                 # Saving with numpy creates smaller files than pickle, but attaches a
@@ -193,7 +193,7 @@ def main():
             else:
                 ofreg.warps.to_pickle(out_stab_name,warps)
             if args.verbose:
-                print 'saved motions stab recipe to {}'.format(out_stab_name)
+                print('saved motions stab recipe to {}'.format(out_stab_name))
             del fs
             
             if args.with_movies:
@@ -224,7 +224,7 @@ def main():
                 #def _lutfn(f): return np.clip((f-vl)/(vh-vl), 0, 1)
                 #def _lutfn(f): return np.dstack([np.clip(f[...,k],vl[k],vh[k])/vh[k] for k in range(f.shape[-1])])
                 for ax,p,t in zip(axs,(p1,p2),['before','stabilized']):
-                    p.clims = zip(vl,vh)
+                    p.clims = list(zip(vl,vh))
                     ax.imshow(p._lutconv(p.home_frame),aspect='equal')
                     #imh = ax.imshow(f[...,0],aspect='equal',vmin=vl,vmax=vh); plt.colorbar(imh,ax=ax)
                     plt.setp(ax, xticks=[],yticks=[],frame_on=False)
@@ -234,7 +234,7 @@ def main():
                 plt.close(fig)
 
                 if args.verbose > 2:
-                    print outname+'-stabilized-video.mp4'
+                    print(outname+'-stabilized-video.mp4')
 
                 
                 ui.pickers_to_movie([p1, p2],
@@ -246,10 +246,10 @@ def main():
                 
                 plt.close('all')
             del warps
-            if args.verbose>2: print 'Done'
+            if args.verbose>2: print('Done')
         else:
         #except Exception as e:
-            print "Couldn't process {} because  {}".format(stackname, e)
+            print("Couldn't process {} because  {}".format(stackname, e))
         
 def guess_fseq_type(fs):
     dz = fs.meta['axes'][0]
@@ -262,7 +262,7 @@ def guess_fseq_type(fs):
     return out
 
 def make_outname_suffix(args):
-    models = [isinstance(m,basestring) and m or m[0] for m in args.model]
+    models = [isinstance(m,str) and m or m[0] for m in args.model]
     ch = "ch_{}".format(args.ch)
     if args.smooth is not None:
         smoothers = ["{}_{}".format(name,par) for name,par in args.smooth]

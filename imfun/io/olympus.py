@@ -5,7 +5,7 @@ def parse_property(line):
     l = line.strip().replace('"','')
     name, value = l.split('\t')
     values = value.split(',')
-    return name, map(str.strip, values)
+    return name, list(map(str.strip, values))
 
 def from_brackets(s):
     result =  re.findall("\[([^]]+)\]",s)
@@ -60,7 +60,7 @@ def parse_meta_general(path):
     
     
 def dimensions_to_axes(md):
-    keys = md.keys()
+    keys = list(md.keys())
     order = ('TZ','Y','X')
     keys = [[k for k in keys if k[0] in o][0] for o in order]
     values = [md[k] for k in keys]

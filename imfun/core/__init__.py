@@ -1,5 +1,5 @@
 # Auxilary utilities for image-funcut
-from __future__ import division
+
 
 from . import array_handling as ah
 from . import baselines

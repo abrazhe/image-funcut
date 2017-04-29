@@ -98,7 +98,7 @@ array([10, 10, 10], dtype=uint8)
 
 """
 
-from __future__ import division, print_function
+
 
 import sys
 import os
@@ -202,7 +202,7 @@ class CziFile(object):
             self._fh.close()
             raise
 
-        if multifile and self.header.file_part and isinstance(arg, basestring):
+        if multifile and self.header.file_part and isinstance(arg, str):
             # open master file instead
             self._fh.close()
             name, _ = match_filename(arg)
@@ -507,7 +507,7 @@ class MetadataSegment(object):
         if raw:
             return data
         data = data.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-        return unicode(data, 'utf-8')
+        return str(data, 'utf-8')
 
     def __str__(self):
         return "MetadataSegment\n %s" % self.data()
@@ -541,7 +541,7 @@ class SubBlockSegment(object):
     def metadata(self):
         """Read metadata from file and return as XML string."""
         self._fh.seek(self.data_offset - self.metadata_size)
-        return unicode(self._fh.read(self.metadata_size), 'utf-8')
+        return str(self._fh.read(self.metadata_size), 'utf-8')
 
     def data(self, raw=False, bgr2rgb=True, resize=True, order=1):
         """Read image data from file and return as numpy array."""
@@ -830,14 +830,14 @@ class AttachmentEntryA1(object):
             raise ValueError("not a AttachmentEntryA1")
         self.content_guid = uuid.UUID(bytes=content_guid)
         self.content_file_type = stripnull(content_file_type)
-        self.name = unicode(stripnull(name), 'utf-8')
+        self.name = str(stripnull(name), 'utf-8')
         self._fh = fh
 
     @property
     def filename(self):
         """Return unique file name for attachment."""
         return "%s@%i.%s" % (self.name, self.file_position,
-                             unicode(self.content_file_type, 'utf-8').lower())
+                             str(self.content_file_type, 'utf-8').lower())
 
     def data_segment(self):
         """Read and return AttachmentSegment at file_position."""
@@ -998,7 +998,7 @@ class EventListEntry(object):
          description_size,
          ) = struct.unpack('<idii', fh.read(20))
         description = stripnull(fh.read(description_size))
-        self.description = unicode(description, 'utf-8')
+        self.description = str(description, 'utf-8')
 
     def __str__(self):
         return "%s @ %s (%s)" % (EventListEntry.EV_TYPE[self.event_type],
@@ -1034,7 +1034,7 @@ class LookupTableEntry(object):
 
     def __init__(self, fh):
         size, identifier, number = struct.unpack('<i80si', fh.read(88))
-        self.identifier = unicode(stripnull(identifier), 'utf-8')
+        self.identifier = str(stripnull(identifier), 'utf-8')
         self.components = [ComponentEntry(fh) for _ in range(number)]
 
     def __len__(self):
@@ -1072,7 +1072,7 @@ class ComponentEntry(object):
 
 def xml_reader(fh, filesize):
     """Read XML from file and return as xml.ElementTree root Element."""
-    xml = unicode(stripnull(fh.read(filesize)), 'utf-8')
+    xml = str(stripnull(fh.read(filesize)), 'utf-8')
     return etree.fromstring(xml)
 
 
@@ -1090,7 +1090,7 @@ def decode_jxr(data):
     fd, filename = tempfile.mkstemp(suffix='.jxr')
     with os.fdopen(fd, 'wb') as fh:
         fh.write(data)
-    if isinstance(filename, unicode):
+    if isinstance(filename, str):
         filename = filename.encode('ascii')
     try:
         out = _czifile.decode_jxr(filename)
@@ -1184,8 +1184,8 @@ if _have_czifile:
     DECOMPRESS[4] = decode_jxr
 
 if sys.version_info[0] > 2:
-    unicode = str
-    basestring = str, bytes
+    str = str
+    str = str, bytes
 
 if __name__ == "__main__":
     import doctest

@@ -8,12 +8,12 @@ def DFoSD(vec, normL=None, th = 1e-6):
     sdx = np.std(x,0)
     out =  np.zeros(vec.shape, vec.dtype)
     if sdx.shape is ():
-	if np.abs(sdx) > th:
-		out = (vec-m(x))/sdx
+        if np.abs(sdx) > th:
+                out = (vec-m(x))/sdx
     else:
-	zi = np.where(np.abs(sdx) < th)[0]
-	sdx[zi] = -np.inf
-	out = (vec-m(x))/sdx
+        zi = np.where(np.abs(sdx) < th)[0]
+        sdx[zi] = -np.inf
+        out = (vec-m(x))/sdx
     return out
 
 def DFoF(vec, normL=None, th = 1e-6):
@@ -22,12 +22,12 @@ def DFoF(vec, normL=None, th = 1e-6):
     m = np.mean(vec[:normL], 0)
     out = np.zeros(vec.shape, vec.dtype)
     if m.shape is ():
-	if np.abs(m) > th:
-	    out =  vec/m - 1.0
+        if np.abs(m) > th:
+            out =  vec/m - 1.0
     else:
-	zi = np.where(np.abs(m) < th)
-	m[zi] = -np.inf
-	out = vec/m - 1.0
+        zi = np.where(np.abs(m) < th)
+        m[zi] = -np.inf
+        out = vec/m - 1.0
     return out
 
 
@@ -40,12 +40,12 @@ def baseline_als(y, lam=None, p=0.1, niter=10):
     """
     L = len(y)
     if lam == None:
-	lam = L**2
+        lam = L**2
     D = sparse.csc_matrix(np.diff(np.eye(L),2))
     w = np.ones(L)
-    for i in xrange(niter):
-	W = sparse.spdiags(w, 0, L, L)
-	Z = W + lam*D.dot(D.T)
-	z = sparse.linalg.spsolve(Z,w*y)
-	w = p*(y>z) + (1-p)*(y<z)
+    for i in range(niter):
+        W = sparse.spdiags(w, 0, L, L)
+        Z = W + lam*D.dot(D.T)
+        z = sparse.linalg.spsolve(Z,w*y)
+        w = p*(y>z) + (1-p)*(y<z)
     return z

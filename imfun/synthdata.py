@@ -17,21 +17,21 @@ def randn_iter(loc, sigma):
 
 def ar1(loc, sigma, alpha=0.8):
     rnit = randn_iter(0, sigma)
-    x = rnit.next()
+    x = next(rnit)
     while True:
         yield loc+x
-        x = rnit.next() + alpha*x
+        x = next(rnit) + alpha*x
     
 def rand_arrivals(interval, sigma = None, rand_process = ar1):
     if sigma is None:
         sigma = 0.15*interval # 15 % of mean
     #rnit = randn_iter(interval, sigma)
-    phase_shift = rand_process(interval, 0.5*interval).next()
+    phase_shift = next(rand_process(interval, 0.5*interval))
     rnit = rand_process(interval, sigma)
     x = phase_shift
     while True:
         yield x
-        x += rnit.next()
+        x += next(rnit)
 
 
 def random_spikes(tvec, isi=1.2, amp=10, tau=0.15,
@@ -46,7 +46,8 @@ def random_spikes(tvec, isi=1.2, amp=10, tau=0.15,
         out += np.random.normal(0,noise_sigma,len(tvec))
     return out
 
-def regular_spikes(tvec, stim_freq, (stim_start, stim_stop), amp=10, tau=0.15, rise=20):
+def regular_spikes(tvec, stim_freq, stim_interval, amp=10, tau=0.15, rise=20):
+    (stim_start, stim_stop) = stim_interval
     locations = np.arange(stim_start, stim_stop, 1./stim_freq)
     out = np.add.reduce([spike(tvec, loc, amp, tau,rise) for loc in locations])
     return out
@@ -59,15 +60,15 @@ def synth_movie(tvec, size, nobjs=42, snr=0.5,
     L = len(tvec)
     spike_pars_use = {'isi':1.2, 'amp':200, 'snr':100}
     spike_pars_use.update(spike_pars)
-    print spike_pars_use
+    print(spike_pars_use)
     masks = dendrite_masks(nobjs, dendr_length, angle)
-    spike_signals = [random_spikes(tvec,**spike_pars_use) for i in xrange(nobjs)]
-    signal_mean = np.mean(map(np.mean, spike_signals))
-    signal_std = np.mean(map(np.std, spike_signals))
+    spike_signals = [random_spikes(tvec,**spike_pars_use) for i in range(nobjs)]
+    signal_mean = np.mean(list(map(np.mean, spike_signals)))
+    signal_std = np.mean(list(map(np.std, spike_signals)))
     noise = lambda : np.random.poisson((signal_std**2)/snr, size=L)
     out = np.zeros((L, size, size))
-    for j in xrange(size):
-        for k in xrange(size):
+    for j in range(size):
+        for k in range(size):
             out[:,j,k] = noise()
             for n,mask in enumerate(masks):
                 if mask[j,k]:
@@ -101,7 +102,7 @@ def eu_dist(p1,p2):
 
 def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
     urand = lambda : np.random.uniform(mlength/10, size-mlength)
-    X,Y = np.meshgrid(range(size),range(size))
+    X,Y = np.meshgrid(list(range(size)),list(range(size)))
     out = []
     k,n,max_tries = 0,0,1e4
     while k < max_tries:
@@ -124,11 +125,11 @@ def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
 
 
 def gauss2d(xmu=0, ymu=0, xsigma=10, ysigma=10):
-    xsigma, ysigma = map(np.float, [xsigma, ysigma])
+    xsigma, ysigma = list(map(np.float, [xsigma, ysigma]))
     return lambda x,y: np.exp(-(x-xmu)**2/(2*xsigma**2) - (y-ymu)**2/(2*ysigma**2))
 
 def gauss3d(tscale=10, xscale=20, yscale=20):
-    tscale, xscale, yscale = map(np.float, [tscale, xscale, yscale])
+    tscale, xscale, yscale = list(map(np.float, [tscale, xscale, yscale]))
     t,x,y = np.mgrid[-tscale:tscale, -yscale:yscale, -xscale:xscale]
     return np.exp(-t**2/tscale - y**2/xscale - x**2/yscale)
 
@@ -138,18 +139,18 @@ def simple_wave(sstart = 1.0, alpha=0.8, shape=(128,128)):
     sigma = sstart
     amp = sstart
     count = 0
-    for k in xrange(50):
-	fn = gauss2d(origin[0], origin[1], sigma,sigma)
-	def _(x,y):
-	    print amp, sigma, 1/sigma**0.25
-	    return np.tanh(10*amp*fn(x,y))
-	yield _
-	sigma += sqrt(alpha*k/sigma)
-	amp -= 0.05*sigma**0.25
-	if amp < 0.05:
-	    amp = 0
-	
-	
+    for k in range(50):
+        fn = gauss2d(origin[0], origin[1], sigma,sigma)
+        def _(x,y):
+            print(amp, sigma, 1/sigma**0.25)
+            return np.tanh(10*amp*fn(x,y))
+        yield _
+        sigma += sqrt(alpha*k/sigma)
+        amp -= 0.05*sigma**0.25
+        if amp < 0.05:
+            amp = 0
+        
+        
 
 def _____waves(shape, nobj=5):
     #out = np.zeros(shape, np.float32)
@@ -163,7 +164,7 @@ def _____waves(shape, nobj=5):
 
 class LineSegment:
     def __init__(self, p0, length, phi):
-        self.p0 = map(float, p0)
+        self.p0 = list(map(float, p0))
         self.p1 = [p0[0] + length*cos(phi), p0[1] + length*sin(phi)]
         self.length = length
         self.phi = phi

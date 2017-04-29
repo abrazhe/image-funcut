@@ -77,12 +77,12 @@ def read_header(name):
     """
     with open(name, 'rb') as fid:
         magic = fid.read(64).strip().lower()
-        tables = [(k,v) for k,v in _known_headers.items() if k.strip().lower() in magic]
+        tables = [(k,v) for k,v in list(_known_headers.items()) if k.strip().lower() in magic]
         fid.seek(0)
         if len(tables):
             return tables[0]
         else:
-            print "Unknown MLF/PLS file format"
+            print("Unknown MLF/PLS file format")
 
 class PLSI:
     def __init__(self, fname):
@@ -92,7 +92,7 @@ class PLSI:
             raise InputError("Can't load data, unrecognized file format")
 
         self.fid = open(fname, 'rb')
-        meta = {k:read_at(self.fid, *v)[0] for k,v in table.items() if not None in v}
+        meta = {k:read_at(self.fid, *v)[0] for k,v in list(table.items()) if not None in v}
         self.__dict__.update(meta)
 
 
@@ -113,7 +113,7 @@ class PLSI:
         self.data_start = table['data_start'][0]
         self.dtype = table['data_start'][2]
                     
-	self.shape = (self.nrows, self.ncols)
+        self.shape = (self.nrows, self.ncols)
         self.npix = np.prod(self.shape)
 
         self.vbyte_size = np.nbytes[self.dtype]
@@ -130,15 +130,15 @@ class PLSI:
         return read_at(self.fid, pos, 1, dtype=dtype,seek_opt=seek_opt)[0]
 
     def location2index(self, loc):
-	#nrows,ncols = self.ydim,self.xdim
-	r,c=loc
-	return self.vbyte_size*(r*self.ncols + c)
-	
+        #nrows,ncols = self.ydim,self.xdim
+        r,c=loc
+        return self.vbyte_size*(r*self.ncols + c)
+        
     def read_timeslice(self, loc):
-	index= self.location2index(loc)
-	positions = self.data_start + self.frame_byte_size + index
-	values = [self.read_value(p,dtype=self.dtype)  for p in positions]
-	return np.array(values)
+        index= self.location2index(loc)
+        positions = self.data_start + self.frame_byte_size + index
+        values = [self.read_value(p,dtype=self.dtype)  for p in positions]
+        return np.array(values)
 
     def read_next_frame(self, pos=0):
         if self.have_tstamps:
@@ -149,17 +149,17 @@ class PLSI:
         return arr.reshape((self.nrows,self.ncols),order=self.order)
 
     def read_frame(self, n):
-	n = n%self.nframes
+        n = n%self.nframes
         pos = int(self.data_start + n*self.frame_byte_size)
         if self.have_tstamps:
             tstamp = read_at(self.fid, pos, 1, self.tstamp_dtype)
             frame = read_at(self.fid, 0, self.npix, self.dtype, seek_opt=1)
         else:
             frame = read_at(self.fid, pos, self.npix, self.dtype)
-	return np.reshape(frame, self.shape, order=self.order) # note order may be different for MLF!
+        return np.reshape(frame, self.shape, order=self.order) # note order may be different for MLF!
 
     def __getitem__(self, val):
-	indices = range(self.nframes)
+        indices = list(range(self.nframes))
         try:
             iter(indices[val])
         except TypeError:
@@ -167,11 +167,11 @@ class PLSI:
             #print val, type(val), indices
             if isinstance(val, numbers.Number):
                 return self.read_frame(val)
-            print """PLS: indices[val] doesn't support iteration and is not a number"""
-            print val, type(val), indices
+            print("""PLS: indices[val] doesn't support iteration and is not a number""")
+            print(val, type(val), indices)
             return self.read_frame(0)
         else:
-            return np.array(map(self.read_frame, indices[val]))
+            return np.array(list(map(self.read_frame, indices[val])))
 
     def frame_iter(self):
         frame_count = 0
@@ -200,7 +200,7 @@ class PLSI:
 class PICImage(object):
     def read_pic(name):
         fid = open(name, 'rb')
-        nx,ny,nz = map(int, np.fromfile(fid, uint16, 3))
+        nx,ny,nz = list(map(int, np.fromfile(fid, uint16, 3)))
         start_frames = 0x4c
         fid.seek(start_frames,0)
         frames = np.fromfile(fid, uint8, nx*ny*nz).reshape(nz,nx,ny)

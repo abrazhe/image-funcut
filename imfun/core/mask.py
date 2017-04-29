@@ -28,9 +28,9 @@ def invert_mask(m):
     return np.vectorize(_neg)(m)
 
 def zero_in_mask(mat, mask):
-	out = np.copy(mat)
-	out[mask] = 0.0
-	return out
+        out = np.copy(mat)
+        out[mask] = 0.0
+        return out
 
 def zero_low_sd(mat, n = 1.5):
     return zero_in_mask(mat, mask_median_SD(mat,n,np.less))
@@ -59,11 +59,11 @@ def array2points(arr):
 def surfconvert(frame, mask):
     from .array_handling import rescale
     out = []
-    nr,nc = map(float, frame.shape)
+    nr,nc = list(map(float, frame.shape))
     space_scale = max(nr, nc)
     f = rescale(frame)
     for r in range(int(nr)):
         for c in range(int(nc)):
-	    if not mask[r,c]:
-		out.append([c/space_scale,r/space_scale, f[r,c]])
+            if not mask[r,c]:
+                out.append([c/space_scale,r/space_scale, f[r,c]])
     return np.array(out)

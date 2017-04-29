@@ -83,8 +83,8 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
    elif output is 'xfit':
        out = xfit[locations]
    else:
-       print """unknown output code, should be one of  'xfit', 'yfit', 'all',
-       returning 'x' locations"""
+       print("""unknown output code, should be one of  'xfit', 'yfit', 'all',
+       returning 'x' locations""")
        out = xfit[locations]
    return out
 
@@ -98,15 +98,15 @@ def guess_seeds(seq, Nfirst=10,smoothing=4):
     try:
         from scipy.stats import skew
         s = np.sign(skew(np.ravel(d)))
-        print 'Skewness sign:', s
+        print('Skewness sign:', s)
     except :
         s = 1
     y = atrous.smooth(np.mean(s*d,axis=0), smoothing)
     (xfit,yfit), (mx,mn), (gups,gdowns) = extrema.extrema2(y, sort_values=True)
     # highest gradient up to the left of the highest max
-    gu1 = (g for g in gups if g < mx[0]).next()
+    gu1 = next((g for g in gups if g < mx[0]))
     # highest gradient up to the right of the highest max
-    gd1 = (g for g in gdowns if g > mx[0]).next()
+    gd1 = next((g for g in gdowns if g > mx[0]))
     return (xfit[gu1], xfit[gd1])
 
 
@@ -121,7 +121,7 @@ def follow_extrema(arr, start, mode='gany', memlen=5):
             return locextr(v, mode=mode)
         elif mode =='gany':
             return np.concatenate([locextr(v,mode='gup'),locextr(v,mode='gdown')])
-    extrema = map(_ext, arr)
+    extrema = list(map(_ext, arr))
     v = track1(extrema, start, memlen=memlen)
     return v
 
@@ -159,7 +159,7 @@ def track_walls(linescan,output = 'kalman',Nfirst=None,gain=0.25):
     if Nfirst is None: Nfirst = len(linescan)/2
     seeds = guess_seeds(linescan,Nfirst)
     xfit = np.arange(0,linescan.shape[1],0.1)
-    grads = np.array(map(v2grads, linescan))
+    grads = np.array(list(map(v2grads, linescan)))
     if output in ['kalman', 'mean', 'all']:
         tk1,tk2 = [track_pkalman(xfit, grads,seed,gain=gain) for seed in seeds]
     if output in ['extr', 'mean', 'all']:
@@ -186,7 +186,7 @@ class LCV_Contours:
     Vertically-constrained Chan-Vese-ispired active contours as
     Verlet-integrated connected-particle system
     """
-    def __init__(self, (low_contour, upper_contour),
+    def __init__(self, low_upper_conts,
                  U,
                  stiffness=0.25,
                  damping=0.25,
@@ -196,6 +196,7 @@ class LCV_Contours:
                  max_force=2.,
                  kstop=15,):
 
+        (low_contour, upper_contour) = low_upper_conts
         L = np.min((U.shape[1],len(low_contour),len(upper_contour)))
         self.L = L
         self.U = U
@@ -309,8 +310,8 @@ class LCV_Contours:
             errchange = np.polyfit(x,self.errhist[-kstop:],1)[0]
             if np.abs(errchange)<self.tol:
                 if self.nsteady > kstop:
-                    print 'LCV_Contours converged in %d iterations'%\
-                          (self.niter+1)
+                    print('LCV_Contours converged in %d iterations'%\
+                          (self.niter+1))
                     self.issteady = True
                 self.nsteady += 1
         return self.issteady
@@ -349,7 +350,7 @@ def solve_contours_animated(lcvconts, niter=500,
     #k = 0
     #errchange = 1+tol
     L = lcvconts.L
-    for i in xrange(niter):
+    for i in range(niter):
         lcvconts.verlet_step()
         #d = lcvconts.get_diameter()
         lh[0].set_ydata(lcvconts.conts[:L]) # last graph update

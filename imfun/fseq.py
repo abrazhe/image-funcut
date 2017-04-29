@@ -2,7 +2,7 @@
 ### Classes for sequences of frames ###
 ### -------------------------------- ###
 
-from __future__ import division # a/b will always return float
+ # a/b will always return float
 
 import sys
 import os
@@ -26,6 +26,7 @@ import warnings
 
 import numpy as np
 from scipy import ndimage
+import collections
 #import tempfile as tmpf
 
 try:
@@ -64,11 +65,11 @@ class FrameStackMono(object):
 
     @property
     def pipeline(self):
-	"""Return the composite function to process frames based on self.frame_filters"""
-	return fu.flcompose(_identity, *self.frame_filters)
+        """Return the composite function to process frames based on self.frame_filters"""
+        return fu.flcompose(_identity, *self.frame_filters)
 
     def std(self, axis=None):
-	"""get standard deviation of the data"""
+        """get standard deviation of the data"""
         a = self.as3darray()
         return float(a.std(axis))
 
@@ -80,13 +81,13 @@ class FrameStackMono(object):
         return np.array([minv,maxv]).T # why do I transpose?
 
     def data_percentile(self, p):
-	"""Return a percentile `p` value on data.
+        """Return a percentile `p` value on data.
 
-	Parameters:
-	  - `p` : float in range of [0,100] (or sequence of floats)
-	     Percentile to compute which must be between 0 and 100 inclusive.
+        Parameters:
+          - `p` : float in range of [0,100] (or sequence of floats)
+             Percentile to compute which must be between 0 and 100 inclusive.
 
-	"""
+        """
         arr = self[:]
         return  np.percentile(arr,p)
 
@@ -113,7 +114,7 @@ class FrameStackMono(object):
 
 
     def softmask_reduce(self,mask, fn=np.mean):
-	"""Same as mask_reduce, but pixel values are weighted by the mask values between 0 and 1"""
+        """Same as mask_reduce, but pixel values are weighted by the mask values between 0 and 1"""
         return np.asarray([fn((f*mask)[mask>0],axis=0) for f in self])
 
     def multi_softmask_reduce(self, masks, fn=np.mean):
@@ -125,73 +126,73 @@ class FrameStackMono(object):
 
     def frame_slices(self, crop=None):
         """Return iterator over subframes (slices defined by `crop` parameter).
-	When `crop` is `None`, full frames are returned
-	"""
+        When `crop` is `None`, full frames are returned
+        """
         if crop is None:
             return self.frames()
         else:
             return (f[crop] for f in self)
 
     def time_project(self,fslice=None,fn=np.mean,crop=None):
-	"""Apply an ``f(vector) -> scalar`` function for each pixel.
+        """Apply an ``f(vector) -> scalar`` function for each pixel.
 
-	This is a more general (and sometimes faster) function than
-	`self.mean_frame` or `self.max_project`. However, it requires more
-	memory as it makes a call to self.as3darray, while the other two don't
+        This is a more general (and sometimes faster) function than
+        `self.mean_frame` or `self.max_project`. However, it requires more
+        memory as it makes a call to self.as3darray, while the other two don't
 
-	Parameters:
-	  - `fslice`: (`int`, `tuple-like` or `None`) --
+        Parameters:
+          - `fslice`: (`int`, `tuple-like` or `None`) --
           [start,] stop [, step] go through these frames
-	  - `fn` (`func`) -- function to apply (`np.mean` by default)
+          - `fn` (`func`) -- function to apply (`np.mean` by default)
 
         Returns:
-	  - `2D` `array` -- a projected frame
-	"""
+          - `2D` `array` -- a projected frame
+        """
         sh = self.get_frame_shape(crop)
-	out = np.zeros(sh)
-        if callable(fslice):
+        out = np.zeros(sh)
+        if isinstance(fslice, collections.Callable):
             fn = fslice
             fslice = None
         #if len(sh)>2:
         #    fn = lambda a: np.mean(a, axis=0)
-	for v,r,c in self.pix_iter(fslice=fslice):
-	    out[r,c] = fn(v)
-	return out
+        for v,r,c in self.pix_iter(fslice=fslice):
+            out[r,c] = fn(v)
+        return out
 
     def mean_frame(self, fslice=None):
         """Return average image over a number of frames (all by default).
 
-	frame range is given as argument fslice. if it's int, use N first
-	frames, if it's tuple-like, it can be of the form [start,] stop [,step]
-	"""
+        frame range is given as argument fslice. if it's int, use N first
+        frames, if it's tuple-like, it can be of the form [start,] stop [,step]
+        """
         if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
-        frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
-        res = np.copy(frameit.next())
+        frameit = map(_dtype_, itt.islice(self.frames(), *fslice))
+        res = np.copy(next(frameit))
         count = 0.0
         for k,frame in enumerate(frameit):
             res += frame
-	    count += 1
+            count += 1
         return res/(count)
 
     def max_project(self, fslice=None):
-	"""Return max-projection image over a number of frames
+        """Return max-projection image over a number of frames
         (all by default).
 
         see fseq.mean_frame docstring for details
-	"""
+        """
         if fslice is None or isinstance(fslice,  int):
             fslice = (fslice, )
-        frameit = itt.imap(_dtype_, itt.islice(self.frames(), *fslice))
-        out = frameit.next() # fix it, it fails here
+        frameit = map(_dtype_, itt.islice(self.frames(), *fslice))
+        out = next(frameit) # fix it, it fails here
         for k,frame in enumerate(frameit):
-	    out = np.max([out, frame], axis=0)
+            out = np.max([out, frame], axis=0)
         return out
 
     def asiter(self, fslice=None, crop=None):
         """Return an iterator over the frames taking frames from fslice and
-	``f[crop]`` for each frame
-	"""
+        ``f[crop]`` for each frame
+        """
         fiter = self.frame_slices(crop)
         if isinstance(fslice, int):
             fslice = (fslice, )
@@ -199,26 +200,26 @@ class FrameStackMono(object):
 
     def as3darray(self,  fslice=None, crop=None,
                   dtype = _dtype_):
-	"""Return the frames as a `3D` array.
+        """Return the frames as a `3D` array.
 
-	//An alternative way is to use the __getitem__ interface:
-	//``data = np.asarray(fs[10:100])``
+        //An alternative way is to use the __getitem__ interface:
+        //``data = np.asarray(fs[10:100])``
 
 
-	Parameters:
-	  - `fslice`: (`int`, `tuple-like` or `None`) --
+        Parameters:
+          - `fslice`: (`int`, `tuple-like` or `None`) --
           [start,] stop [, step] to go through frames
-	  - `crop`: (`slice` or `None`) -- a crop (tuple of slices) to take from each frame
-	  - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
+          - `crop`: (`slice` or `None`) -- a crop (tuple of slices) to take from each frame
+          - `dtype`: (`type`) -- data type to use. Default, ``np.float64``
 
-	Returns:
-	  `3D` array `d`, where frames are stored in higher dimensions, such
-	  that ``d[0]`` is the first frame, etc.
-	"""
+        Returns:
+          `3D` array `d`, where frames are stored in higher dimensions, such
+          that ``d[0]`` is the first frame, etc.
+        """
         if fslice is None or isinstance(fslice, int):
             fslice = (fslice, )
         shape = self.get_frame_shape(crop)
-	newshape = (len(self),) + shape
+        newshape = (len(self),) + shape
         out = ah.memsafe_arr(newshape, dtype)
         for k,frame in enumerate(itt.islice(self, *fslice)):
             out[k,...] = frame[crop]
@@ -232,54 +233,54 @@ class FrameStackMono(object):
     def loc_iter(self, pmask=None, fslice=None, rand=False,  crop=None):
         """Return iterator over pixel locations, which are True in `pmask`
 
-	Parameters:
-	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
+        Parameters:
+          - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
           - `fslice`: (`int`, `slice` or `None`) --
           [start,] stop [, step]  to go through frames
-	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
-	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
+          - `rand`: (`Bool`) -- whether to go through pixels in a random order
+          - `**kwargs`: keyword arguments to be passed to `self.as3darray`
 
-	Yields:
-	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
+        Yields:
+         tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
 
-	"""
-	sh = self.get_frame_shape(crop)
+        """
+        sh = self.get_frame_shape(crop)
         pmask = ifnot(pmask, np.ones(sh[:2], np.bool))
         nrows, ncols = sh[:2]
-        rcpairs = [(r,c) for r in xrange(nrows) for c in xrange(ncols)]
+        rcpairs = [(r,c) for r in range(nrows) for c in range(ncols)]
         if rand: rcpairs = np.random.permutation(rcpairs)
-	if crop is None:
-	    submask = pmask
-	    r0,c0 = 0,0
-	else:
-	    submask = pmask[crop]
-	    r0,c0 = crop[0].start,crop[1].start
+        if crop is None:
+            submask = pmask
+            r0,c0 = 0,0
+        else:
+            submask = pmask[crop]
+            r0,c0 = crop[0].start,crop[1].start
         for row,col in rcpairs:
-	    if r0+row>=sh[0] or c0+col>=sh[1]:
-		continue
+            if r0+row>=sh[0] or c0+col>=sh[1]:
+                continue
             if submask[row,col]:
                 yield row, col
 
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,  dtype=_dtype_):
         """Return iterator over time signals from each pixel.
 
-	Parameters:
-	  - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
+        Parameters:
+          - `pmask`: (2D `Bool` array or `None`) -- skip pixels where `mask` is
             `False` if `mask` is `None`, take all pixels
           - `fslice`: (`int`, `slice` or `None`) -- [start,] stop [, step]  to go through frames
-	  - `rand`: (`Bool`) -- whether to go through pixels in a random order
-	  - `**kwargs`: keyword arguments to be passed to `self.as3darray`
+          - `rand`: (`Bool`) -- whether to go through pixels in a random order
+          - `**kwargs`: keyword arguments to be passed to `self.as3darray`
 
-	Yields:
-	 tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
-	"""
+        Yields:
+         tuples of `(v,row,col)`, where `v` is the time-series in a pixel at `row,col`
+        """
         arr = self.as3darray(fslice, crop=crop,dtype=dtype)
         for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand,crop=crop):
             ## asarray to convert from memory-mapped array
             yield np.asarray(arr[:,row,col],dtype=dtype), row, col
         del arr
-	return
+        return
 
     def __len__(self):
         """Return number of frames in the sequence"""
@@ -294,52 +295,52 @@ class FrameStackMono(object):
 
     def get_frame_shape(self, crop=None):
         "Return the shape of frames in the sequence"
-        return self.frame_slices(crop).next().shape
+        return next(self.frame_slices(crop)).shape
     frame_shape = property(get_frame_shape)
 
     def _norm_mavg(self, tau=90., **kwargs):
-	"Return normalized and temporally smoothed frame sequence"
-	if 'dtype' in kwargs:
-	    dtype = kwargs['dtype']
-	else:
-	    dtype = _dtype_
-	dt = self.meta['axes'][0]
+        "Return normalized and temporally smoothed frame sequence"
+        if 'dtype' in kwargs:
+            dtype = kwargs['dtype']
+        else:
+            dtype = _dtype_
+        dt = self.meta['axes'][0]
         dt = dt.to('s')
-	arr = self.as3darray(**kwargs)
-	sigma = tau/dt
-	smooth =  ndimage.gaussian_filter1d(arr, sigma, axis=0)
-	zi = np.where(np.abs(smooth) < 1e-6)
-	out  = arr/smooth - 1.0
-	out[zi] = 0
+        arr = self.as3darray(**kwargs)
+        sigma = tau/dt
+        smooth =  ndimage.gaussian_filter1d(arr, sigma, axis=0)
+        zi = np.where(np.abs(smooth) < 1e-6)
+        out  = arr/smooth - 1.0
+        out[zi] = 0
         newmeta = self.meta.copy()
-	return FStackM_arr(out, meta=newmeta)
+        return FStackM_arr(out, meta=newmeta)
 
 
     def pw_transform(self, pwfn, verbose=False, **kwargs):
         """Spawn another frame sequence, pixelwise applying a user-provided
         function.
 
-	Parameters:
-	  - `pwfn`: (`func`) -- a ``f(vector) -> vector`` function
-	  - `verbose`: (`Bool`) -- whether to be verbose while going through
+        Parameters:
+          - `pwfn`: (`func`) -- a ``f(vector) -> vector`` function
+          - `verbose`: (`Bool`) -- whether to be verbose while going through
             the pixels
-	  - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
-	"""
-	#nrows, ncols = self.frame_shape[:2]
+          - `**kwargs``: keyword arguments to be passed to `self.pix_iter`
+        """
+        #nrows, ncols = self.frame_shape[:2]
         if 'dtype' in kwargs:
-	    dtype = kwargs['dtype']
-	else:
-	    dtype = _dtype_
-	L = len(pwfn(np.random.randn(len(self))))
-	#testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
-	#L = len(testv)
-	out = ah.memsafe_arr((L,) + self.frame_shape, dtype)
+            dtype = kwargs['dtype']
+        else:
+            dtype = _dtype_
+        L = len(pwfn(np.random.randn(len(self))))
+        #testv = pwfn(self.pix_iter(rand=True,**kwargs).next()[0])
+        #L = len(testv)
+        out = ah.memsafe_arr((L,) + self.frame_shape, dtype)
         for v, row, col in self.pix_iter(**kwargs):
-	    if verbose:
-		sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
+            if verbose:
+                sys.stderr.write('\rworking on pixel (%03d,%03d)'%(row, col))
             out[:,row,col] = pwfn(v)
-	    if hasattr(out, 'flush'):
-		out.flush()
+            if hasattr(out, 'flush'):
+                out.flush()
 
         ## assuming the dz is not changed. if it *is*, provide new meta
         ## in kwargs
@@ -403,26 +404,26 @@ class FStackM_arr(FrameStackMono):
             return fn(self.data[int(val)])
 
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
-	"Iterator over time signals from each pixel (FSM_arr)"
+        "Iterator over time signals from each pixel (FSM_arr)"
         if not self.frame_filters:
             for row, col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
-	        v = self.data[:,row,col].copy()
-		yield np.asarray(v, dtype=dtype), row, col
-	else:
-	    base = super(FStackM_arr,self)
-	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand,dtype=dtype):
-		yield a
+                v = self.data[:,row,col].copy()
+                yield np.asarray(v, dtype=dtype), row, col
+        else:
+            base = super(FStackM_arr,self)
+            for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand,dtype=dtype):
+                yield a
 
     def frames(self):
-	"""
-	Return iterator over frames.
+        """
+        Return iterator over frames.
 
-	The composition of functions in `self.frame_filters` list is applied to each
-	frame. By default, this list is empty.  Examples of function "hooks"
-	to put into `self.frame_filters` are filters from ``scipy.ndimage``.
-	"""
+        The composition of functions in `self.frame_filters` list is applied to each
+        frame. By default, this list is empty.  Examples of function "hooks"
+        to put into `self.frame_filters` are filters from ``scipy.ndimage``.
+        """
         fn = self.pipeline
-        return itt.imap(fn, self.data)
+        return map(fn, self.data)
 
 
 def _identity(x):
@@ -437,7 +438,7 @@ def iter_files(pattern, loadfn):
     """Return iterator over data frames, file names matching a pattern,
     loaded by a user-provided function loadfn
     """
-    return itt.imap(loadfn, sorted_file_names(pattern))
+    return map(loadfn, sorted_file_names(pattern))
 
 
 def img_getter(frame, ch):
@@ -461,7 +462,7 @@ def __fseq_from_glob(pattern, ch=0, loadfn=np.load):
     Returns:
       - iterator over frames. (`2D`)
     """
-    return itt.imap(lambda frame: img_getter(frame, ch), iter_files(pattern, loadfn))
+    return map(lambda frame: img_getter(frame, ch), iter_files(pattern, loadfn))
 
 class FStackM_collection(FrameStackMono):
     """A FrameStackMono class as a wrapper around a set of files
@@ -472,7 +473,7 @@ class FStackM_collection(FrameStackMono):
         self.ch = ch
         self.frame_filters = ifnot(frame_filters, [])
         self.ffs = self.frame_filters
-        if isinstance(names, basestring):
+        if isinstance(names, str):
             self.file_names = sorted_file_names(names)
         else:
             self.file_names = names[:] # don't automatically sort
@@ -481,32 +482,32 @@ class FStackM_collection(FrameStackMono):
         else:
             self.meta = meta.copy()
     def __len__(self):
-	return len(self.file_names)
+        return len(self.file_names)
 
     def frames(self):
-	"""
-	Return iterator over frames.
+        """
+        Return iterator over frames.
 
-	The composition of functions in `self.frame_filters`
-	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
-	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
-	"""
+        The composition of functions in `self.frame_filters`
+        list is applied to each frame. By default, this list is empty. Examples
+        of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
+        ``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
+        """
         fn = self.pipeline
         seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names)
-        return itt.imap(fn, seq)
+        return map(fn, seq)
 
     def __getitem__(self, val):
-	fn = self.pipeline
+        fn = self.pipeline
         if isinstance(val, slice)  or np.ndim(val) > 0:
             seq = (img_getter(self.loadfn(name),self.ch) for name in self.file_names[val])
-            return map(fn, seq)
+            return list(map(fn, seq))
         else:
             if val > len(self):
                 raise IndexError("Requested frame number out of bounds")
-	    frame = self.loadfn(self.file_names[val])
+            frame = self.loadfn(self.file_names[val])
             frame = img_getter(frame, self.ch)
-	    return fn(frame)
+            return fn(frame)
 
 class FStackM_img(FStackM_collection):
     """FrameStackMono around a set of image files"""
@@ -568,7 +569,7 @@ class FStackM_imgleic(FStackM_img):
             self.meta['axes'][0] = zscale
 
         except Exception as e:
-            print "Got exception, ", e
+            print("Got exception, ", e)
             pass
 
 
@@ -586,27 +587,27 @@ class FStackM_plsi(FrameStackMono):
         self.ffs = self.frame_filters
 
     def frames(self,):
-	"""
-	Return iterator over frames.
+        """
+        Return iterator over frames.
 
-	The composition of functions in `self.frame_filters`
-	list is applied to each frame. By default, this list is empty. Examples
-	of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
-	``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
-	"""
+        The composition of functions in `self.frame_filters`
+        list is applied to each frame. By default, this list is empty. Examples
+        of function "hooks" to put into `self.frame_filters` are ``core.baselines.DFoSD``,
+        ``core.baselines.DFoF`` or functions from ``scipy.ndimage``.
+        """
 
         fn = fu.flcompose(_identity, *self.frame_filters)
-        return itt.imap(fn,self.plsimg.frame_iter())
+        return map(fn,self.plsimg.frame_iter())
 
     def __getitem__(self, val):
-	#L = self.length()
-	fn = self.pipeline
+        #L = self.length()
+        fn = self.pipeline
         if isinstance(val, slice) or np.ndim(val) > 0:
-	    indices = np.arange(self.plsimg.nframes)
+            indices = np.arange(self.plsimg.nframes)
             if not self.frame_filters:
                 return self.plsimg[val]
             else:
-                return np.array(map(fn, itt.imap(self.plsimg.read_frame, indices[val])))
+                return np.array(list(map(fn, map(self.plsimg.read_frame, indices[val]))))
                 #return itt.imap(fn, itt.imap(self.plsimg.read_frame, indices[val]))
         else:
             if val > len(self):
@@ -616,14 +617,14 @@ class FStackM_plsi(FrameStackMono):
         return self.plsimg.nframes
     def pix_iter(self, pmask=None, fslice=None, rand=False, crop=None,dtype=_dtype_):
         "Iterator over time signals from each pixel, where pmask[pixel] is True"
-	if not len(self.frame_filters):
-	    for row,col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
-		v = self.plsimg.read_timeslice((row,col))
-		yield np.asarray(v, dtype=dtype), row, col
-	else:
-	    base = super(FStackM_plsi,self)
-	    for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand, dtype=dtype):
-		yield a
+        if not len(self.frame_filters):
+            for row,col in self.loc_iter(pmask=pmask,fslice=fslice,rand=rand):
+                v = self.plsimg.read_timeslice((row,col))
+                yield np.asarray(v, dtype=dtype), row, col
+        else:
+            base = super(FStackM_plsi,self)
+            for a in base.pix_iter(pmask=pmask,fslice=fslice, rand=rand, dtype=dtype):
+                yield a
 
 
 ## --- TIFF files ---
@@ -662,10 +663,10 @@ class FStackM_plsi(FrameStackMono):
 ## class FSeq_tiff_2(FStackM_arr):
 ##     "Class for (multi-frame) tiff files, using tiffile.py by Christoph Gohlke"
 ##     def __init__(self, fname, ch=None, flipv = False, fliph = False, **kwargs):
-## 	import tiffile
-## 	x = tiffile.imread(fname)
-## 	parent = super(FSeq_tiff_2, self)
-## 	parent.__init__(x, **kwargs)
+##      import tiffile
+##      x = tiffile.imread(fname)
+##      parent = super(FSeq_tiff_2, self)
+##      parent.__init__(x, **kwargs)
 ##         if isinstance(ch, basestring) and ch != 'all':
 ##             ch = np.where([ch in s for s in 'rgb'])[0][()]
 ##         if ch not in (None, 'all') and self.data.ndim > 3:
@@ -729,7 +730,7 @@ class FStackColl(object):
     def append(self, stream):
         if not stream.meta['channel']:
             stream_names = [s.meta['channel'] for s in self.stacks]
-            for k in xrange(1000):
+            for k in range(1000):
                 if str(k) not in stream_names:
                     stream.meta['channel'] = str(k)
                     break
@@ -760,7 +761,7 @@ class FStackColl(object):
         projs = [s.time_project(*args,**kwargs) for s in self.stacks]
         return np.stack(projs,-1)
     def __len__(self):
-        return np.min(map(len, self.stacks))
+        return np.min(list(map(len, self.stacks)))
     def __getitem__(self,val):
         x =  np.array([s[val] for s in self.stacks])
         return np.stack(x,-1)
@@ -787,10 +788,10 @@ def from_images(path,flavor=None,**kwargs):
         obj =  FStackColl(stacks,meta=meta)
     else:
         ch = kwargs.pop('ch')
-        if isinstance(ch, basestring): # convert from rgb string to 012
+        if isinstance(ch, str): # convert from rgb string to 012
             ch = cmap[ch]
         obj = construct_with_kwargs(FStackM_img, path, ch=ch,**kwargs)
-    if isinstance(flavor, basestring) :
+    if isinstance(flavor, str) :
         if flavor.lower() == 'leica':
             attach_leica_metadata(obj, path)
     return obj
@@ -832,18 +833,18 @@ def attach_leica_metadata(obj, path, xmlname=None):
 def from_mes(path, record=None, ch=None, **kwargs):
     channel_order = ['pmtur', 'pmtug', 'pmtub']
     if record is None:
-        vars = filter(lambda v: v.is_supported, mes.load_file_info(path))
+        vars = [v for v in mes.load_file_info(path) if v.is_supported]
         if len(vars):
             record = vars[0].record
         else:
-            print "FSeq_mes: Can't find loadable records"
+            print("FSeq_mes: Can't find loadable records")
     elif isinstance(record,int):
         record = 'Df%04d'%record
     elif isinstance(record,str):
         if not ('Df' in record):
             record = 'Df%04d'%int(record)
     else:
-        print "FSeq_mes: Unknown record definition format"
+        print("FSeq_mes: Unknown record definition format")
 
     mesrec = mes.load_record(path, record)
     channels = np.unique(mesrec.channels)
@@ -875,16 +876,16 @@ def from_array(data,ch=None,  *args,**kwargs):
         #assume smallest dimension is the number of channels
         k = np.argmin(sh)
         nch = sh[k]
-        channels = map(np.squeeze, np.split(data, nch, k))
-        print len(channels), channels[0].shape
+        channels = list(map(np.squeeze, np.split(data, nch, k)))
+        print(len(channels), channels[0].shape)
         if ch is None:
             stacks = [construct_with_kwargs(FStackM_arr, c, *args, **kwargs) for c in channels]
             meta = 'meta' in kwargs and kwargs['meta'] or None
             return FStackColl(stacks,meta=meta)
         else:
-            if isinstance(ch, basestring): # convert from rgb string to 012
+            if isinstance(ch, str): # convert from rgb string to 012
                 ch = cmap[ch]
-            print 'Channel:', ch
+            print('Channel:', ch)
             return construct_with_kwargs(FStackM_arr, channels[ch], *args, **kwargs)
     else:
         return construct_with_kwargs(FStackM_arr,data, *args,**kwargs)
@@ -896,7 +897,7 @@ def from_npy(path, *args, **kwargs):
 def from_tiff(path, flavor=None, **kwargs):
     data = tifffile.imread(path)
     obj = from_array(data, **kwargs)
-    if isinstance(flavor, basestring) and  flavor.lower() == 'olympus':
+    if isinstance(flavor, str) and  flavor.lower() == 'olympus':
         attach_olympus_metadata(obj, path)
     return obj
 
@@ -920,7 +921,7 @@ def attach_olympus_metadata(obj, path):
 
 def _is_glob_or_names(path):
     "return True if path is a glob-like string or a collection of strings"
-    if isinstance(path, basestring):
+    if isinstance(path, str):
         return '*' in path
     else:
         return bool(iterable(path))
@@ -939,7 +940,7 @@ def from_any(path, *args, **kwargs):
         xml_try = leica.get_xmljob(path)
         if xml_try and not 'flavor' in kwargs:
             kwargs['flavor'] = 'leica'
-    elif isinstance(path, basestring):
+    elif isinstance(path, str):
         _,ending = os.path.splitext(path)
         ending = ending.lower()[1:]
         handler_dict = {
@@ -985,7 +986,7 @@ def _open_seq(path, *args, **kwargs):
     """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
     if isinstance(path, np.ndarray):
-	return FStackM_arr(path, *args, **kwargs)
+        return FStackM_arr(path, *args, **kwargs)
     if isinstance(path, FrameStackMono):
         return path
     #ending = re.findall('[^*\.]+', path)[-1].lower()
@@ -1004,7 +1005,7 @@ def _open_seq(path, *args, **kwargs):
         if '*' in path: # many files
             from imfun import leica
             xml_try = leica.get_xmljob(path)
-            print '*******', path,     xml_try
+            print('*******', path,     xml_try)
             if 'xmlname' in kwargs or xml_try:
                 handler =  FStackM_imgleic
             else:
@@ -1030,14 +1031,14 @@ try:
         def __init__(self, fname, dataset=None,**kwargs):
             parent = super(FStackM_hdf5, self)
             f = h5py.File(fname, 'r')
-            print "The file %s has the following data sets:"%fname, f.keys()
+            print("The file %s has the following data sets:"%fname, list(f.keys()))
 
             if dataset and dataset not in f:
-                print "Dataset name doesn't exist in file, setting to None "
+                print("Dataset name doesn't exist in file, setting to None ")
                 dataset is None
 
             if dataset is None: # no dataset name is provided
-                keys = f.keys()
+                keys = list(f.keys())
                 if len(keys) == 1: # there is only one dataset, use it
                     dataset = keys[0]
                 else:
@@ -1067,14 +1068,14 @@ try:
                 sys.stderr.write("File exists, removing\n")
             os.remove(name)
         fid = h5py.File(name, 'w')
-        L = np.sum(map(len, seqlist))
+        L = np.sum(list(map(len, seqlist)))
         sh = np.min([s.frame_shape for s in seqlist], axis=0)
-        print 'shape:', sh
+        print('shape:', sh)
         chunkshape = tuple([1] + list(sh))
         fullshape = tuple([L] + list(sh))
         if verbose:
-            print "Full shape:", fullshape
-            print "Chunk shape:", chunkshape
+            print("Full shape:", fullshape)
+            print("Chunk shape:", chunkshape)
         kwargs = dict()
         if compress_level > -1:
             kwargs['compression'] = 'gzip'
@@ -1094,7 +1095,7 @@ try:
 
 
 except ImportError as e: # couln't import h5py
-    print "Import Error", e
+    print("Import Error", e)
 
 
 
@@ -1157,7 +1158,7 @@ try:
         fid.close()
 
 except ImportError as e:
-    print "Can't load OpenCV python bindings", e
+    print("Can't load OpenCV python bindings", e)
 
 from . import cluster 
 from .components import pca
@@ -1170,7 +1171,7 @@ def frame_exemplars_pca_som(fs, pcf=None, npc=20, som_gridshape=(5,1)):
     som_result = cluster.som(coords[:,:npc], gridshape=som_gridshape)
     som_result = cluster.sort_clusters_by_size(som_result)
     centroids = (coords[som_result==_k].mean(axis=0) for _k in np.unique(som_result))
-    exemplars = map(pcf.rec_from_coefs, centroids)
+    exemplars = list(map(pcf.rec_from_coefs, centroids))
     return exemplars, som_result
     
 

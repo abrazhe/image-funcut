@@ -22,9 +22,9 @@ def dbscan(points, eps, min_pts, distances=None,dist_fn='euclidean',verbose=True
     points = np.asarray(points)
     L = len(points)
     if distances is None:
-	D = _pairwise_euclidean_distances(points)
+        D = _pairwise_euclidean_distances(points)
     else:
-	D = distances
+        D = distances
     #neighborhoods = [np.where(x <= eps)[0] for x in D]
     neighborhoods = [np.where(x <= eps)[0] for x in D]
     labels = -np.ones(L) # everything is noise at start
@@ -32,27 +32,27 @@ def dbscan(points, eps, min_pts, distances=None,dist_fn='euclidean',verbose=True
     label_marker = 0
     perm = np.random.permutation(L) # we iterate through points in random order
     for k in perm: 
-	if labels[k] != -1 or len(neighborhoods[k]) < min_pts:
-	    # either visited or not a core point
-	    continue
-	core_points.append(k)
-	labels[k] = label_marker
-	# expand cluster
-	candidates = [k]
-	while len(candidates) > 0:
-	    new_candidates = []
-	    for c in candidates:
-		noise = np.where(labels[neighborhoods[c]] == -1)[0]
-		noise = neighborhoods[c][noise] # ?
-		labels[noise] = label_marker
-		for neigh in noise:
-		    if len(neighborhoods[neigh]) >= min_pts:
-			new_candidates.append(neigh) # another core point
-			core_points.append(neigh)
-	    candidates = new_candidates
-	label_marker += 1
+        if labels[k] != -1 or len(neighborhoods[k]) < min_pts:
+            # either visited or not a core point
+            continue
+        core_points.append(k)
+        labels[k] = label_marker
+        # expand cluster
+        candidates = [k]
+        while len(candidates) > 0:
+            new_candidates = []
+            for c in candidates:
+                noise = np.where(labels[neighborhoods[c]] == -1)[0]
+                noise = neighborhoods[c][noise] # ?
+                labels[noise] = label_marker
+                for neigh in noise:
+                    if len(neighborhoods[neigh]) >= min_pts:
+                        new_candidates.append(neigh) # another core point
+                        core_points.append(neigh)
+            candidates = new_candidates
+        label_marker += 1
     clusters = sorted([points[labels==lm] for lm in range(label_marker)],
-		      key=lambda x: len(x), reverse=True)
+                      key=lambda x: len(x), reverse=True)
     clusters = [Cluster(c, dist_fn = dist_fn) for c in clusters]
     
     return clusters, core_points, labels
