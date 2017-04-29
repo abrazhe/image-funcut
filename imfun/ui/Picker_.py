@@ -541,7 +541,7 @@ class Picker (object):
         xys[:,0] *= dy.value
         xys[:,1] *= dx.value # coordinates with scale
         ind = p.contains_points(xys)
-        for loc,i in itt.izip(locs, ind):
+        for loc,i in zip(locs, ind):
             if i : out[loc[::-1]] = 1
         self.ax1.figure.canvas.draw()
         self.ax1.figure.canvas.widgetlock.release(self.lasso)

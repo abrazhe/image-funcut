@@ -278,7 +278,7 @@ class Timelapse:
                 data[k] = f
         else:
             #streams = [ah.clip_and_rescale(s) for s in streams]
-            reshape_iter = itt.izip(*list(map(self._reshape_frames, streams)))
+            reshape_iter = zip(*list(map(self._reshape_frames, streams)))
             sh = base_shape + (max(3, len(streams)),)
             data = np.zeros(sh, dtype=streams[0].dtype)
             for k, a in enumerate(reshape_iter):

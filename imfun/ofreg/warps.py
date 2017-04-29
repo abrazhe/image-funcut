@@ -166,7 +166,7 @@ def to_dct_encoded(name, warps, upto=20):
     xflows,yflows = np.split(wwx, 2, axis=1)
     xcodes,ycodes = (np.squeeze(fl).dot(Dr.T) for fl in (xflows,yflows))
     del wwx, xflows, yflows
-    to_npy(name, [(np.concatenate((xc,yc)),sh) for xc,yc in itt.izip(xcodes, ycodes)])
+    to_npy(name, [(np.concatenate((xc,yc)),sh) for xc,yc in zip(xcodes, ycodes)])
     #to_npy(name, [dct_encode(w.field, upto, D) for w in warps])
 
 def from_dct_encoded(name, **fnargs):
@@ -179,7 +179,7 @@ def from_dct_encoded(name, **fnargs):
     cx = np.array([c[0] for c in codes])
     xflows = cx[:,:len(D)].dot(Dr).reshape((-1,)+sh)
     yflows = cx[:,len(D):].dot(Dr).reshape((-1,)+sh)
-    return list(map(Warp.from_array, ((u,v) for u,v in itt.izip(xflows, yflows))))
+    return list(map(Warp.from_array, ((u,v) for u,v in zip(xflows, yflows))))
     #return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
 
@@ -194,7 +194,7 @@ def map_warps(warps, frames, njobs=4):
         #pool.close()
         out = np.array(out)
     else:
-        out = np.array([w(f) for w,f in itt.izip(warps, frames)])
+        out = np.array([w(f) for w,f in zip(warps, frames)])
     if isinstance(frames, (fseq.FrameStackMono, fseq.FStackColl)):
         out = fseq.from_array(out)
         out.meta = frames.meta.copy()
@@ -240,8 +240,8 @@ def dct_decode(coefs,shape,D=None):
     if D is None:
         D = make_dct_dict(shape, upto=upto)
     Ld = len(D)
-    xflow = np.sum([k*el for k,el in itt.izip(coefs[:Ld],D)],0)
-    yflow = np.sum([k*el for k,el in itt.izip(coefs[Ld:],D)],0)
+    xflow = np.sum([k*el for k,el in zip(coefs[:Ld],D)],0)
+    yflow = np.sum([k*el for k,el in zip(coefs[Ld:],D)],0)
     return np.array([xflow,yflow])
 
 
