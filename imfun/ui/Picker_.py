@@ -276,7 +276,7 @@ class Picker (object):
         bottom = corners[1,1]-height
 
         ax_active = self.fig.add_axes([left,bottom,width,height],
-                                      aspect='equal',axisbg=_widgetcolor)
+                                      aspect='equal',facecolor=_widgetcolor)
 
         ax_active.set_title('Active channel',size='small')
 
@@ -316,7 +316,7 @@ class Picker (object):
             plt.subplots_adjust(left=0.2, bottom=0.2)
             corners = self.ax1.get_position().get_points()
             #print corners
-            axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], axisbg=_widgetcolor)
+            axfslider = plt.axes([corners[0,0], 0.1, corners[1,0]-corners[0,0], 0.03], facecolor=_widgetcolor)
             self.frame_slider = mw.Slider(axfslider, 'Frame', 0, Nf-1, valinit=0,
                                           valfmt='%d')
             self.frame_slider.on_changed(self.set_frame_index)
@@ -614,7 +614,7 @@ class Picker (object):
         out = [x.to_struct() for x in list(self.roi_objs.values())]
         if fname:
             pickle.dump(out,
-                        open(fname, 'w'), protocol=0)
+                        open(fname, 'wb'), protocol=0)
             if self._verbose:
                 print("Saved ROIs to ", fname)
         return out
@@ -622,7 +622,7 @@ class Picker (object):
     def load_rois(self, source):
         "Load stored ROIs from a file"
         if isinstance(source, str):
-            data = pickle.load(file(source))
+            data = pickle.load(open(source,'rb'))
         elif isinstance(source, file):
             data = pickle.load(source)
         else:
@@ -637,7 +637,7 @@ class Picker (object):
             if isinstance(x,plt.Line2D):
                 self.ax1.add_line(x)
                 constructor = LineScan
-            self.roi_objs.update(dict((x.get_label(),constructor(x,self))))                
+            self.roi_objs.update(dict([(x.get_label(),constructor(x,self))]))                
         #list(map(self.ax1.add_patch, circles)) # add points to the axes
         #list(map(self.ax1.add_line, lines)) # add points to the axes
         #self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
@@ -912,7 +912,7 @@ class Picker (object):
         elif format == 'tab':
             io.write_dict_tab(all_zv,fname,index=('time,s',tv))
         elif format == 'pickle':
-            pickle.dump(all_zv, open(fname, 'w'))
+            pickle.dump(all_zv, open(fname, 'wb'))
         elif format == 'npy':
             np.save(fname, all_zv)
         elif format == 'hdf':
