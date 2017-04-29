@@ -31,9 +31,12 @@ def harmonize_clims(pickers, mode='extend'):
     highs = highfn(np.vstack(highs),0)
     return np.array(list(zip(lows, highs)))
 
+
+codec_ = 'libx264'
+
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      ncols=None, figsize=None, figscale=4, with_header=True,
-                     codec = 'libx264', 
+                     codec = codec_, 
                      titles=None, writer='avconv', bitrate=16000, frame_on=False,
                      marker_idx = None, **kwargs):
 
