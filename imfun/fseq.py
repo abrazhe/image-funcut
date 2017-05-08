@@ -1035,7 +1035,7 @@ try:
 
             if dataset and dataset not in f:
                 print("Dataset name doesn't exist in file, setting to None ")
-                dataset is None
+                dataset = None
 
             if dataset is None: # no dataset name is provided
                 keys = list(f.keys())
