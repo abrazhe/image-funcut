@@ -379,25 +379,24 @@ def deblend_all(objects, coefs, min_scales=2):
 
 def just_denoise(arr, k=3, level=5, noise_std=None,
                  coefs=None, supp=None,
+                 modulus=False,
                  min_nscales=2):
     if np.iterable(k):
         level = len(k)
     if coefs is None:
         coefs = atrous.decompose(arr, level)
     if noise_std is None:
-        if arr.ndim > 2:
-            noise_std = atrous.estimate_sigma_mad(coefs[0], True)
-        else:
-            noise_std = atrous.estimate_sigma(arr, coefs)
+        noise_std = atrous.estimate_sigma_mad(coefs[0], True)
     ## calculate support taking only positive coefficients (light sources)
+    sigmaej = atrous.sigmaej
     if supp is None:
-        supp = atrous.get_support(coefs, np.array(k,_dtype_)*noise_std,
-                                  modulus=False)  
+        supp = threshold_w(coefs, np.array(k,_dtype_)*noise_std, modulus=modulus, sigmaej=sigmaej)
+        
     structures = get_structures(coefs, supp)
     g = connectivity_graph(structures, min_nscales)
     #labels = reduce(lambda a,b:a+b, (n.labels for n in misc.flatten(g)))
     new_supp = supp_from_connectivity(g,level)
-    return atrous.rec_with_support(coefs, new_supp)
+    return simple_rec(coefs, new_supp)
     
 
 #import mmt,multiscale    
@@ -458,8 +457,7 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     if dec_fn == mmt.decompose_mwt:
         sigmaej = mmt.sigmaej_mwts2
     if supp is None:
-        supp = threshold_w(coefs, np.array(k,_dtype_)*noise_std,
-                                      modulus=modulus, sigmaej=sigmaej)
+        supp = threshold_w(coefs, np.array(k,_dtype_)*noise_std, modulus=modulus, sigmaej=sigmaej)
     if weights is None:
         weights  = np.ones(level)
     structures = get_structures(coefs, supp)
@@ -480,16 +478,12 @@ def find_objects(arr, k=3, level=5, noise_std=None,
     # note: even if we decompose with mmt.decompose_mwt
     # we use atrous.decompose for object reconstruction because
     # we don't expect too many outliers and this way it's faster
-    pipelines = [fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
-                                                           weights = weights),
-                               lambda x: simple_rec(coefs, x),
-                               embedding),
-                 fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,
-                                                           weights = weights),
-                               lambda x:
-                               simple_rec_iterative(coefs, x, 
-                                                               positive_only=(not modulus)),
-                               embedding)]
+    pipelines = [fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,weights=weights),
+                                   lambda x: simple_rec(coefs, x),
+                                   embedding),
+                 fnutils.flcompose(lambda x1,x2: supp_from_obj(x1,x2,weights=weights),
+                                   lambda x: simple_rec_iterative(coefs,x,positive_only=(not modulus)),
+                                   embedding)]
     recovered = (pipelines[rec_variant-1](obj, start_scale) for obj in objects)
     return [x for x in recovered if np.sum(x[0]>0) > min_px_size]
 # ----------

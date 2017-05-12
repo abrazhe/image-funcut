@@ -50,7 +50,7 @@ def cwt_iter(fseq,
     tick = time.clock()
     L = len(fseq)
     subframe = 'sliceobj' in kwargs and kwargs['sliceobj'] or None
-    shape = fseq.shape(subframe)
+    shape = fseq.get_frame_shape(subframe)
     npix = shape[0]*shape[1]
     normL = ifnot(normL, L)
     pixel_iter = fseq.pix_iter(**kwargs)

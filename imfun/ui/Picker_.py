@@ -1083,7 +1083,9 @@ class Picker (object):
             return
         signal = self.get_timeseries([roitag],normp=DFoSD)[0]
         Ns = len(signal)
-        dz = self.active_stack.meta['axes'][0].value
+        dz = self.active_stack.meta['axes'][0]
+        zunits = str(dz.unit)        
+        dz = dz.value
         f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
         title_string = ifnot(title_string, roitag)
@@ -1095,10 +1097,11 @@ class Picker (object):
         axlist[1].plot(tvec, signal,'-',color=lc)
         utils.wavelet_specgram(signal, f_s, freqs,  axlist[0], vmax=vmax,
                                wavelet=wavelet,
+                               cmap=_wavelet_cmap,
                                cax = axlist[2])
         axlist[0].set_title(title_string)
         #zunits = hasattr(dz, 'unit') and dz.unit or ''
-        zunits = str(dz.unit)
+        
         if zunits != '_':
             axlist[1].set_xlabel('time, %s'%zunits)
             axlist[0].set_ylabel('Frequency, Hz')

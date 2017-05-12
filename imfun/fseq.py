@@ -1031,7 +1031,7 @@ try:
         def __init__(self, fname, dataset=None,**kwargs):
             parent = super(FStackM_hdf5, self)
             f = h5py.File(fname, 'r')
-            print("The file %s has the following data sets:"%fname, list(f.keys()))
+            print("The file %s has the following data sets:"%fname, ', '.join(f.keys()))
 
             if dataset and dataset not in f:
                 print("Dataset name doesn't exist in file, setting to None ")
