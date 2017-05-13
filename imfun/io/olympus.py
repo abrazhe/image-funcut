@@ -1,6 +1,10 @@
 import re
 import numpy as np
 from imfun.external.physics import Q
+
+from imfun.core import units
+from imfun.core.units import QS
+
 def parse_property(line):
     l = line.strip().replace('"','')
     name, value = l.split('\t')
@@ -29,14 +33,14 @@ def parse_dimension_entry(name, values):
     npoints = int(np_s)
     x = int_s.split()
     units = from_brackets(int_s)
-    #span = pair_to_scale((float(x[2])-float(x[0]),units))
-    span = Q(float(x[2])-float(x[0]),units)
+    span = QS(float(x[2])-float(x[0]),units)
+    #span = Q(float(x[2])-float(x[0]),units)
     units =  from_brackets(sampling_s)
     if units:
         units = units.split('/')[0]
         s = sampling_s.split()[0]
         #sampling  = pair_to_scale((s,units))
-        sampling = Q(float(s), units)
+        sampling = QS(float(s), units)
     else:
         sampling = sampling_s
     return name, (npoints, span, sampling)
@@ -64,5 +68,6 @@ def dimensions_to_axes(md):
     order = ('TZ','Y','X')
     keys = [[k for k in keys if k[0] in o][0] for o in order]
     values = [md[k] for k in keys]
-    out = [isinstance(v[-1],Q) and v[-1] or v[1]/v[0] for v in values]
+    #out = [isinstance(v[-1],Q) and v[-1] or v[1]/v[0] for v in values]
+    out = [QS(v[1].value/v[0],v[1].unit) if isinstance(v[-1],str) else v[-1] for v in values]
     return np.array(out)

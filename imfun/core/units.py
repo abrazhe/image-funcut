@@ -32,7 +32,7 @@ def quantities_to_scales(quants):
 def alist_to_scale(alist):
     while len(alist) < 3:
         alist.append(alist[-1])
-    return array(alist, dtype=dict(names=names,formats=formats)).view(np.recarray)
+    return np.array(alist, dtype=dict(names=names,formats=formats)).view(np.recarray)
 
 def scales_to_quantities(scales):
     return [Q(s['value'],s['unit'].astype(str)) for s in scales]

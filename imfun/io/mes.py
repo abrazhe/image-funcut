@@ -8,7 +8,9 @@ from scipy import io
 
 
 from imfun.external.physics import Q
-from imfun.core import fnutils as fu
+from ..core.units import QS
+from ..core import units
+from ..core import fnutils as fu
 from ..core import array_handling as ah
 
 def guess_format(file_name):
@@ -205,7 +207,8 @@ class ZStack:
         #if ch is None: ch = self.ch
         #outmeta = {'ch':ch}
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
-        outmeta['axes'] = (Q(self.dz, 'um'),Q(self.dx, 'um'), Q(self.dx, 'um'))
+        #outmeta['axes'] = (Q(self.dz, 'um'),Q(self.dx, 'um'), Q(self.dx, 'um'))
+        outmeta['axes'] = units.alist_to_scale(((self.dz, 'um'),(self.dx, 'um'), (self.dx, 'um')))
         var_names = self.img_names
         nchannels = self.nchannels
 
@@ -267,8 +270,8 @@ class Timelapse:
     def load_data(self,ch):
         #if ch == None: ch = self.ch
         outmeta = dict(ch=ch, timestamp=self.timestamps[0])
-        #outmeta['axes'] = ah.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
-        outmeta['axes'] = [Q(self.dt, 's'), Q(self.dx, 'um'), Q(self.dx, 'um')]
+        outmeta['axes'] = units.alist_to_scale([(self.dt,'s'), (self.dx, 'um')])
+        #outmeta['axes'] = [Q(self.dt, 's'), Q(self.dx, 'um'), Q(self.dx, 'um')]
         nframes, nlines, line_len = self.nframes, self.nlines, self.line_length
         base_shape = list(map(np.int, (nframes-1, nlines, line_len)))
         streams = self._load_streams(ch=ch)

@@ -378,9 +378,10 @@ class LineScan(DraggableObj):
                       aspect='auto')
 
             #xlabel = hasattr(dz, 'unit') and dx.unit or 'frames'
-            #ylabel = hasattr(dx, 'unit') and dx.unit or 'pixels'
-            xlabel = dz.unit.is_dimensionless and 'frames' or dz.unit
-            ylabel = dx.unit.is_dimensionless and 'pixels' or dx.unit
+            xlabel = dx.unit if hasattr(dx,'unit') else 'frames'
+            ylabel = dz.unit if hasattr(dz,'unit') else 'pixels'
+            #xlabel = dz.unit.is_dimensionless and 'frames' or dz.unit
+            #ylabel = dx.unit.is_dimensionless and 'pixels' or dx.unit
 
 
             ax.set_ylabel(ylabel)

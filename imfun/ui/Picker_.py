@@ -922,7 +922,7 @@ class Picker (object):
         return
 
     def show_zview(self, rois = None, **kwargs):
-        print('in Picker.show_zview()')
+        #print('in Picker.show_zview()')
 
         tx = self.active_stack.frame_idx()
         t0 = tx[self.frame_index]
@@ -939,7 +939,7 @@ class Picker (object):
 
             prefs = self.roi_prefixes(roi_tgroup)
             if roi_type is 'area':
-                print(prefs)
+                #print(prefs)
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
 
                 fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
@@ -1124,7 +1124,7 @@ class Picker (object):
         ax.set_xlabel("Frequency, Hz")
 
     def default_freqs(self, nfreqs = 1024):
-        dz = self.active_stack.meta['axes'][0].value
+        dz,zu = self.active_stack.meta['axes'][0]
         return np.linspace(4.0/(self.length()*dz),
                            0.5/dz, num=nfreqs)
 

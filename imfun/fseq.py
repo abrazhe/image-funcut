@@ -62,6 +62,7 @@ class FrameStackMono(object):
     def set_default_meta(self,ndim=None):
         self.meta = dict()
         scales = units.alist_to_scale([(1,'_')])
+        self.meta['axes'] = scales
         #self.meta['axes'] = [Q(1,'_') for i in range(3)]
         self.meta['channel'] = None
 
