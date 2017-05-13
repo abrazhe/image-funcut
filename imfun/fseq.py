@@ -54,13 +54,15 @@ from . import core
 from .core import ifnot
 from .core import fnutils as fu
 from .core import array_handling as ah
+from .core import units
+from .core.units import QS
 
 class FrameStackMono(object):
     "Base class for a stack {stream, sequence} of single-channel frames"
     def set_default_meta(self,ndim=None):
         self.meta = dict()
-        #scales = lib.alist_to_scale([(1,'')])
-        self.meta['axes'] = [Q(1,'_') for i in range(3)]
+        scales = units.alist_to_scale([(1,'_')])
+        #self.meta['axes'] = [Q(1,'_') for i in range(3)]
         self.meta['channel'] = None
 
     @property
@@ -110,7 +112,6 @@ class FrameStackMono(object):
         Same as mask_reduce, but for multiple masks simultaneously
         """
         return np.asarray([[fn(f[mask],axis=0) for mask in masks] for f in self])
-
 
 
     def softmask_reduce(self,mask, fn=np.mean):
@@ -354,7 +355,8 @@ class FrameStackMono(object):
         """Zoom in or out so self.meta['axes'] match provided scales"""
         data = self[:]
         scales0 = self.meta['axes']
-        scales = [s.to(s0.unit) for s0,s in zip(scales0,scales)]
+        #TODO: rewrite this 
+        #scales = [s.to(s0.unit) for s0,s in zip(scales0,scales)]
         zoom_factors = [s0/s for s0,s in zip(scales0,scales)]
         new_data = ndimage.zoom(data, zoom_factors)
         new_fs = FStackM_arr(new_data, meta=self.meta)
@@ -559,13 +561,14 @@ class FStackM_imgleic(FStackM_img):
         try:
             from imfun.io import leica
             self.lp = leica.LeicaProps(xmlname)
-            self.meta['axes'][1:3] = [Q(self.lp.dx,'um'), Q(self.lp.dy,'um')]
+            #self.meta['axes'][1:3] = [QS(self.lp.dx,'um'), QS(self.lp.dy,'um')]
+            self.meta['axes'][1:3] = units.alist_to_scale([(self.lp.dx,'um'), (self.lp.dy,'um')])
             if hasattr(self.lp, 'dt'):
-                zscale = Q(self.lp.dt, 's')
+                zscale = QS(self.lp.dt, 's')
             elif hasattr(self.lp, 'dz'):
-                zscale = Q(self.lp.dz, 'um')
+                zscale = QS(self.lp.dz, 'um')
             else:
-                zscale = Q(1, '_')
+                zscale = QS(1, '_')
             self.meta['axes'][0] = zscale
 
         except Exception as e:
@@ -582,7 +585,7 @@ class FStackM_plsi(FrameStackMono):
         self.plsimg = ioraw.PLSI(fname)
         self.set_default_meta()
         dt = self.plsimg.dt/1000.0
-        self.meta['axes'][0] = Q(dt, 's')
+        self.meta['axes'][0] = QS(dt, 's')
         self.frame_filters = ifnot(frame_filters, [])
         self.ffs = self.frame_filters
 
@@ -804,13 +807,13 @@ def attach_leica_metadata(obj, path, xmlname=None):
     if xmlname:
         lp = leica.LeicaProps(xmlname)
         obj.lp = lp
-        obj.meta['axes'][1:3] =   [Q(lp.dx,'um'), Q(lp.dy,'um')]
+        obj.meta['axes'][1:3] = units.alist_to_scale([(lp.dx,'um'), (lp.dy,'um')])
         if hasattr(lp, 'dt'):
-            zscale = Q(lp.dt, 's')
+            zscale = QS(lp.dt, 's')
         elif hasattr(lp, 'dz'):
-            zscale = Q(lp.dz, 'um')
+            zscale = QS(lp.dz, 'um')
         else:
-            zscale = Q(1, '_')
+            zscale = QS(1, '_')
         obj.meta['axes'][0] = zscale
         colors = 'rgb'
         if isinstance(obj, FStackColl):
@@ -1126,7 +1129,7 @@ try:
                 continue
             out.append(frame_fn(image))
         fs = open_seq(np.array(out), **kwargs)
-        fs.meta['axes'][0] = Q(1./framerate, 's')
+        fs.meta['axes'][0] = QS(1./framerate, 's')
         return fs
 
     def mp4_to_hdf5(name, framerate=25., frame_fn=None, **kwargs):
