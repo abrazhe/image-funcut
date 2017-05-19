@@ -107,17 +107,33 @@ def whitenmat2(X):
     pc_filters, s, pc_signals = svd(Xc, full_matrices=False)
     return pc_filters.T, pc_signals, s
 
+try:
+    from sklearn import decomposition as skd
+    _with_sklearn = True
+    _pca_frames_algorithm='truncated'
+except ImportError:
+    _with_sklearn = False
+    _pca_frames_algorithm = 'svd'
 
 class PCA_frames():
-    def __init__(self,frames, npc=20):
+    def __init__(self,frames, npc=20, algorithm=_pca_frames_algorithm):
         self.npc = npc
         self.sh = frames[0].shape
         self.mean_frame = np.mean(frames, axis=0)
-        u,s,vh = np.linalg.svd(ah.ravel_frames(frames-self.mean_frame), full_matrices=False)
-        self.u = u[:,:npc]
-        self.s = s[:npc]
-        self.vh = vh[:npc]
-        self.coords = np.array([self.project(frame) for frame in frames])
+        data = ah.ravel_frames(frames-self.mean_frame)
+        if algorithm == 'svd':
+            u,s,vh = np.linalg.svd(data, full_matrices=False)
+            self.u = u[:,:npc]
+            self.s = s[:npc]
+            self.vh = vh[:npc]
+            self.coords = np.array([self.project(frame) for frame in frames])
+        elif algorithm == 'truncated' and _with_sklearn:
+            tsvd = skd.TruncatedSVD(npc)
+            self.tsvd = tsvd
+            self.coords = tsvd.fit_transform(data)
+            self.vh = tsvd.components_
+        else:
+            raise InputError("Can't use algorithm %s"%algorithm)
     def project(self, frame):
         return self.vh.dot(np.ravel(frame-self.mean_frame))
     def approx(self, frame):
