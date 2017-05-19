@@ -191,7 +191,7 @@ def map_warps(warps, frames, njobs=4):
         pool = ProcessPool(nodes=njobs)
         #out = pool.map(apply_warp, warps, frames)
         out = pool.map(Warp.__call__, warps, frames)
-        #pool.close()
+        pool.close()
         out = np.array(out)
     else:
         out = np.array([w(f) for w,f in zip(warps, frames)])
