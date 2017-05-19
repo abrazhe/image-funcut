@@ -61,7 +61,7 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
     if njobs > 1 and _with_pathos_:
         pool = ProcessPool(nodes=njobs)
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
-        pool.close()
+        #pool.close() ## doesn't work when this is active
     else:
         print('Running on one core')
         out = [regfn(img, template, **fnargs) for img in frames]
