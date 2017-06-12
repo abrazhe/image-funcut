@@ -21,6 +21,17 @@ _boundary_mode='nearest'
 
 # TODO: rethink, what should be class attributes,
 #       and what should be __call__ arguments
+
+def copy_to_larger_cpad(source, destination):
+    nr,nc = source.shape
+    nrd,ncd = destination.shape
+    destination[:min(nr,nrd),:min(nc,ncd)] = source
+    if np.any(np.array(destination.shape)>source.shape):
+        destination[nr:,:nc] = source[nr-1,:][None,:]
+        destination[:nr,nc:] = source[:,nc-1][:,None]
+        destination[nr:,nc:] = source[-1,-1]
+    
+
 class MSCLG(object):
     def __init__(self,
                  output = 'flow',
@@ -65,8 +76,10 @@ class MSCLG(object):
             if level > 0:
                 sh = u[level-1].shape
                 sl = tuple(slice(s) for s in sh)
-                u[level-1] = ndimage.zoom(u[level],2, mode=_boundary_mode)[sl]*2
-                v[level-1] = ndimage.zoom(v[level],2, mode=_boundary_mode)[sl]*2
+                ux = ndimage.zoom(u[level],2, mode=_boundary_mode)[sl]*2
+                vx = ndimage.zoom(v[level],2, mode=_boundary_mode)[sl]*2
+                copy_to_larger_cpad(ux,u[level-1])
+                copy_to_larger_cpad(vx,v[level-1])
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:
