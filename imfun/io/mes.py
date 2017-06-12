@@ -38,8 +38,8 @@ def load_file_info(file_name):
                      if 'Df' in x[0]]
         handler = MAT_Record
     elif variant == 'h5':
-        with h5py.File(file_name) as f:
-            vars = [k for k in list(f.keys()) if 'Df' in k]
+        with h5py.File(file_name,'r') as f:
+            vars = [k for k in list(f.keys()) if 'Df'.lower() in k.lower()]
         handler = H5_Record
     else:
         print("Can't load description")
@@ -148,7 +148,7 @@ class H5_Record(MES_Record):
     def __init__(self, file_name, recordName):
         self.variant = 'h5'
         #self.ch = ch
-        self.h5file = h5py.File(file_name)
+        self.h5file = h5py.File(file_name,'r')
         tkeyf = self._get_str_field
         nkeyf = self._get_num_field
         self.record = recordName
@@ -379,7 +379,7 @@ def get_ffi_h5(h5file, record):
 
 ## TODO: make class with __repr__ instead
 def describe_file_h5(file_name):
-    with h5py.File(file_name) as f:
+    with h5py.File(file_name,'r') as f:
         record_keys = [k for k in list(f.keys()) if 'Df' in k]
         for key in record_keys:
             print(key, ':', describe_record_h5(f,key, f[key]))

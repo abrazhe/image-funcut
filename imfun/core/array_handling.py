@@ -4,6 +4,8 @@ import numpy as np
 
 from .constants import *
 
+_maxshape=100e6
+
 def memsafe_arr(shape, dtype=_dtype_):
     import tempfile as tmpf
     shape = tuple(shape)
