@@ -376,6 +376,41 @@ def _empty_axes_meta(size=3):
     x['unit'] = ['']*size
     return x
 
+class FStackM_dummy(FrameStackMono):
+    """
+A FrameStackMono class where a single frame is repeated many times
+    """
+    def __init__(self, frame, L, frame_filters=None,meta=None):
+        self.L = L
+        self.frame = frame.copy()
+        self.frame_filters = ifnot(frame_filters, [])
+        self.ffs = self.frame_filters
+        if meta is None:
+            self.set_default_meta(self)
+        else:
+            self.meta = meta.copy()
+    def __len__(self):
+        return self.L
+    def __getitem__(self,val):
+        fn = self.pipeline
+        if isinstance(val,slice)  or np.ndim(val) > 0:
+            x = np.array([self.frame for i in np.r_[val]])
+            dtype = fn(x[0]).dtype
+            if not self.frame_filters:
+                return x
+            out = np.zeros(x.shape,dtype)
+            for j,f in enumerate(x):
+                out[j] = fn(f)
+            return out
+        else:
+            if val >= len(self):
+                raise IndexError("Requested frame number out of bounds")
+            return fn(self.frame)
+    def frames(self):
+        fn = self.pipeline
+        return map(fn, itt.repeat(self.frame,self.L))
+        
+        
 
 class FStackM_arr(FrameStackMono):
     """A FrameStackMono class as a wrapper around a `3D` Numpy array
