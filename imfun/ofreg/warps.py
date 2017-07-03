@@ -190,7 +190,7 @@ def map_warps(warps, frames, njobs=4):
     if njobs > 1 and _with_pathos_:
         pool = ProcessPool(nodes=njobs)
         #out = pool.map(apply_warp, warps, frames)
-        out = pool.map(Warp.__call__, warps, frames)
+        out = pool.map(Warp.__call__, warps, frames,chunksize=1)
         #pool.close()
         out = np.array(out)
     else:
