@@ -2,6 +2,7 @@ import numpy as np
 
 import scipy.interpolate as ip
 from scipy import ndimage
+from itertools import combinations
 
 def rezip(a):
     return list(zip(*a))
