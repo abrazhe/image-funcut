@@ -35,6 +35,7 @@ def harmonize_clims(pickers, mode='extend'):
 codec_ = 'libx264'
 
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
+                     background = None, frame_pipe=lambda f:f,
                      ncols=None, figsize=None, figscale=4, with_header=True,
                      codec = codec_, 
                      titles=None, writer='avconv', bitrate=16000, frame_on=False,
@@ -84,8 +85,9 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         else:
             cmap_ = p.cmap
 
-        
-        view = ax.imshow(p._get_show_f(start), vmin=0,vmax=1.0,cmap=cmap_,**kwargs)
+        if background is not None:
+            ax.imshow(background)
+        view = ax.imshow(frame_pipe(p._get_show_f(start)), vmin=0,vmax=1.0,cmap=cmap_,**kwargs)
         views.append(view)
         ax.set_title(title)
         if not frame_on:
@@ -103,7 +105,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         tstr = ''
         k = start + framecount
         for view, p in zip(views, pickers):
-            view.set_data(p._get_show_f(k))
+            view.set_data(frame_pipe(p._get_show_f(k)))
         if with_header:
             if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
                 tstr = ', time: %0.3f %s' %(k*dz.value, zunits) #TODO: use in py3 way
