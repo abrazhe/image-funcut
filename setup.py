@@ -5,6 +5,9 @@ from setuptools import setup
 #import path
 import subprocess
 
+import versioneer
+
+
 #here = path.abspath(path.dirname(__file__))
 #version = '0.1.4'
 
@@ -20,10 +23,12 @@ def version_from_git():
 
 setup(name='image-funcut',
       # version = vrsion_from_git(), # I have problems with this so far
-      version = '0.5.dev',
+      #version = '0.5.dev',
+      version=versioneer.get_version(),
       url = "https://github.com/abrazhe/image-funcut",
       author = "Alexey Brazhe",
       license = "GPL",
+      cmdclass=versioneer.get_cmdclass(),
       description = "View, analyse and transform dynamic imaging data",
       scripts = ['scripts/funcut.py', 'scripts/stabilize-framesequence.py'],
       package_dir = {'imfun':'imfun'},
@@ -50,7 +55,6 @@ setup(name='image-funcut',
                           'pandas>=0.16.0',
                           'traits>=4.4.0',
                           'traitsui>=4.4.0',
-                          #'wxpython',
                           'swan>=0.6.7'],
       dependency_links=['https://github.com/pyimreg/imreg/archive/master.zip#egg=imreg-0.1.0',
                         'https://github.com/uqfoundation/dill/archive/master.zip#egg=dill-0.2.4',
