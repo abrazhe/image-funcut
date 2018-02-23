@@ -35,7 +35,7 @@ class Warp:
     @property
     def field(self):
         if self.fn_ is None and self.field_ is None:
-            raise InputError("Neither warp function nor flow field defined")
+            raise ValueError("Neither warp function nor flow field defined")
         if self.field_ is None:
             self.field_ = flow_from_fn(self.fn_,self.sh_)
         return self.field_
