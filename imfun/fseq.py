@@ -365,7 +365,7 @@ class FrameStackMono(object):
         new_fs = FStackM_arr(new_data, meta=self.meta)
         new_axes = _empty_axes_meta(len(scales))
         new_axes['value'] =scales
-        new_axes['unit'] = self.meta['axes']['unit']
+        new_axes['units'] = self.meta['axes']['units']
         new_fs.meta['axes'] = new_axes
         return new_fs
 
@@ -378,7 +378,7 @@ def _empty_axes_meta(size=3):
     names = ("scale", "units")
     formats = ('float', "S10")
     x =  np.ones(size, dtype=dict(names=names,formats=formats))
-    x['unit'] = ['']*size
+    x['units'] = ['']*size
     return x
 
 class FStackM_dummy(FrameStackMono):
