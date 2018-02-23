@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # czifile.py
 
-# Copyright (c) 2013-2015, Christoph Gohlke
-# Copyright (c) 2013-2015, The Regents of the University of California
+# Copyright (c) 2013-2017, Christoph Gohlke
+# Copyright (c) 2013-2017, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
@@ -42,19 +42,33 @@ microscopy experiments.
 :Organization:
   Laboratory for Fluorescence Dynamics, University of California, Irvine
 
-:Version: 2015.08.17
+:Version: 2017.09.12
 
 Requirements
 ------------
-* `CPython 2.7 or 3.4 <http://www.python.org>`_
-* `Numpy 1.8.2 <http://www.numpy.org>`_
-* `Scipy 0.16 <http://www.scipy.org>`_
-* `Tifffile.py 2015.08.17 <http://www.lfd.uci.edu/~gohlke/>`_
-* `Czifle.pyx 2015.08.17  <http://www.lfd.uci.edu/~gohlke/>`_
+* `CPython 3.6 64-bit <http://www.python.org>`_
+* `Numpy 1.13 <http://www.numpy.org>`_
+* `Scipy 0.19 <http://www.scipy.org>`_
+* `Tifffile.py 2017.09.12 <http://www.lfd.uci.edu/~gohlke/>`_
+* `Czifle.pyx 2017.07.20 <http://www.lfd.uci.edu/~gohlke/>`_
   (for decoding JpegXrFile and JpgFile images)
 
 Revisions
 ---------
+2017.09.12
+    Require tifffile.py 2017.09.12
+2017.07.21
+    Use multi-threading in CziFile.asarray to decode and copy segment data.
+    Always convert BGR to RGB. Remove bgr2rgb options.
+    Decode JpegXR directly from byte arrays.
+2017.07.13
+    Add function to convert CZI file to memory-mappable TIFF file.
+2017.07.11
+    Add 'out' parameter to CziFile.asarray.
+    Remove memmap option from CziFile.asarray (backwards incompatible).
+    Change spline interpolation order to 0 (backwards incompatible).
+    Make axes return a string.
+    Require tifffile 2017.07.11.
 2015.08.17
     Require tifffile 2015.08.17.
 2014.10.10
@@ -79,8 +93,8 @@ Tested on Windows with a few example files only.
 
 References
 ----------
-(1) ZISRAW (CZI) File Format Design specification Release Version 1.1 for
-    ZEN 2012. DS_ZISRAW-FileFormat_Rel_ZEN2012.doc (Confidential)
+(1) ZISRAW (CZI) File Format Design specification Release Version 1.2.2.
+    CZI 07-2016/CZI-DOC ZEN 2.3/DS_ZISRAW-FileFormat.pdf (confidential).
     Documentation can be requested at
     <http://microscopy.zeiss.com/microscopy/en_us/downloads/zen.html>
 (2) CZI The File Format for the Microscope | ZEISS International
@@ -98,15 +112,18 @@ array([10, 10, 10], dtype=uint8)
 
 """
 
+from __future__ import division, print_function
 
-
-import sys
 import os
+import sys
 import re
 import uuid
+import time
 import struct
 import warnings
-import tempfile
+import multiprocessing
+
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     from lxml import etree
@@ -116,22 +133,23 @@ except ImportError:
 import numpy
 from scipy.ndimage.interpolation import zoom
 
-from .tifffile import FileHandle, decode_lzw, lazyattr, stripnull
+from .tifffile import (FileHandle, memmap, decode_lzw, lazyattr, repeat_nd,
+                      product, stripnull, format_size, squeeze_axes,
+                      create_output)
 
 try:
     if __package__:
         from . import _czifile
     else:
         import _czifile
-    _have_czifile = True
 except ImportError:
-    _have_czifile = False
     warnings.warn(
-        "failed to import the optional _czifile C extension module.\n"
-        "Decoding of JXR and JPEG encoded images will not be available.\n"
+        "ImportError: No module named '_czifile'. "
+        "Decoding of JXR and JPEG encoded images will not be available. "
         "Czifile.pyx can be obtained at http://www.lfd.uci.edu/~gohlke/")
+    _czifile = None
 
-__version__ = '2015.08.17'
+__version__ = '2017.09.12'
 __docformat__ = 'restructuredtext en'
 __all__ = 'imread', 'CziFile'
 
@@ -139,7 +157,7 @@ __all__ = 'imread', 'CziFile'
 def imread(filename, *args, **kwargs):
     """Return image data from CZI file as numpy array.
 
-    'args' and 'kwargs' are arguments to CziFile.asarray().
+    'args' and 'kwargs' are arguments to the CziFile.asarray function.
 
     Examples
     --------
@@ -168,7 +186,6 @@ class CziFile(object):
     All attributes are read-only.
 
     """
-
     def __init__(self, arg, multifile=True, filesize=None, detectmosaic=True):
         """Open CZI file and read header.
 
@@ -202,7 +219,7 @@ class CziFile(object):
             self._fh.close()
             raise
 
-        if multifile and self.header.file_part and isinstance(arg, str):
+        if multifile and self.header.file_part and isinstance(arg, basestring):
             # open master file instead
             self._fh.close()
             name, _ = match_filename(arg)
@@ -348,45 +365,61 @@ class CziFile(object):
 
     @lazyattr
     def dtype(self):
-        """Return dtype of image data in file."""
+        """Return numpy dtype of image data in file."""
         # subblock data can be of different pixel type
-        dtype = self.filtered_subblock_directory[0].dtype[-2:]
+        dtype = numpy.dtype(self.filtered_subblock_directory[0].dtype[-2:])
         for directory_entry in self.filtered_subblock_directory:
             dtype = numpy.promote_types(dtype, directory_entry.dtype[-2:])
         return dtype
 
-    def asarray(self, bgr2rgb=False, resize=True, order=1, memmap=False):
+    def asarray(self, resize=True, order=0, out=None, max_workers=None):
         """Return image data from file(s) as numpy array.
 
         Parameters
         ----------
-        bgr2rgb : bool
-            If True, exchange red and blue samples if applicable.
         resize : bool
             If True (default), resize sub/supersampled subblock data.
         order : int
             The order of spline interpolation used to resize sub/supersampled
-            subblock data. Default is 1 (bilinear).
-        memmap : bool
-            If True, return an array stored in a binary file on disk.
+            subblock data. Default is 0 (nearest neighbor).
+        out : numpy.ndarray, str, or file-like object; optional
+            Buffer where image data will be saved.
+            If numpy.ndarray, a writable array of compatible dtype and shape.
+            If str or open file, the file name or file object used to
+            create a memory-map to an array stored in a binary file on disk.
+        max_workers : int
+            Maximum number of threads to read and decode subblock data.
+            By default up to half the CPU cores are used.
 
         """
-        if memmap:
-            with tempfile.NamedTemporaryFile() as fh:
-                image = numpy.memmap(fh, dtype=self.dtype, shape=self.shape)
-        else:
-            image = numpy.zeros(self.shape, self.dtype)
+        out = create_output(out, self.shape, self.dtype)
 
-        for directory_entry in self.filtered_subblock_directory:
+        if max_workers is None:
+            max_workers = multiprocessing.cpu_count() // 2
+
+        def func(directory_entry, resize=resize, order=order,
+                 start=self.start, out=out):
+            """Read, decode, and copy subblock data."""
             subblock = directory_entry.data_segment()
-            tile = subblock.data(bgr2rgb=bgr2rgb, resize=resize, order=order)
+            tile = subblock.data(resize=resize, order=order)
             index = [slice(i-j, i-j+k) for i, j, k in
-                     zip(directory_entry.start, self.start, tile.shape)]
+                     zip(directory_entry.start, start, tile.shape)]
             try:
-                image[index] = tile
+                out[index] = tile
             except ValueError as e:
                 warnings.warn(str(e))
-        return image
+
+        if max_workers > 1:
+            self._fh.lock = True
+            with ThreadPoolExecutor(max_workers) as executor:
+                executor.map(func, self.filtered_subblock_directory)
+            self._fh.lock = None
+        else:
+            func(self.filtered_subblock_directory)
+
+        if hasattr(out, 'flush'):
+            out.flush()
+        return out
 
     def close(self):
         self._fh.close()
@@ -434,7 +467,7 @@ class Segment(object):
         self._fh = fh
 
     def data(self):
-        """Read segment data from file and return as \*Segment instance."""
+        """Read segment data from file and return as *Segment instance."""
         self._fh.seek(self.data_offset)
         return SEGMENT_ID.get(self.sid, UnknownSegment)(self._fh)
 
@@ -444,7 +477,7 @@ class Segment(object):
 
 
 class SegmentNotFoundError(Exception):
-    """Exception to indicate that file position doesn't contain Segment."""
+    """Exception to indicate that file position does not contain Segment."""
     pass
 
 
@@ -507,7 +540,7 @@ class MetadataSegment(object):
         if raw:
             return data
         data = data.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-        return str(data, 'utf-8')
+        return unicode(data, 'utf-8')
 
     def __str__(self):
         return "MetadataSegment\n %s" % self.data()
@@ -526,80 +559,101 @@ class SubBlockSegment(object):
     SID = b'ZISRAWSUBBLOCK'
 
     def __init__(self, fh):
-        (self.metadata_size,
-         self.attachment_size,
-         self.data_size,
-         ) = struct.unpack('<iiq', fh.read(16))
-        self.directory_entry = DirectoryEntryDV(fh)
-        #fh.seek(max(240 - self.directory_entry.storage_size, 0), 1)  # fill
-        #self.metadata = unicode(fh.read(self.metadata_size), 'utf-8')
-        self.data_offset = fh.tell()
+        """Read ZISRAWSUBBLOCK segment data from file."""
+        with fh.lock:
+            (self.metadata_size,
+             self.attachment_size,
+             self.data_size,
+             ) = struct.unpack('<iiq', fh.read(16))
+            self.directory_entry = DirectoryEntryDV(fh)
+            # fh.seek(max(240 - self.directory_entry.storage_size, 0), 1)
+            # self.metadata = unicode(fh.read(self.metadata_size), 'utf-8')
+            self.data_offset = fh.tell()
         self.data_offset += max(240 - self.directory_entry.storage_size, 0)
         self.data_offset += self.metadata_size
         self._fh = fh
 
     def metadata(self):
         """Read metadata from file and return as XML string."""
-        self._fh.seek(self.data_offset - self.metadata_size)
-        return str(self._fh.read(self.metadata_size), 'utf-8')
+        fh = self._fh
+        with fh.lock:
+            fh.seek(self.data_offset - self.metadata_size)
+            metadata = unicode(fh.read(self.metadata_size), 'utf-8')
+        return metadata
 
-    def data(self, raw=False, bgr2rgb=True, resize=True, order=1):
+    def data(self, raw=False, resize=True, order=0):
         """Read image data from file and return as numpy array."""
-        self._fh.seek(self.data_offset)
+        de = self.directory_entry
+        fh = self._fh
         if raw:
-            return self._fh.read(self.data_size)
-        elif self.compression:
-            if self.compression not in DECOMPRESS:
+            with fh.lock:
+                fh.seek(self.data_offset)
+                data = fh.read(self.data_size)
+            return data
+        elif de.compression:
+            if de.compression not in DECOMPRESS:
                 raise ValueError("compression unknown or not supported")
-            # TODO: test this
-            data = self._fh.read(self.data_size)
-            data = DECOMPRESS[self.compression](data)
-            if self.compression == 2:
+            with fh.lock:
+                fh.seek(self.data_offset)
+                data = fh.read(self.data_size)
+            data = DECOMPRESS[de.compression](data)
+            if de.compression == 2:
                 # LZW
-                data = numpy.fromstring(data, self.dtype)
+                data = numpy.fromstring(data, de.dtype)
         else:
-            dtype = numpy.dtype(self.dtype)
-            data = self._fh.read_array(dtype, self.data_size // dtype.itemsize)
+            dtype = numpy.dtype(de.dtype)
+            with fh.lock:
+                fh.seek(self.data_offset)
+                data = fh.read_array(dtype, self.data_size // dtype.itemsize)
 
-        data = data.reshape(self.stored_shape)
-        if self.stored_shape == self.shape or not resize:
-            if bgr2rgb and self.stored_shape[-1] in (3, 4):
-                tmp = data[..., 0].copy()
-                data[..., 0] = data[..., 2]
-                data[..., 2] = tmp
+        data = data.reshape(de.stored_shape)
+        if de.stored_shape == de.shape or not resize:
             return data
 
         # sub / supersampling
-        factors = [j / i for i, j in zip(self.stored_shape, self.shape)]
-        factors = [(1.0 if abs(1.0-f) < 0.0001 else f) for f in factors]
-        shape = list(self.stored_shape)
-        # remove leading dimensions with factor 1.0 for speed
-        for factor in factors:
-            if factor != 1.0:
+        factors = [j / i for i, j in zip(de.stored_shape, de.shape)]
+        factors = [(int(round(f)) if abs(f-round(f)) < 0.0001 else f)
+                   for f in factors]
+
+        # use repeat if possible
+        if order == 0 and all(isinstance(f, int) for f in factors):
+            data = repeat_nd(data, factors).copy()
+            data.shape = de.shape
+            return data
+
+        # remove leading dimensions with size 1 for speed
+        shape = list(de.stored_shape)
+        i = 0
+        for s in shape:
+            if s != 1:
                 break
-            shape = shape[1:]
-            factors = factors[1:]
+            i += 1
+        shape = shape[i:]
+        factors = factors[i:]
         data.shape = shape
+
         # resize RGB components separately for speed
         if shape[-1] in (3, 4) and factors[-1] == 1.0:
             factors = factors[:-1]
             old = data
-            data = numpy.empty(self.shape, self.dtype[-2:])
+            data = numpy.empty(de.shape, de.dtype[-2:])
             for i in range(shape[-1]):
-                j = {0: 2, 1: 1, 2: 0, 3: 3}[i] if bgr2rgb else i
-                data[..., i] = zoom(old[..., j], zoom=factors, order=order)
+                data[..., i] = zoom(old[..., i], zoom=factors, order=order)
         else:
             data = zoom(data, zoom=factors, order=order)
 
-        data.shape = self.shape
+        data.shape = de.shape
         return data
 
     def attachments(self):
         """Read optional attachments from file and return as bytes."""
         if self.attachment_size < 1:
             return b''
-        self._fh.seek(self.data_offset + self.data_size)
-        return self._fh.read(self.attachment_size)
+        fh = self._fh
+        with fh.lock:
+            fh.seek(self.data_offset + self.data_size)
+            attachments = fh.read(self.attachment_size)
+        return attachments
 
     def __getattr__(self, name):
         """Directly access DirectoryEntryDV attributes."""
@@ -613,8 +667,9 @@ class SubBlockSegment(object):
 class DirectoryEntryDV(object):
     """Directory Entry - Schema DV."""
 
-    #__slots__ = ('file_position', 'file_part', 'compression', 'pyramid_type',
-    #            'dimension_entries', 'dtype', '_fh')
+    # __slots__ = ('file_position', 'file_part', 'compression', 'pyramid_type',
+    #             'dimension_entries', 'dtype', 'shape', 'stored_shape',
+    #             'axes', 'mosaic_index', 'storage_size', 'start', '_fh')
 
     @staticmethod
     def read_file_position(fh):
@@ -628,6 +683,9 @@ class DirectoryEntryDV(object):
         return file_position
 
     def __init__(self, fh):
+        """ """
+        self._fh = fh
+
         (schema_type,
          pixel_type,
          self.file_position,
@@ -646,7 +704,6 @@ class DirectoryEntryDV(object):
         # reverse dimension_entries to match C contiguous data
         self.dimension_entries = list(reversed(
             [DimensionEntryDV1(fh) for _ in range(dimensions_count)]))
-        self._fh = fh
 
     @lazyattr
     def storage_size(self):
@@ -660,7 +717,7 @@ class DirectoryEntryDV(object):
     def axes(self):
         axes = b''.join(dim.dimension for dim in self.dimension_entries
                         if dim.dimension != b'M')
-        return axes + b'0'
+        return bytes2str(axes + b'0')
 
     @lazyattr
     def shape(self):
@@ -690,7 +747,19 @@ class DirectoryEntryDV(object):
 
     def data_segment(self):
         """Read and return SubBlockSegment at file_position."""
-        return Segment(self._fh, self.file_position).data()
+        # return Segment(self._fh, self.file_position).data()
+        fh = self._fh
+        with fh.lock:
+            fh.seek(self.file_position)
+            try:
+                sid, _, _ = struct.unpack('<16sqq', fh.read(32))
+            except struct.error:
+                raise SegmentNotFoundError("can not read ZISRAW segment")
+            sid = stripnull(sid)
+            if sid not in SEGMENT_ID:
+                raise SegmentNotFoundError("not a ZISRAW segment")
+            data_segment = SEGMENT_ID[sid](fh)
+        return data_segment
 
     def __str__(self):
         return "DirectoryEntryDV\n  %s %s %s %s\n  %s" % (
@@ -830,14 +899,14 @@ class AttachmentEntryA1(object):
             raise ValueError("not a AttachmentEntryA1")
         self.content_guid = uuid.UUID(bytes=content_guid)
         self.content_file_type = stripnull(content_file_type)
-        self.name = str(stripnull(name), 'utf-8')
+        self.name = unicode(stripnull(name), 'utf-8')
         self._fh = fh
 
     @property
     def filename(self):
         """Return unique file name for attachment."""
         return "%s@%i.%s" % (self.name, self.file_position,
-                             str(self.content_file_type, 'utf-8').lower())
+                             unicode(self.content_file_type, 'utf-8').lower())
 
     def data_segment(self):
         """Read and return AttachmentSegment at file_position."""
@@ -998,7 +1067,7 @@ class EventListEntry(object):
          description_size,
          ) = struct.unpack('<idii', fh.read(20))
         description = stripnull(fh.read(description_size))
-        self.description = str(description, 'utf-8')
+        self.description = unicode(description, 'utf-8')
 
     def __str__(self):
         return "%s @ %s (%s)" % (EventListEntry.EV_TYPE[self.event_type],
@@ -1034,7 +1103,7 @@ class LookupTableEntry(object):
 
     def __init__(self, fh):
         size, identifier, number = struct.unpack('<i80si', fh.read(88))
-        self.identifier = str(stripnull(identifier), 'utf-8')
+        self.identifier = unicode(stripnull(identifier), 'utf-8')
         self.components = [ComponentEntry(fh) for _ in range(number)]
 
     def __len__(self):
@@ -1072,7 +1141,7 @@ class ComponentEntry(object):
 
 def xml_reader(fh, filesize):
     """Read XML from file and return as xml.ElementTree root Element."""
-    xml = str(stripnull(fh.read(filesize)), 'utf-8')
+    xml = unicode(stripnull(fh.read(filesize)), 'utf-8')
     return etree.fromstring(xml)
 
 
@@ -1086,17 +1155,8 @@ def match_filename(filename):
 
 
 def decode_jxr(data):
-    """Decode JXR data stream into ndarray via temporary file."""
-    fd, filename = tempfile.mkstemp(suffix='.jxr')
-    with os.fdopen(fd, 'wb') as fh:
-        fh.write(data)
-    if isinstance(filename, str):
-        filename = filename.encode('ascii')
-    try:
-        out = _czifile.decode_jxr(filename)
-    finally:
-        os.remove(filename)
-    return out
+    """Decode JXR data stream into ndarray."""
+    return _czifile.decode_jxr(data)
 
 
 def decode_jpeg(data):
@@ -1149,19 +1209,19 @@ PIXEL_TYPE = {
 
 # map dimension character to description
 DIMENSIONS = {
-    b'0': 'Sample',  # e.g. RGBA
-    b'X': 'Width',
-    b'Y': 'Height',
-    b'C': 'Channel',
-    b'Z': 'Slice',  # depth
-    b'T': 'Time',
-    b'R': 'Rotation',
-    b'S': 'Scene',
-    b'I': 'Illumination',  # direction
-    b'B': 'Block',  # acquisition
-    b'M': 'Mosaic',  # tile
-    b'H': 'Phase',
-    b'V': 'View',
+    '0': 'Sample',  # e.g. RGBA
+    'X': 'Width',
+    'Y': 'Height',
+    'C': 'Channel',
+    'Z': 'Slice',  # depth
+    'T': 'Time',
+    'R': 'Rotation',
+    'S': 'Scene',
+    'I': 'Illumination',  # direction
+    'B': 'Block',  # acquisition
+    'M': 'Mosaic',  # tile
+    'H': 'Phase',
+    'V': 'View',
 }
 
 # map DirectoryEntryDV.compression to description
@@ -1179,13 +1239,87 @@ DECOMPRESS = {
     2: decode_lzw,  # LZW
 }
 
-if _have_czifile:
-    DECOMPRESS[1] = decode_jpeg
-    DECOMPRESS[4] = decode_jxr
+if _czifile:
+    DECOMPRESS[1] = _czifile.decode_jpeg
+    DECOMPRESS[4] = _czifile.decode_jxr
 
-if sys.version_info[0] > 2:
-    str = str
-    str = str, bytes
+
+def czi2tif(czifile, tiffile=None, squeeze=True, verbose=True, **kwargs):
+    """Convert CZI file to memory-mappable TIFF file.
+
+    To read the image data from the created TIFF file: Read the 'StripOffsets'
+    and 'ImageDescription' tags from the first TIFF page. Get the 'dtype' and
+    'shape' attributes from the ImageDescription string using a JSON decoder.
+    Memory-map 'product(shape) * sizeof(dtype)' bytes in the file starting at
+    StripOffsets[0]. Cast the mapped bytes to an array of 'dtype' and 'shape'.
+
+    """
+    verbose = print_ if verbose else lambda *a, **b: None
+
+    if tiffile is None:
+        tiffile = czifile + '.tif'
+    elif tiffile.lower() == 'none':
+        tiffile = None
+
+    verbose("\nOpening CZI file... ", end='', flush=True)
+    start_time = time.time()
+
+    with CziFile(czifile) as czi:
+        if squeeze:
+            shape, axes = squeeze_axes(czi.shape, czi.axes, '')
+        else:
+            shape = czi.shape
+            axes = czi.axes
+        dtype = str(czi.dtype)
+        size = product(shape) * czi.dtype.itemsize
+
+        verbose("%.3f s" % (time.time() - start_time))
+        verbose("Image\n  axes:  %s\n  shape: %s\n  dtype: %s\n  size:  %s"
+                % (axes, shape, dtype, format_size(size)), flush=True)
+
+        if not tiffile:
+            verbose("Copying image from CZI file to RAM... ",
+                    end='', flush=True)
+            start_time = time.time()
+            czi.asarray(order=0)
+        else:
+            verbose("Creating empty TIF file... ", end='', flush=True)
+            start_time = time.time()
+            if 'software' not in kwargs:
+                kwargs['software'] = 'czi2tif'
+            metadata = kwargs.pop('metadata', {})
+            metadata.update(axes=axes, dtype=dtype)
+            data = memmap(tiffile, shape=shape, dtype=dtype,
+                          metadata=metadata, **kwargs)
+            data = data.reshape(czi.shape)
+            verbose("%.3f s" % (time.time() - start_time))
+            verbose("Copying image from CZI to TIF file... ",
+                    end='', flush=True)
+            start_time = time.time()
+            czi.asarray(order=0, out=data)
+        verbose("%.3f s" % (time.time() - start_time), flush=True)
+
+
+if sys.version_info[0] == 2:
+    def print_(*args, **kwargs):
+        """Print function with flush support."""
+        flush = kwargs.pop('flush', False)
+        print(*args, **kwargs)
+        if flush:
+            sys.stdout.flush()
+
+    def bytes2str(b, encoding=None):
+        """Return string from bytes."""
+        return b
+else:
+    basestring = str, bytes
+    unicode = str
+    print_ = print
+
+    def bytes2str(b, encoding='cp1252'):
+        """Return unicode string from bytes."""
+        return str(b, encoding)
+
 
 if __name__ == "__main__":
     import doctest

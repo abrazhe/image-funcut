@@ -272,7 +272,8 @@ class LCV_Contours:
         for j in xind[:]:
             l,u = lower[j],upper[j]
             inside = (rc > l) * (rc < u)
-            outside = -inside # outside is a negation of inside
+            l,u = int(l),int(u)
+            outside = ~inside # outside is a negation of inside
             c1 = np.sum(self.U[inside,j])/np.float(np.sum(inside+1e-12))
             c2 = np.sum(self.U[outside,j])/np.float(np.sum(outside+1e-12))
             v = np.abs(self.U[:,j]-c1) - np.abs(self.U[:,j]-c2)

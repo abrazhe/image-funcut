@@ -56,16 +56,43 @@ One of the motivations to start this project was a *func*tional
 programming approach to image data analysis, hence the name. Also, it's like a
 final-cut, but with some (geeky) fun.
 
+## Installation
+### Linux and Mac, with Anaconda
+
+First, install dependencies:
+```bash
+conda install pandas numba dill matplotlib h5py cython
+conda install scipy scikit-image pygments 
+conda install traits traitsui 
+
+pip install https://github.com/pyimreg/imreg/archive/master.zip  
+pip install https://github.com/uqfoundation/pathos/archive/master.zip
+pip install swan
+
+```
+
+Next, if you don't want to use version-controlled source, run:
+
+```bash
+pip install https://github.com/abrazhe/image-funcut/archive/develop.zip
+```
+
+Alternatively, clone the `develop` branch of `image-funcut` from https://github.com/abrazhe/image-funcut and run:
+```bash
+pip install -e .
+```
+
 ## Example usage
 The following will load a series of TIFF files with all color channels and
 start and interface to pick up ROIs, etc.
 ```python
     import imfun
-    fs = imfun.fseq.open_seq("/path/to/many/tiff/files/*.tif",ch=None)
+    fs = imfun.fseq.from_tif("/path/to/many/tiff/files/*.tif",ch=None)
     p = imfun.ui.Picker(fs)
     p.start()
 ```
 Documenting all the features is a work in progress...
+
 
 ## Dependencies
 

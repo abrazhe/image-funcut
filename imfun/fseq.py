@@ -167,7 +167,9 @@ class FrameStackMono(object):
         frame range is given as argument fslice. if it's int, use N first
         frames, if it's tuple-like, it can be of the form [start,] stop [,step]
         """
-        if fslice is None or isinstance(fslice, int):
+        if fslice is None or isinstance(fslice, (np.integer, int)):
+            if fslice is not None:
+                fslice = int(fslice)
             fslice = (fslice, )
         frameit = map(_dtype_, itt.islice(self.frames(), *fslice))
         res = np.copy(next(frameit))

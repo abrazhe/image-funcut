@@ -134,10 +134,14 @@ class PCA_frames():
             self.vh = tsvd.components_
         else:
             raise InputError("Can't use algorithm %s"%algorithm)
-    def project(self, frame):
-        return self.vh.dot(np.ravel(frame-self.mean_frame))
-    def approx(self, frame):
-        return self.project(frame).dot(self.vh).reshape(self.sh) + self.mean_frame
+    def project(self, frame,r=None):
+        if r is None:
+            r = self.npc
+        return self.vh[:r].dot(np.ravel(frame-self.mean_frame))
+    def approx(self, frame,r=None):
+        if r is None:
+            r = self.npc
+        return self.project(frame,r).dot(self.vh[:r]).reshape(self.sh) + self.mean_frame
     def rec_from_coefs(self,coefs):
         return coefs.dot(self.vh).reshape(self.sh) + self.mean_frame
 

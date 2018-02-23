@@ -116,7 +116,7 @@ _default_roi_coloring = 'allrandom' # {allrandom | groupsame | groupvar}
 
 class Picker (object):
     _verbose = False
-    def __init__(self, frames, home_frame = True, verbose=False,
+    def __init__(self, frames, home_frame=True, verbose=False,
                  roi_coloring_model=_default_roi_coloring, 
                  suptitle = None,
                  roi_prefix = 'r',
@@ -167,7 +167,10 @@ class Picker (object):
         ## set home_frame
         dtype = self.frame_coll[0].dtype
         if isinstance(home_frame,  np.ndarray):
-            f = home_frame
+            if np.ndim(home_frame) < 3:
+                f = home_frame[...,None]
+            else:
+                f = home_frame
         elif isinstance(home_frame, collections.Callable):
             f = self.frame_coll.time_project(home_frame)
             f = f.astype(dtype)
@@ -377,6 +380,13 @@ class Picker (object):
             self.cmap = imshow_args.pop('cmap')
         else:
             self.cmap='gray'
+
+        if 'vmax' in imshow_args:
+            vmax = imshow_args.pop('vmax')
+            self.clims[0] = (self.clims[0][0], vmax) # only affects first channel for now
+        if 'vmin' in imshow_args:
+            self.clims[0] = (imshow_args.pop('vmin'), self.clims[0][1]) # only affects first channel for now
+            
 
         self.plh = self.ax1.imshow(self._lutconv(self.home_frame),
                                    extent = (0, sx*dx.value)+(0, sy*dy.value)[::lowp],

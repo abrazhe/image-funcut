@@ -65,9 +65,9 @@ def read_at(fid, pos, Nelem=1, dtype=np.uint16, seek_opt=0):
 
 # this needed to guess file type from file header
 _known_headers = {
-    "Moor FLPI Live Image Data file V2.0":_mlfdescr_v2,
-    "moorFLPI Live Image Data File V3.0": _mlfdescr_v3,
-    "LSI Recorder processed file v1.0 type: tLASCA 25":_PLSI_fields
+    b"Moor FLPI Live Image Data file V2.0":_mlfdescr_v2,
+    b"moorFLPI Live Image Data File V3.0": _mlfdescr_v3,
+    b"LSI Recorder processed file v1.0 type: tLASCA 25":_PLSI_fields
     }
 
 
@@ -145,7 +145,7 @@ class PLSI:
             pos += np.nbytes[self.tstamp_dtype]
         arr = read_at(self.fid, pos, self.npix, seek_opt=1)
         if self.have_double_frames:
-            self.fid.seek(self.frame_byte_size/2,1)
+            self.fid.seek(self.frame_byte_size//2,1)
         return arr.reshape((self.nrows,self.ncols),order=self.order)
 
     def read_frame(self, n):

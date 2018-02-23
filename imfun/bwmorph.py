@@ -254,6 +254,8 @@ class RegionND:
         return np.mean(self.locs,0)
     def borders(self):
         return (l for l in self.locs if
+                l[0] == 0 or l[1] == 0 or l[0]==self.shape[0] or l[1] == self.shape[1]
+                or 
                 len([x for x in neighbours(l,self.shape) if x not in self.locs]))
     def linsize(self,):
         dists = [coords.eu_dist(*pair) for pair in core.misc.allpairs(self.borders())]
