@@ -85,7 +85,7 @@ from datetime import datetime
 
 import numpy
 
-from tifffile import TiffFile, TiffSequence, lazyattr, natural_sorted
+from .tifffile import TiffFile, TiffSequence, lazyattr, natural_sorted
 
 __version__ = '2015.08.17'
 __docformat__ = 'restructuredtext en'

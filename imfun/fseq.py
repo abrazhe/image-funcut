@@ -357,7 +357,7 @@ class FrameStackMono(object):
     def zoom(self, scales):
         """Zoom in or out so self.meta['axes'] match provided scales"""
         data = self[:]
-        scales0 = self.meta['axes']
+        scales0 = self.meta['axes']['value']
         #TODO: rewrite this 
         #scales = [s.to(s0.unit) for s0,s in zip(scales0,scales)]
         zoom_factors = [s0/s for s0,s in zip(scales0,scales)]
