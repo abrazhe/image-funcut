@@ -363,7 +363,10 @@ class FrameStackMono(object):
         zoom_factors = [s0/s for s0,s in zip(scales0,scales)]
         new_data = ndimage.zoom(data, zoom_factors)
         new_fs = FStackM_arr(new_data, meta=self.meta)
-        new_fs.meta['axes'] = scales
+        new_axes = _empty_axes_meta(len(scales))
+        new_axes['value'] =scales
+        new_axes['unit'] = self.meta['axes']['unit']
+        new_fs.meta['axes'] = new_axes
         return new_fs
 
 
