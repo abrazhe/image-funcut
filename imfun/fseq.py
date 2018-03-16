@@ -903,13 +903,15 @@ def from_mes(path, record=None, ch=None, **kwargs):
 
 def from_plsi(path, *args, **kwargs):
     """Load LaserSpeckle frame stack.
-    For arguments, see FStackM_plsi constructor
+    For arguments, see FStackCollackM_plsi constructor
     """
     return construct_with_kwargs(FStackM_plsi, path, *args, **kwargs)
 
 def from_h5(path, *args, **kwargs):
     "Load frame stack from a generic HDF5 file"
     return construct_with_kwargs(FStackM_hdf5, path, *args, **kwargs)
+
+
 
 def from_array(data,ch=None,  *args,**kwargs):
     
@@ -1091,6 +1093,23 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
             self.h5file = f # just in case we need it later
+
+    class FStackColl_hdf5(FStackColl):
+        "Base class for hdf5 files"
+        def __init__(self, fname, **kwargs):
+            parent = super(FStackColl_hdf5, self)            
+            f = h5py.File(fname, 'r')
+            datasets = list(f.keys())
+            print("The file %s has the following data sets:"%fname, ', '.join(datasets))
+            self.h5file = f # just in case we need it later
+            stacks = []
+            for dset in datasets:
+                arr = f[dset]
+                fsm = FStackM_arr(arr,**kwargs)
+                fsm.meta['channel'] = dset
+                stacks.append(fsm)
+            parent.__init__(stacks)
+                
 
     class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
