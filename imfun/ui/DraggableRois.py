@@ -557,18 +557,19 @@ class CircleROI(DraggableObj):
 
         fullshape = self.parent.active_stack.frame_shape
         sh = fullshape[:2]
-        v = self.parent.active_stack.mask_reduce(self.in_circle(sh))
+        #v = self.parent.active_stack.mask_reduce(self.in_circle(sh))
+        vx = [stack.mask_reduce(self.in_circle(stack.frame_shape)) for stack in self.parent.frame_coll.stacks]
         #print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
-        if len(fullshape)>2 and hasattr(self.parent.active_stack, 'ch') \
-           and (self.parent.active_stack.ch is not None):
-            v = v[:,self.parent.active_stack.ch]
+        #if len(fullshape)>2 and hasattr(self.parent.active_stack, 'ch') \
+        #   and (self.parent.active_stack.ch is not None):
+        #    v = v[:,self.parent.active_stack.ch]
         if normp:
             if isinstance(normp, collections.Callable):
-                return normp(v)
+                return np.array([normp(v) for v in vx])
             else:
                 Lnorm = isinstance(normp,int) and normp or len(v)
-                return DFoF(v, Lnorm)
-        else: return v
+                return np.array([DFoF(v, Lnorm) for v in vx])
+        else: return np.array(vx)
 
     def to_struct(self):
         c = self.obj

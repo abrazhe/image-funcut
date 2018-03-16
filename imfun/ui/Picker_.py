@@ -952,7 +952,11 @@ class Picker (object):
                 #print(prefs)
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
 
-                fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
+                #fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
+                 
+                fig, axs = plt.subplots(len(prefs), _sh[0] if len(_sh)>1 else 1,
+                                        sharex=True,
+                                        squeeze=False)
 
                 for ax in np.ravel(axs):
                     lh = ax.axvline(t0, color='k', ls='-',lw=0.5)
@@ -966,10 +970,6 @@ class Picker (object):
 
                 figs.append(fig)
 
-                if len(_sh)>1:
-                    colors = 'red', 'green', 'blue' #TODO: harmonize with color names in fseq?
-                    for ax, c in zip(axs[0,:], colors):
-                        ax.set_title(c+' channel', color=c)
 
                 for row, prefix in enumerate(prefs):
                     labels = []
@@ -978,9 +978,10 @@ class Picker (object):
                         roi = self.roi_objs[t]
                         color = roi.color
                         signal = roi.get_zview(**kwargs)
+                        print('signal shape:', signal.shape)
                         if np.ndim(signal) < 2:
-                            signal = signal[:,None]
-                        for k, ve in enumerate(signal.T):
+                            signal = signal[None,:]
+                        for k, ve in enumerate(signal):
                             if np.any(ve):
                                 ax = axs[row,k]
                                 ax.plot(tx, ve, color=color, alpha=0.5, label=t)
@@ -989,7 +990,7 @@ class Picker (object):
                                 ##         transform=ax.transAxes,color=color,
                                 ##         alpha=1.0,
                                 ##         visible=False)
-                    for k in range(signal.shape[1]):
+                    for k in range(signal.shape[0]):
                         l = axs[row,k].legend(frameon=False)
                         if l is None: continue
                         for lx in l.legendHandles:

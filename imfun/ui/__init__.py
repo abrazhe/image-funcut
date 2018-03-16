@@ -20,10 +20,13 @@ import gc
 
 def harmonize_clims(pickers, mode='extend'):
     lows = [[c[0] for c in px.clims] for px in pickers]
+    highs = [[c[1] for c in px.clims] for px in pickers]
     if mode.lower() == 'extend':
         lowfn,highfn = np.amin, np.amax
     elif mode.lower() == 'shrink':
         lowfn,highfn = np.amax, np.amin
+    elif mode.lower() == 'mean':
+        lowfn,highfn = np.mean,np.mean
     else:
         raise InputError('unknown mode')
 
