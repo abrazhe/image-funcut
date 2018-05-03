@@ -35,9 +35,10 @@ def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
 
     for k,template in enumerate(templates):
         print("Doing template %d"%k)
-        correction = Warp.from_array(np.zeros((2,)+frames[0].shape))
         if k > 0:
             correction = regfn(template, templates[0],**fnargs)
+        else:
+            correction = Warp.from_array(np.zeros((2,)+frames[0].shape))
         frame_idx = np.arange(len(frames))[index==k]
         #print len(frame_idx)
         frame_slice = (frames[fi] for fi in frame_idx)
@@ -67,6 +68,17 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         out = [regfn(img, template, **fnargs) for img in frames]
     return out
 
+def to_updated_template(frames, template, regfn, **fnargs):
+    warps = []
+    summed = np.copy(template)
+    for i,f in enumerate(frames):
+        w = regfn(f,template)
+        warps.append(w)
+        fc = w(f)
+        summed += fc
+        template = summed/(i+2)
+    return warps
+
 def recursive(frames, regfn):
     """
     Given stack of frames,
@@ -78,11 +90,11 @@ def recursive(frames, regfn):
     #sys.setrecursionlimit(len(frames))
     L = len(frames)
     if L < 2:
-        return frames[0], [lambda f:f]
+        return frames[0], [Warp.from_function(lambda f:f)]
     else:
-        mf_l, warps_left = register_stack_recursive(frames[:L/2], regfn)
-        mf_r, warps_right = register_stack_recursive(frames[L/2:], regfn)
+        mf_l, warps_left = recursive(frames[:L//2], regfn)
+        mf_r, warps_right = recursive(frames[L//2:], regfn)
         fn = regfn(mf_l, mf_r)
-        fm = 0.5*(apply_fn_warp(mf_l,fn) + mf_r)
+        fm = 0.5*((mf_l,fn) + mf_r)
         return fm, [core.fnutils.flcompose(fx,fn) for fx in warps_left] + warps_right
         #return fm, [fnutils.flcompose2(fn,fx) for fx in fn1] + fn2
