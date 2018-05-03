@@ -817,6 +817,18 @@ class FStackColl(object):
                 ordered_stacks.append(match[0])
         other_stacks = [s for s in self.stacks if s not in ordered_stacks]
         self.stacks = ordered_stacks + other_stacks
+    def to_hdf5(self, out_name):
+        import h5py
+        f = h5py.File(out_name,'w')
+        for i,stack in enumerate(self.stacks):
+            if not 'channel' in stack.meta or stack.meta['channel'] is None:
+                stack.meta['channel'] = ''
+            if stack.meta['channel']=='':
+                stack.meta['channel']='ch%d'%i
+                
+            f.create_dataset(stack.meta['channel'], data=stack[:])
+        f.close()
+        pass
 
 
     
@@ -1077,10 +1089,11 @@ try:
         def __init__(self, fname, dataset=None,**kwargs):
             parent = super(FStackM_hdf5, self)
             f = h5py.File(fname, 'r')
-            print("The file %s has the following data sets:"%fname, ', '.join(f.keys()))
+
 
             if dataset and dataset not in f:
                 print("Dataset name doesn't exist in file, setting to None ")
+                print("The file %s has the following data sets:"%fname, ', '.join(f.keys()))                
                 dataset = None
 
             if dataset is None: # no dataset name is provided
