@@ -10,6 +10,8 @@ from scipy import sparse
 
 from ..core import fnutils
 
+from numba import jit
+
 def l1sp_scale_to_smooth(scale,p_=(4,-3)):
     return scale**p_[0]*10**p_[1]
 

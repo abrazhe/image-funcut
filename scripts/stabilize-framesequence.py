@@ -199,7 +199,9 @@ def main():
             if args.with_movies:
 
                 fsall = fseq.from_any(stackname, record=args.record)
-                if len(fsall.stacks)>2:
+                if not isinstance(fsall, fseq.FStackColl):
+                    fsall = fseq.FStackColl([fsall])
+                if isinstance(fsall, fseq.FStackColl) and len(fsall.stacks)>2:
                     fsall.stacks = fsall.stacks[:-1] # drop blue channel
 
                 vl,vh = fsall.data_percentile((0.5, 99.5))    
@@ -213,9 +215,6 @@ def main():
 
                 p1 = ui.Picker(fsall)
                 p2 = ui.Picker(fs2)
-
-
-
 
                 #proj1 = fsall.time_project(fn=partial(np.mean, axis=0))
                 #proj2 = fs2.time_project(fn=partial(np.mean, axis=0))
@@ -238,8 +237,9 @@ def main():
 
                 
                 ui.pickers_to_movie([p1, p2],
-                              outname+'-stabilized-video.mp4',
-                              titles=['before', 'stabilized'],
+                                    outname+'-stabilized-video.mp4',
+                                    titles=['before', 'stabilized'],
+                                    writer='ffmpeg',
                                     bitrate=args.bitrate)
 
                 del fsall, fs2
