@@ -94,7 +94,7 @@ def calc_diffusion_tensor(J, c1=0.001, c2=1.0,r_cutoff=0.2):
             
             lam1 = lam2 = c1            
             r = 0
-            if mu1+mu2 != 0:
+            if (mu1+mu2) != 0:
                 r = (mu1-mu2)/(mu1+mu2)
             
             if r > r_cutoff:    
@@ -104,7 +104,7 @@ def calc_diffusion_tensor(J, c1=0.001, c2=1.0,r_cutoff=0.2):
 
             v1,v2 = 2*j12, j22-j11+dxsr
             vnorm =(v1*v1 + v2*v2)**0.5
-            cosa,sina = v1/vnorm, v2/vnorm
+            cosa,sina = v1/(vnorm+1e-6), v2/(vnorm +1e-6)
             
             a = lam1*cosa**2 + lam2*sina**2
             b = (lam1-lam2)*sina*cosa
@@ -138,6 +138,20 @@ def coh_enh_diffusion(u,dt=0.2,T=20,verbose=True,rho=3):
     if verbose:
         sys.stderr.write('\n')
     return u
+
+def __isotropic_diffusion(u,dt=0.2,T=20,verbose=True,rho=3):
+    u = u.copy()
+    t = 0
+    while t < T:
+        upd = coh_enh_diff_f_rhs(u,rho=rho)
+        u += dt*upd
+        t += dt
+        if verbose:
+            sys.stderr.write("\r model time %2.3f"%t)
+    if verbose:
+        sys.stderr.write('\n')
+    return u
+
 
 def adams_bashforth(rhs, init_state, dt=0.25,tstart=0, tstop=100,  fnkwargs=None):
     if fnkwargs is None:

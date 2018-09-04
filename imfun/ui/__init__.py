@@ -98,7 +98,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         marker = plt.Rectangle((2,2), 10,10, fc='red',ec='none',visible=False)
         ax.add_patch(marker)
     for ax in np.ravel(axs)[len(pickers):]:
-        pl.setp(ax, visible=False)
+        plt.setp(ax, visible=False)
         
     header = plt.suptitle('')
     plt.tight_layout()

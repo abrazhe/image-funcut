@@ -9,8 +9,7 @@ def dbscan(points, eps, min_pts, distances=None,dist_fn='euclidean',verbose=True
     """ Implementation of DBSCAN density-based clustering algorithm
 
     Parameters:
-      - `points`: input collection of points. points must be hashable
-                  (i.e. a point is a tuple of coordinates)
+      - `points`: input collection of points. 
       - `eps`: (`number`) --  neighborhood radius
       - `min_pts`: (`number`) -- minimal number of neighborhood points
       - `dist_fn`: (`function`) -- distance measure, [``euclidean``]
