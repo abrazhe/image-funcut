@@ -1,5 +1,7 @@
 # Image-funcut
 
+In 2017–2018 supported by RSF grant 17-74-20089
+
 ## Overview
 
 The `image-funcut` project is kind of a sandbox or testbed for utilities to
