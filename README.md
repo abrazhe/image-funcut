@@ -9,50 +9,51 @@ view, analyse and transform two-photon microscopy data or any other series of
 images.
 
 At the moment, the project includes the following `Python` modules:
-  - `imfun.atrous`: comprises functions for à trous wavelet transform and
-  related utilities. (Synonims: starlet transform, stationary wavelet
-  transform, non-decimated 
-  wavelet transform). Besides transform, there are utility functions to smooth
-  input data with B-splines, remove trends in data or enhance data by noise
-  suppression. 
   - `imfun.bwmorph`: helper functions for black-white morphology and binary
-    masks
+    masks 
   - `imfun.cluster`: naive implementations of a few clustering algorithms and
-    distance functions
-  - `imfun.emd`: a stub for empirical mode decomposition functions
-  - `imfun.filt`: various filters
+      distance functions
+    - `imfun.cluster.som`: implementation of Self-organizing Kohonen maps clustering
+      algorithm
+  - `imfun.components`: Component analysis an factorization
+    - `imfun.components.pca`:  PCA
+    - `imfun.components.ica`: ICA 
+  - `imfun.core`: miscellaneous helper functions
+    - `imfun.core.fnutils`: a few functional programming-inspired utils
+  - `imfun.external`: External modules 
+  - `imfun.filt`: various filtering utils
   - `imfun.fnmap`: collection of functions which project XYT data to 2D images
     in various non-trivial ways
-  - `imfun.fnutils`: a few functional programming-inspired utils
   - `imfun.fseq`: a keystone module: Class definitions and functions to read
     from files of several formats and represent sequences of images (both lazy
     and not) and operations on them.
-  - `imfun.lib`: miscellaneous helper functions
-  - `imfun.leica`: parsing XML files produced by Leica Software during export
-  - `imfun.mes`: reading MES files, as created by a Femtonics microscope
-  - `imfun.mmt`: multiscale median transform and hybrid median/starlet
-    transform 
-  - `imfun.multisale`: working with multiscale supports for starlet and
-    median/starlet transforms, including iterative reconstruction from
-    significant coefficients
-  - `imfun.mvm`: an implementation of the Multiscale Vision Model object
-    detection algorithm
+  - `imfun.multiscale`: Multiscale operations: image pyramids and the like.
+    - `imfun.multiscale.atrous`: comprises functions for à trous wavelet transform and
+    related utilities. (Synonims: starlet transform, stationary wavelet
+    transform, non-decimated 
+    wavelet transform). Besides transform, there are utility functions to smooth
+    input data with B-splines, remove trends in data or enhance data by noise
+    suppression. 
+    - `imfun.multiscale.emd`: a stub for empirical mode decomposition functions
+    - `imfun.multiscale.mmt`: multiscale median transform and hybrid median/starlet
+      transform 
+    - `imfun.multiscale.mvm`: an implementation of the Multiscale Vision Model
+  - `imfun.ofreg`: Optical flow and image registration 
   - `imfun.opt`: a stub for optimization functions
-  - `imfun.pca`: unused, example PCA
-  - `imfun.pica`: PCA and ICA implementations
-  - `imfun.som`: implementation of Self-organizing Kohonen maps clustering
-    algorithm
   - `imfun.synthdata`: functions to create simple synthetic data sets should be
     collected here
-  - `imfun.tiffile`: Tiffile library by Christoph Gohlke
   - `imfun.track`: functions to track objects in a changing environment or
     align frames should be collected here
-  - `imfun.ui`: Picker class -- a matplotlib-based backend-independent user
-    interface to operate on `fseq` instances
-  - `imfun.MLFImage`: interface to load MLF files produced by Moor laser
-    speckle imaging device.
-  - `frame_viewer.py`: a Traits-based GUI wrapper over `imfun.ui` and other
-    modules  with additional features
+  - `imfun.ui` : User interface related modules
+    - `imfun.ui.Picker`: Picker class -- a matplotlib-based backend-independent user
+      interface to operate on `fseq` instances
+  - `imfun.io`: Reading various file formats
+    - `imfun.io.leica`: parsing XML files produced by Leica Software during export
+    - `imfun.io.mes`: reading MES files, as created by a Femtonics microscope
+    - `imfun.io.MLFImage`: interface to load MLF files produced by Moor laser
+      speckle imaging device.
+  - `scripts/frame_viewer.py`: a Traits-based GUI wrapper over `imfun.ui` and other
+    modules  with additional features. Currently non-operational
 
 One of the motivations to start this project was a *func*tional
 programming approach to image data analysis, hence the name. Also, it's like a
@@ -63,14 +64,14 @@ final-cut, but with some (geeky) fun.
 
 First, install dependencies:
 ```bash
-conda install pandas numba dill matplotlib h5py cython
+conda install pandas numba matplotlib h5py
 conda install scipy scikit-image pygments 
-conda install traits traitsui 
+conda install traits traitsui
+conda install -c conda-forge pathos
+conda install -c conda-forge opencv
 
-pip install https://github.com/pyimreg/imreg/archive/master.zip  
-pip install https://github.com/uqfoundation/pathos/archive/master.zip
+#pip install https://github.com/pyimreg/imreg/archive/master.zip
 pip install swan
-
 ```
 
 Next, if you don't want to use version-controlled source, run:
