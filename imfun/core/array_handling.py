@@ -59,7 +59,7 @@ def embedding(arr, delarrp=True):
     b = np.argwhere(arr)
     starts, stops = b.min(0), b.max(0)+1
     slices = [slice(*p) for p in zip(starts, stops)]
-    out =  arr[slices].copy()
+    out =  arr[tuple(slices)].copy()
     if delarrp: del arr
     return out, (sh, slices)
 
@@ -69,7 +69,7 @@ def embedded_to_full(x):
     """
     data, (shape, xslice) = x
     out = np.zeros(shape, _dtype_)
-    out[xslice] = data
+    out[tuple(xslice)] = data
     return out
     
 
