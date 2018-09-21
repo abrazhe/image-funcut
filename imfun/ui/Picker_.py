@@ -4,6 +4,9 @@ import itertools as itt
 import os
 from functools import partial
 
+from io import IOBase
+
+
 import numpy as np
 
 import scipy.io
@@ -633,7 +636,7 @@ class Picker (object):
         "Load stored ROIs from a file"
         if isinstance(source, str):
             data = pickle.load(open(source,'rb'))
-        elif isinstance(source, file):
+        elif isinstance(source, IOBase):
             data = pickle.load(source)
         else:
             data = source
