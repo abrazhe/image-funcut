@@ -150,7 +150,7 @@ def lk_opflow(im1, im2, locations, wsize=11, It=None, zeromean=False,
 
         ATA = AT.dot(AT.T)
         #V = pinv(ATA).dot(AT).dot(Itw)
-        V  = linalg.lstsq(ATA, AT.dot(Itw))[0]
+        V  = linalg.lstsq(ATA, AT.dot(Itw), rcond=-1)[0]
         #print V.shape
         out[k,:dim] = V.ravel()
         if calc_eig or weigh_by_eig:

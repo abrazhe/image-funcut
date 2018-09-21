@@ -79,7 +79,7 @@ def compose_warps(*warps):
         #def _fnconv(w):
         #    if callable(w): return flow_from_fn(w)
         #    else: return w
-        return np.sum((isinstance(w, collections.Callable) and flow_from_fn(w) or w for w in warps),axis=0)
+        return Warp.from_array(np.sum((isinstance(w, collections.Callable) and flow_from_fn(w) or w for w in warps),axis=0))
 
 
 # def apply_warp(warp, img ,mode=_boundary_mode):

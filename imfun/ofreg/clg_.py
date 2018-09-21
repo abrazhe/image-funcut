@@ -15,7 +15,7 @@ from numba import jit
 from .warps import Warp
 
 from imfun.multiscale import pyramid_from_zoom
-from imfun.filt import nearestpd,mirrorpd,filt2d
+from imfun.filt import nearestpd,mirrorpd,filt2d,dctsplines
 
 _boundary_mode='nearest'
 
@@ -47,7 +47,7 @@ class MSCLG(object):
         self.omega = 1.9
         self.kstop = 10
         self.verbose=verbose
-    def __call__(self, source, target, nl=3, alpha=1e-5, rho=10., sigma=0.1,  wt=1,correct_alpha=True):
+    def __call__(self, source, target, nl=3, alpha=1e-5, rho=10., rho_l1 = 0., sigma=0.,  wt=1, correct_alpha=True):
         if sigma > 0:
             target = ndimage.gaussian_filter(target,sigma)
             source = ndimage.gaussian_filter(source,sigma)
@@ -80,6 +80,10 @@ class MSCLG(object):
                 vx = ndimage.zoom(v[level],2, mode=_boundary_mode)[sl]*2
                 copy_to_larger_cpad(ux,u[level-1])
                 copy_to_larger_cpad(vx,v[level-1])
+            # L1-smoothing
+            if rho_l1 > 0:
+                u[0] = dctsplines.l1spline(u[0],rho_l1)
+                v[0] = dctsplines.l1spline(v[0],rho_l1)
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:
