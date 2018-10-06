@@ -106,13 +106,15 @@ class FrameStackMono(object):
         """Return `1D` vector from a mask (or slice), by applying a reducing function
         R^n->R (average by default) within the mask in each frame.
         Function fn should be able to recieve `axis` optional argument"""
-        return np.asarray([fn(f[mask],axis=0) for f in self])
+        crop = ndimage.find_objects(mask)[0]
+        return np.asarray([fn(f[crop][mask[crop]],axis=0) for f in self])
 
     def multi_mask_reduce(self, masks,fn=np.mean):
         """
         Same as mask_reduce, but for multiple masks simultaneously
         """
-        return np.asarray([[fn(f[mask],axis=0) for mask in masks] for f in self])
+        crops = [ndimage.find_objects(m)[0] for m in masks]
+        return np.asarray([[fn(f[crop][mask[crop]],axis=0) for crop,mask in zip(crops,masks)] for f in self])
 
 
     def softmask_reduce(self,mask, fn=np.mean):
