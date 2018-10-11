@@ -371,6 +371,20 @@ class FrameStackMono(object):
         new_fs.meta['axes'] = new_scales
         return new_fs
 
+    def to_hdf5(self, out_name,channel='', mode='a'):
+        "Export sequence of frames to an HDF5 file with a dataset name as specified in argument 'channel'"
+        import h5py
+        f = h5py.File(out_name,mode)
+        if channel == '':
+            if 'channel' in self.meta and self.meta['channel'] is not None:
+                channel = self.meta['channel']
+        if channel == '':
+            channel = 'frames'
+                
+        f.create_dataset(channel, data=self[:])
+        f.close()
+        pass
+
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
 _x2=[(1,'sec'), (2,'um'), (3,'um')] # alist
