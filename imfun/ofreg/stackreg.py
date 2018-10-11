@@ -68,15 +68,16 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         out = [regfn(img, template, **fnargs) for img in frames]
     return out
 
-def to_updated_template(frames, template, regfn, **fnargs):
+def to_updated_template(frames, template, regfn, update_rate=0.1, **fnargs):
     warps = []
     summed = np.copy(template)
     for i,f in enumerate(frames):
         w = regfn(f,template)
         warps.append(w)
         fc = w(f)
-        summed += fc
-        template = summed/(i+2)
+        #summed += fc
+        #template = summed/(i+2)
+        template = (1-update_rate)*template + update_rate*fc
     return warps
 
 def recursive(frames, regfn):
