@@ -64,13 +64,17 @@ final-cut, but with some (geeky) fun.
 
 First, install dependencies:
 ```bash
-conda install pandas numba matplotlib h5py
-conda install scipy scikit-image pygments 
-conda install traits traitsui
-conda install -c conda-forge pathos
-conda install -c conda-forge opencv
+conda install -y pandas numba matplotlib h5py
+conda install -y scipy scikit-image pygments 
+conda install -y traits traitsui
+conda install -y -c conda-forge pathos
+conda install -y -c conda-forge opencv
 
-#pip install https://github.com/pyimreg/imreg/archive/master.zip
+# install this if you wan affine and homography image registration
+conda install -y cython 
+pip install https://github.com/pyimreg/imreg/archive/master.zip
+
+#  this is needed for wavelets
 pip install swan
 ```
 
