@@ -75,9 +75,9 @@ def to_updated_template(frames, template, regfn, update_rate=0.1, **fnargs):
         w = regfn(f,template)
         warps.append(w)
         fc = w(f)
-        #summed += fc
-        #template = summed/(i+2)
-        template = (1-update_rate)*template + update_rate*fc
+        summed += fc
+        template = summed/(i+2)
+        #template = (1-update_rate)*template + update_rate*fc
     return warps
 
 def recursive(frames, regfn):
