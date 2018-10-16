@@ -29,12 +29,11 @@ from .warps import Warp
 def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
 
     # first template is the "master" template because it is based on the largest
-    # number of frames all other templates must eventually be registered to this one
+    # number of frames. All other templates must eventually be registered to this one
     # There may be other criteria, such as the most contrast or the sharpest image
     all_warps = []
-
     for k,template in enumerate(templates):
-        print("Doing template %d"%k)
+        print("Aligning template %d of %d with %d members"%(k+1, len(templates), np.sum(index==k)))
         if k > 0:
             correction = regfn(template, templates[0],**fnargs)
         else:

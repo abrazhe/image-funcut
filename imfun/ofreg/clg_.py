@@ -80,10 +80,10 @@ class MSCLG(object):
                 vx = ndimage.zoom(v[level],2, mode=_boundary_mode)[sl]*2
                 copy_to_larger_cpad(ux,u[level-1])
                 copy_to_larger_cpad(vx,v[level-1])
-            # L1-smoothing
-            if rho_l1 > 0:
-                u[0] = dctsplines.l1spline(u[0],rho_l1)
-                v[0] = dctsplines.l1spline(v[0],rho_l1)
+        # L1-smoothing
+        if rho_l1 > 0:
+            u[0] = dctsplines.l1spline(u[0],rho_l1)
+            v[0] = dctsplines.l1spline(v[0],rho_l1)
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:
