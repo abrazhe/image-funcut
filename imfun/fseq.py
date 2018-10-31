@@ -935,10 +935,9 @@ def from_plsi(path, *args, **kwargs):
     """
     return construct_with_kwargs(FStackM_plsi, path, *args, **kwargs)
 
-def from_h5(path, *args, **kwargs):
+def from_hdf5(path, *args, **kwargs):
     "Load frame stack from a generic HDF5 file"
     return construct_with_kwargs(FStackM_hdf5, path, *args, **kwargs)
-
 
 
 def from_array(data,ch=None,  *args,**kwargs):
@@ -1019,7 +1018,7 @@ def from_any(path, *args, **kwargs):
         ending = ending.lower()[1:]
         handler_dict = {
         'npy': from_npy,
-        'h5':  from_h5,
+        'h5':  from_hdf5,
         'tif': from_tiff,
         'tiff':from_tiff,
         'mlf': from_plsi,
@@ -1122,6 +1121,8 @@ try:
             arr = f[dataset]
             parent.__init__(arr,**kwargs)
             self.h5file = f # just in case we need it later
+            if self.meta['channel'] is None:
+                self.meta['channel'] = dataset
 
     class FStackColl_hdf5(FStackColl):
         "Base class for hdf5 files"

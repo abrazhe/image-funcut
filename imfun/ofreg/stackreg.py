@@ -63,7 +63,7 @@ def to_template(frames, template, regfn, njobs=4,  **fnargs):
         out = pool.map(partial(regfn, template=template, **fnargs), frames)
         #pool.close() ## doesn't work when this is active
     else:
-        print('Running on one core')
+        print('Running in one process')
         out = [regfn(img, template, **fnargs) for img in frames]
     return out
 
