@@ -1254,7 +1254,7 @@ except ImportError as e:
 
 from . import cluster 
 from .components import pca
-def frame_exemplars_pca_som(fs, pcf=None, npc=None, som_gridshape=None):
+def frame_exemplars_pca_som(fs, pcf=None, npc=None, som_gridshape=None, sort_by_size=False):
     frames = fs[:]
     if npc is None:
         npc = 3+len(frames)//100
@@ -1265,7 +1265,8 @@ def frame_exemplars_pca_som(fs, pcf=None, npc=None, som_gridshape=None):
     if som_gridshape is None:
         som_gridshape = (1+len(frames)//100,1)
     som_result = cluster.som(coords[:,:npc], gridshape=som_gridshape)
-    som_result = cluster.sort_clusters_by_size(som_result)
+    if sort_by_size:
+        som_result = cluster.sort_clusters_by_size(som_result)
     centroids = (coords[som_result==_k].mean(axis=0) for _k in np.unique(som_result))
     exemplars = list(map(pcf.rec_from_coefs, centroids))
     return exemplars, som_result
