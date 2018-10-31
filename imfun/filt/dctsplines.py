@@ -115,6 +115,70 @@ def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=
             break
         zprev = z
     return z
+
+from scipy import ndimage
+def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
+    if hw is None: hw = int(np.max(arr.shape)/10)    
+    padded = np.pad(arr,hw,mode='reflect')    
+    rolling_median = lambda x: ndimage.median_filter(x, 2*hw)
+    crop = (slice(hw,-hw),)*np.ndim(arr)
+    out = 1.4826*rolling_median(np.abs(padded-rolling_median(padded)))[crop]
+
+    out = out/correct_factor
+    if smooth_output:
+        out = l2spline(out, s=2**np.ndim(arr)*hw)
+    return out
+
+from scipy import ndimage
+def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
+    if hw is None: hw = int(np.max(arr.shape)/10)    
+    padded = np.pad(arr,hw,mode='reflect')    
+    rolling_median = lambda x: ndimage.median_filter(x, 2*hw)
+    crop = (slice(hw,-hw),)*np.ndim(arr)
+    out = 1.4826*rolling_median(np.abs(padded-rolling_median(padded)))[crop]
+
+    out = out/correct_factor
+    if smooth_output:
+        out = l2spline(out, s=hw)
+    return out
+
+def sigma_mad(v):
+    return 1.4826*np.median(np.abs(v-np.median(v)))
+
+def get_thresholded_dct(img, nharmonics=100, th=3):
+    dct_coefs = dctnd(img)
+    crop_in = (slice(None, nharmonics),) * np.ndim(img)
+    cutoff_mask = np.zeros(img.shape, bool)
+    cutoff_mask[crop_in] = True
+    dct_coefs *= cutoff_mask
+    if nharmonics >=10:
+        nsm = rolling_sd_scipy_nd(dct_coefs[crop_in])
+        dct_coefs[crop_in] *= abs(dct_coefs[crop_in]) > th*nsm
+    return dct_coefs
+
+
+def l2spline_thresholded(m, s, s_is_scale=True, 
+                         nharmonics = 100,
+                         th = 3,
+                         scale_converter=l2sp_gauss_scale_to_smooth):
+    sh = m.shape
+    if s_is_scale:
+        s = scale_converter(s)
+    g = Gamma(sh,s)
+    dct_coefs = dctnd(m)
+    crop_in = (slice(None, nharmonics),) * np.ndim(m)
+    cutoff_mask = np.zeros(m.shape, bool)
+    smoothed_coefs = np.zeros_like(dct_coefs)
+    smoothed_coefs[crop_in] = g[crop_in]*dct_coefs[crop_in]
+    if nharmonics >=10:
+        nsm = rolling_sd_scipy_nd(dct_coefs[crop_in])
+        #nsm = np.std(dct_coefs[~cutoff_mask])
+        #nsm = sigma_mad(dct_coefs[crop_in])
+        #print('nsm:', np.max(nsm))
+        smoothed_coefs[crop_in] = np.where(abs(dct_coefs[crop_in])>th*nsm,
+                                           dct_coefs[crop_in],
+                                           smoothed_coefs[crop_in])
+    return idctnd(smoothed_coefs)
     
 
 
@@ -180,6 +244,52 @@ def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         d = shrink((b+z-m),1.0/lam )
         b = b + weights*(z-m-d)
         #acc.append(map(copy, [z, d, b]))
+        if _i >0:
+            err = norm(z-zprev)/(1e-8+norm(zprev))
+            if err < eps:
+                if verbose:
+                    print('converged after',_i,'iterations')
+                break
+        zprev = np.copy(z)
+    return z#, acc
+
+
+def l1spline_thresholded(m, s=25.0, lam=None,  eps=1e-3, Ni=1,
+                         nharmonics = 100,
+                         th = 3,
+                         niter= 1000,
+                         verbose=False,
+                         scale_converter=l1sp_gauss_scale_to_smooth,
+                         s_is_scale=True):
+    
+    sh = m.shape
+    if s_is_scale:
+        s = scale_converter(s)
+    if lam is None:
+        lam = min(s,1)
+    g = Gamma(sh,s)
+
+    d = np.zeros(sh)
+    b = np.zeros(sh)
+    zprev = np.zeros(sh)
+    #acc = []
+    noweights = True
+    crop_in = (slice(None, nharmonics),) * np.ndim(m)
+    
+    for _i in range(niter):
+        x_ = d+m-b
+        coefs = dctnd(x_)
+        smoothed_coefs = np.zeros_like(coefs)
+        smoothed_coefs[crop_in] = g[crop_in]*coefs[crop_in]        
+        if nharmonics >=10:
+            nsm = rolling_sd_scipy_nd(coefs[crop_in])
+            smoothed_coefs[crop_in] = np.where(abs(coefs[crop_in])>th*nsm,
+                                               coefs[crop_in],
+                                               smoothed_coefs[crop_in])
+        zprev_w = idctnd(smoothed_coefs)
+        z = zprev_w
+        d = shrink((b+z-m),1.0/lam )
+        b = b + (z-m-d)
         if _i >0:
             err = norm(z-zprev)/(1e-8+norm(zprev))
             if err < eps:

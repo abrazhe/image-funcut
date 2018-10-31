@@ -11,11 +11,13 @@ from scipy import ndimage
 from scipy.ndimage.interpolation import map_coordinates
 
 from numba import jit
+from functools import partial
 
 from .warps import Warp
 
 from imfun.multiscale import pyramid_from_zoom
 from imfun.filt import nearestpd,mirrorpd,filt2d,dctsplines
+from imfun.filt import l2spline_thresholded,l2spline,l1spline
 
 _boundary_mode='nearest'
 
@@ -47,7 +49,14 @@ class MSCLG(object):
         self.omega = 1.9
         self.kstop = 10
         self.verbose=verbose
-    def __call__(self, source, target, nl=3, alpha=1e-5, rho=10., rho_l1 = 0., sigma=0.,  wt=1, correct_alpha=True):
+    def __call__(self, source, target, nl=None, alpha=1e-5, rho=10., rho_l1 = 0.,
+                 do_dct_regularization=False,
+                 dct_regularization_upto=50,
+                 dct_regularization_threshold=5,
+                 dct_regularization_smooth=None,
+                 sigma=0.,  wt=1, correct_alpha=True):
+        if nl is None:
+            nl = int(np.log2(np.max(source.shape)/32))
         if sigma > 0:
             target = ndimage.gaussian_filter(target,sigma)
             source = ndimage.gaussian_filter(source,sigma)
@@ -69,7 +78,7 @@ class MSCLG(object):
                 psx = Warp.from_array((u[level],v[level]))(ps[level], mode=_boundary_mode)
             else:
                 psx = ps[level]
-
+            #clg_args['rho'] =  rho/h
             (ui,vi),cerr = self.clg_of(psx,pt[level], **clg_args)
             u[level] += ui
             v[level] += vi
@@ -84,6 +93,18 @@ class MSCLG(object):
         if rho_l1 > 0:
             u[0] = dctsplines.l1spline(u[0],rho_l1)
             v[0] = dctsplines.l1spline(v[0],rho_l1)
+
+        if do_dct_regularization:
+            if dct_regularization_smooth is None:
+                rho_l2 = np.max(source.shape)/4
+            else:
+                rho_l2 = dct_regularization_smooth
+            u[0] = l2spline_thresholded(u[0],rho_l2,
+                                        nharmonics=dct_regularization_upto,
+                                        th = dct_regularization_threshold)
+            v[0] = l2spline_thresholded(v[0],rho_l2,
+                                        nharmonics=dct_regularization_upto,
+                                        th = dct_regularization_threshold)            
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:
@@ -121,6 +142,9 @@ class MSCLG(object):
 
         if rho > 0:
             smoother = lambda _f: ndimage.gaussian_filter(_f,rho)
+            #smoother = lambda _f: l2spline(_f, rho)
+            #smoother = partial(dctsplines.l2spline,s=rho)
+            #smoother = partial(l1spline, s=rho)
             J11,J12,J13,J22,J23 = list(map(smoother, (J11,J12,J13,J22,J23)))
 
         J11,J12,J13,J22,J23 = [_f*h2a for _f in (J11,J12,J13,J22,J23)]

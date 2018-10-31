@@ -11,7 +11,9 @@ import itertools as itt
 from ..core import ifnot
 
 from .dctsplines import l1spline,l2spline,sp_decompose
-
+from .dctsplines import l2spline_thresholded
+#from .dctsplines import dct_denoise_img
+from .dctsplines import dct2d, dctnd, idct2d, idctnd
 
 def gauss_kern(xsize=1.5, ysize=None):
     """
@@ -209,5 +211,4 @@ def opening_of_closing(a):
 
 
 # ---------------------------------------------
-
 

@@ -91,7 +91,11 @@ from imfun.multiscale import pyramid_from_zoom
 class MSLKP_image_aligner ():
     def __init__(self, base_window=25):
         self.base_window = base_window
-    def __call__(self, source, target, nl=3, **fnargs):
+    def __call__(self, source, target, nl=None, **fnargs):
+
+        if nl is None:
+            nl = int(np.log2(np.max(source.shape)/32))
+
         pt = pyramid_from_zoom(target,nl)
         ps = pyramid_from_zoom(source,nl)
 

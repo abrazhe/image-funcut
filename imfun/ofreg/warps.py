@@ -13,7 +13,7 @@ import pickle
 import gzip as gz
 import collections
 
-_boundary_mode = 'constant'
+_boundary_mode = 'nearest'
 
 
 class Warp:
@@ -155,7 +155,19 @@ def to_npy(name, warps):
 def from_npy(name):
     return np.load(name)
 
-def to_dct_encoded(name, warps, upto=20):
+def to_dct_encoded(name, warps, s=5, upto=100, th=3):
+    """Convert warps to DCT coefficients and save to a .npy file
+    """
+    codes = (dct_encode(w.field, s, upto, th)[0] for w in warps)
+    sparse_codes = [[sparse.coo_matrix(f) for f in cw] for cw in codes]
+    to_npy(name, sparse_codes)
+
+def from_dct_encoded(name, **fnargs):
+    codes = from_npy(name)
+    return [Warp.from_array(dct_decode(c.toarray())) for c in codes]
+    
+
+def _to_dct_encoded_old(name, warps, upto=50, th=3):
     """Convert warps to DCT coefficients and save to a .npy file
     """
     w = warps[0]
@@ -169,7 +181,7 @@ def to_dct_encoded(name, warps, upto=20):
     to_npy(name, [(np.concatenate((xc,yc)),sh) for xc,yc in zip(xcodes, ycodes)])
     #to_npy(name, [dct_encode(w.field, upto, D) for w in warps])
 
-def from_dct_encoded(name, **fnargs):
+def _from_dct_encoded_old(name, **fnargs):
     """Load DCT codes from an .npy file and convert to warp objects
     """
     codes = from_npy(name)
@@ -205,15 +217,8 @@ def map_warps(warps, frames, njobs=4):
 
 
 
-from scipy.fftpack import dct, idct
-
-def dct2d(m,norm='ortho'):
-    return dct(dct(m, norm=norm, axis=0),
-               norm=norm, axis=1)
-
-def idct2d(m,norm='ortho'):
-    return idct(idct(m, norm=norm, axis=0),
-               norm=norm, axis=1)
+from ..filt import dct2d, idct2d
+from ..filt.dctsplines import l2spline_thresholded
 
 def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
     dct_dict = []
@@ -229,13 +234,25 @@ def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
             dct_dict.append(patch)
     return np.array(dct_dict)
 
-def dct_encode(flow,upto=20,D=None):
+
+from scipy import sparse
+def dct_encode(flow, s=5, upto=50, th=0.5):
+    coefs = np.array([l2spline_thresholded(f,s,nharmonics=upto,th=th) for f in flow])
+    return coefs
+
+
+def dct_decode(coefs):
+    return np.array([idct2d(c) for c in coefs])
+    
+    
+
+def _dct_encode_old(flow,upto=20,D=None):
     if D is None:
         D = make_dct_dict(flow[0].shape, upto)
     coefs = np.concatenate([[np.sum(d*a) for d in D] for a in flow])
     return coefs, flow[0].shape
 
-def dct_decode(coefs,shape,D=None):
+def _dct_decode_old(coefs,shape,D=None):
     upto = int(np.sqrt(len(coefs)//2))
     if D is None:
         D = make_dct_dict(shape, upto=upto)
