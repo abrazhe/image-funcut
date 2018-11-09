@@ -155,16 +155,16 @@ def to_npy(name, warps):
 def from_npy(name):
     return np.load(name)
 
-def to_dct_encoded(name, warps, s=5, upto=100, th=3):
+def to_dct_encoded(name, warps, upto=50, th=0.5):
     """Convert warps to DCT coefficients and save to a .npy file
     """
-    codes = (dct_encode(w.field, s, upto, th)[0] for w in warps)
+    codes = (dct_encode(w.field, upto, th) for w in warps)
     sparse_codes = [[sparse.coo_matrix(f) for f in cw] for cw in codes]
     to_npy(name, sparse_codes)
 
 def from_dct_encoded(name, **fnargs):
     codes = from_npy(name)
-    return [Warp.from_array(dct_decode(c.toarray())) for c in codes]
+    return [Warp.from_array(dct_decode([c_.toarray() for c_ in c])) for c in codes]
     
 
 def _to_dct_encoded_old(name, warps, upto=50, th=3):
@@ -218,7 +218,7 @@ def map_warps(warps, frames, njobs=4):
 
 
 from ..filt import dct2d, idct2d
-from ..filt.dctsplines import l2spline_thresholded
+from ..filt.dctsplines import get_thresholded_dct
 
 def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
     dct_dict = []
@@ -236,8 +236,8 @@ def make_dct_dict(shape, upto=20,dctnorm='ortho',maxnorm=False):
 
 
 from scipy import sparse
-def dct_encode(flow, s=5, upto=50, th=0.5):
-    coefs = np.array([l2spline_thresholded(f,s,nharmonics=upto,th=th) for f in flow])
+def dct_encode(flow, upto=50, th=0.5):
+    coefs = np.array([get_thresholded_dct(f,nharmonics=upto,th=th) for f in flow])
     return coefs
 
 
