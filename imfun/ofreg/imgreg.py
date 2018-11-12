@@ -33,17 +33,18 @@ def shifts( image, template):
         return [c - p for c,p in zip(coordinates, shift[::-1])]
     return Warp.from_function(_regfn, image.shape)
 
-def _imreg( image, template, tform):
+def _imreg(image, template, tform):
     if not _with_imreg:
         raise ImportError("Don't have imreg module")
     aligner = imreg.register.Register()
+    sh = image.shape
     template, image = list(map(imreg.register.RegisterData, (template,image)))
     step, search = aligner.register(image, template, tform)
     def _regfn(coordinates):
         ir_coords = imreg.model.Coordinates.fromTensor(coordinates)
         out =  tform(step.p, ir_coords).tensor
         return out
-    return Warp.from_function(_regfn, image.shape)
+    return Warp.from_function(_regfn, sh)
 
 
 def affine(image,template):
