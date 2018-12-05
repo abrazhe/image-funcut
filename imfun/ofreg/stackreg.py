@@ -151,13 +151,16 @@ def calc_transitions1(templates, paths, regfn, **kwargs):
             out[j] = zero_shift(templates[0].shape)
     return out
 
-def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
+def to_templates(frames, templates, index, regfn, njobs=4, inter_template_fnargs=None, **fnargs):
 
     # first template is the "master" template because it is based on the largest
     # number of frames. All other templates must eventually be registered to this one
     # There may be other criteria, such as the most contrast or the sharpest image
     all_warps = []
 
+    if inter_template_fnargs is None:
+        inter_template_fnargs = fnargs
+    
     print('templates: preparing transition map')
     tmap = make_transition_map(index)
     seed = len(np.unique(index))//2
@@ -165,7 +168,7 @@ def to_templates(frames, templates, index, regfn, njobs=4, **fnargs):
     correction_paths = calc_paths(tgraph)
 
     print('templates: calculating inter-template corrections')
-    corrections = calc_transitions1(templates, correction_paths, regfn, **fnargs)
+    corrections = calc_transitions1(templates, correction_paths, regfn, **inter_template_fnargs)
     
     for k,template in enumerate(templates):
         print("Aligning template %d of %d with %d members"%(k+1, len(templates), np.sum(index==k)))

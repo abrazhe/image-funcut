@@ -337,7 +337,7 @@ class  Timelapse_mat(Timelapse, MAT_Record):
 class Timelapse_h5(Timelapse, H5_Record):
     def __init__(self, file_name, recordName):
         H5_Record.__init__(self, file_name, recordName)
-        self.img_names = self.img_names[[self.contexts=='Measure']]
+        self.img_names = self.img_names[(self.contexts=='Measure',)]
         self.line_length = self.dims[0,0]
         ffi = get_ffi_h5(self.h5file, recordName)
         self.__dict__.update(ffi)
