@@ -129,9 +129,9 @@ def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
         out = l2spline(out, s=2**np.ndim(arr)*hw)
     return out
 
-from scipy import ndimage
+
 def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
-    if hw is None: hw = int(np.max(arr.shape)/10)    
+    if hw is None: hw = int(np.ceil(np.max(arr.shape)/10))
     padded = np.pad(arr,hw,mode='reflect')    
     rolling_median = lambda x: ndimage.median_filter(x, 2*hw)
     crop = (slice(hw,-hw),)*np.ndim(arr)
