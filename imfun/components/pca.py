@@ -144,6 +144,15 @@ class PCA_frames():
         return self.project(frame,r).dot(self.vh[:r]).reshape(self.sh) + self.mean_frame
     def rec_from_coefs(self,coefs):
         return coefs.dot(self.vh).reshape(self.sh) + self.mean_frame
+    def inverse_transform(self, coords):
+        out_shape = (len(coords),)+self.sh
+        if hasattr(self, 'tsvd'):
+            out = self.tsvd.inverse_transform(coords).reshape(out_shape)+self.mean_frame
+        else:
+            out = (coords@np.diag(self.s)@self.vh).reshape(out_shape)+self.mean_frame
+        return out
+            
+            
 
 
 #### Old stuff -------------------------------------------------------------------------------------------------------
