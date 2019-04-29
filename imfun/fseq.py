@@ -968,7 +968,7 @@ def from_npy(path, *args, **kwargs):
     return from_array(data, *args, **kwargs)
 
 def from_tiff(path, flavor=None, **kwargs):
-    data = tifffile.imread(path)
+    data = np.squeeze(tifffile.imread(path))
     obj = from_array(data, **kwargs)
     if isinstance(flavor, str) and  flavor.lower() == 'olympus':
         attach_olympus_metadata(obj, path)
