@@ -65,13 +65,14 @@ def cwt_iter(fseq,
     pixel_counter = 0
     npix = min(npix, max_pixels)
     cwtf = pycwt.cwt_f
-    dt = fseq.meta['axes'][0]
-    dt = dt.to('s').value
+    dt = fseq.meta['axes'][0][0]
+    print(dt)
+    #dt = dt.to('s').value
     #tunits = dt.unit
     for s,i,j in pixel_iter:
         # todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
-        eds = pycwt.eds(cwtf(s, freqs, 1./dt, wavelet, 'zpd'))
+        eds = pycwt.eds(cwtf(s, freqs, 1./dt, wavelet,))
         pixel_counter+= 1
         if verbose:
             sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
