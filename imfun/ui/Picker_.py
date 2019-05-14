@@ -120,7 +120,7 @@ _default_roi_coloring = 'allrandom' # {allrandom | groupsame | groupvar}
 class Picker (object):
     _verbose = False
     def __init__(self, frames, home_frame=True, verbose=False,
-                 roi_coloring_model=_default_roi_coloring, 
+                 roi_coloring_model=_default_roi_coloring,
                  suptitle = None,
                  roi_prefix = 'r',
                  default_circle_rad = 5.,
@@ -308,7 +308,7 @@ class Picker (object):
         self.frame_slider = None
         Nf = len(self.frame_coll)
 
-        button_hmargin = 0.03
+        button_hmargin = 0.035
         button_vmargin = 0.01
         button_width = 0.1
         button_height = 0.05
@@ -328,6 +328,7 @@ class Picker (object):
             self.frame_slider.on_changed(self.set_frame_index)
             self._init_active_channel_setter()
 
+            # -- LUT button --
             yloc = corners[1,1] - 3*(2*button_vmargin+button_height)
             bax_lut = self.fig.add_axes([button_hmargin,
                                          yloc,
@@ -336,12 +337,14 @@ class Picker (object):
             lut_but.on_clicked(self._lut_controls)
             self.ui_buttons['lut'] = lut_but
 
+            # -- Levels button --
             yloc -= (button_vmargin+button_height)
             bax_lev = self.fig.add_axes([button_hmargin, yloc, button_width, button_height])
             lev_but = mw.Button(bax_lev, 'Levels', color=_widgetcolor)
             lev_but.on_clicked(self._levels_controls)
             self.ui_buttons['levels'] = lev_but
 
+            # -- Freeze ROIs button --
             yloc -= (button_vmargin+button_height)
             bax_freeze = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
             freeze_but = mw.Button(bax_freeze, 'Freeze ROIs',color=_widgetcolor)
@@ -355,11 +358,23 @@ class Picker (object):
             freeze_but.on_clicked(_freeze_control)
             self.ui_buttons['freeze'] = freeze_but
 
+            # -- Drop all ROIs button --
             yloc -= (button_vmargin + button_height)
             bax_drop = self.fig.add_axes([button_hmargin,  yloc, button_width, button_height])
             drop_but = mw.Button(bax_drop, 'Drop ROIs',color=_widgetcolor)
             drop_but.on_clicked(self.drop_all_rois)
             self.ui_buttons['drop'] = drop_but
+
+            # -- ROI tag --
+
+            def _update_roi_tag(tag):
+                # todo move this to @property.setter
+                self._roi_prefix_x = tag
+            yloc -= (button_vmargin+button_height)
+            bax_roitag = self.fig.add_axes([button_hmargin, yloc, button_width, button_height])
+            tag_tbox = mw.TextBox(bax_roitag, 'ROI tag', initial='r', color=_widgetcolor)
+            tag_tbox.on_submit(_update_roi_tag)
+            self.ui_buttons['roitag'] = tag_tbox
 
             for button in list(self.ui_buttons.values()):
                 button.label.set_fontsize('small')
@@ -389,7 +404,7 @@ class Picker (object):
             self.clims[0] = (self.clims[0][0], vmax) # only affects first channel for now
         if 'vmin' in imshow_args:
             self.clims[0] = (imshow_args.pop('vmin'), self.clims[0][1]) # only affects first channel for now
-            
+
 
         self.plh = self.ax1.imshow(self._lutconv(self.home_frame),
                                    extent = (0, sx*dx.value)+(0, sy*dy.value)[::lowp],
@@ -501,7 +516,7 @@ class Picker (object):
         #x,y = round(event.xdata), round(event.ydata)
         x,y = event.xdata, event.ydata # do I really need to round?
         #print('button is', event.button, event.button == 1)
-        #print (self.any_roi_contains(event), 
+        #print (self.any_roi_contains(event),
         #       self.shift_on, self.roi_layout_freeze)
         if event.button == 1 and \
            not self.any_roi_contains(event) and \
@@ -650,7 +665,7 @@ class Picker (object):
             if isinstance(x,plt.Line2D):
                 self.ax1.add_line(x)
                 constructor = LineScan
-            self.roi_objs.update(dict([(x.get_label(),constructor(x,self))]))                
+            self.roi_objs.update(dict([(x.get_label(),constructor(x,self))]))
         #list(map(self.ax1.add_patch, circles)) # add points to the axes
         #list(map(self.ax1.add_line, lines)) # add points to the axes
         #self.roi_objs.update(dict([(c.get_label(), CircleROI(c,self))
@@ -859,8 +874,8 @@ class Picker (object):
         return rdata
 
 
-            
-        
+
+
 
     ## def timevec(self):
     ##     dt,Nf = self.dt, self.length()
@@ -956,8 +971,8 @@ class Picker (object):
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
 
                 #fig, axs = plt.subplots(len(prefs),len(_sh) > 1 and _sh[1] or 1, squeeze=False)
-                 
-                fig, axs = plt.subplots(len(prefs), _sh[0] if len(_sh)>1 else 1,
+                fig, axs = plt.subplots(_sh[0] if len(_sh)>1 else 1,
+                                        len(prefs),
                                         sharex=True,
                                         squeeze=False)
 
@@ -973,8 +988,7 @@ class Picker (object):
 
                 figs.append(fig)
 
-
-                for row, prefix in enumerate(prefs):
+                for pref_ind, prefix in enumerate(prefs):
                     labels = []
                     matching_tags = [t for t in roi_tgroup if t.startswith(prefix)]
                     for t in matching_tags:
@@ -986,21 +1000,22 @@ class Picker (object):
                             signal = signal[None,:]
                         for k, ve in enumerate(signal):
                             if np.any(ve):
-                                ax = axs[row,k]
-                                ax.plot(tx, ve, color=color, alpha=0.5, label=t)
+                                ax = axs[k, pref_ind]
+                                ax.plot(tx, ve, color=color, alpha=0.5, label=t+':[%d]'%k)
                                 ## ax.text(0.9,0.9, t,
                                 ##         fontsize=14,
                                 ##         transform=ax.transAxes,color=color,
                                 ##         alpha=1.0,
                                 ##         visible=False)
                     for k in range(signal.shape[0]):
-                        l = axs[row,k].legend(frameon=False)
+                        l = axs[k,pref_ind].legend(frameon=False)
                         if l is None: continue
                         for lx in l.legendHandles:
                             lx.set_visible(True)
                             lx.set_linewidth(2)
                             lx.set_alpha(0.5)
-                    axs[row,0].set_ylabel(prefix)
+                    axs[0,pref_ind].set_ylabel(prefix)
+                plt.subplots_adjust(left=0.05,right=0.99,bottom=0.02,top=0.98)
                     #DONE: add event that hovering mouse over trace makes its alpha=1
 
                 def _line_highlighter(event):
@@ -1019,7 +1034,7 @@ class Picker (object):
                             line.set_alpha(0.5)
                             line.set_linewidth(1)
                             label.set_visible(True)
-                            label.set_alpha(0.5)                            
+                            label.set_alpha(0.5)
                     _ax.figure.canvas.draw()
 
                 # #TODO: may be use on_click event?
@@ -1098,7 +1113,7 @@ class Picker (object):
         signal = self.get_timeseries([roitag],normp=DFoSD)[0]
         Ns = len(signal)
         dz = self.active_stack.meta['axes'][0]
-        zunits = str(dz.unit)        
+        zunits = str(dz.unit)
         dz = dz.value
         f_s = 1/dz
         freqs = ifnot(freqs,self.default_freqs())
@@ -1115,7 +1130,7 @@ class Picker (object):
                                cax = axlist[2])
         axlist[0].set_title(title_string)
         #zunits = hasattr(dz, 'unit') and dz.unit or ''
-        
+
         if zunits != '_':
             axlist[1].set_xlabel('time, %s'%zunits)
             axlist[0].set_ylabel('Frequency, Hz')
