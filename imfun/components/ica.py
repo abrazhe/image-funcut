@@ -38,7 +38,8 @@ def st_ica(X, ncomp = 20,  mu = 0.2, npca = None, reshape_filters=True):
     data = ah.ravel_frames(X) # nframes x npixels
     sh = X[0].shape
 
-    npca = (npca is None) and ncomp or npca
+    #npca = (npca is None) and ncomp or npca
+    npca = ncomp if npca is None else  npca
 
     ## note, svd of transposed data is slightly faster
     #pc_f, pc_s, ev = _whitenmat(data)
@@ -111,8 +112,9 @@ def _ica_symm(X, nIC=None, guess=None,
               termtol = 5e-7, max_iter = 2e3,
               verbose=False):
     "Simplistic ICA with FastICA algorithm"
-    nPC, siglen = list(map(np.float, X.shape))
-    nIC = nIC or nPC
+    #nPC, siglen = list(map(np.float, X.shape))
+    nPC, siglen = X.shape
+    #nIC = nIC or nPC
 
 
     guess = guess or np.random.normal(size=(nIC,nPC))
