@@ -66,10 +66,6 @@ def cwt_iter(fseq,
     npix = min(npix, max_pixels)
     cwtf = pycwt.cwt_f
     dt = fseq.meta['axes'][0][0]
-<<<<<<< HEAD
-=======
-    print(dt)
->>>>>>> c085762db14adfda27565b65775e8e65d3b6de7f
     #dt = dt.to('s').value
     #tunits = dt.unit
     for s,i,j in pixel_iter:
