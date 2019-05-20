@@ -360,7 +360,7 @@ class FrameStackMono(object):
         """Zoom in or out so self.meta['axes'] match provided scales"""
         data = self[:]
         scales0 = self.meta['axes']['value']
-        #TODO: rewrite this 
+        #TODO: rewrite this
         #scales = [s.to(s0.unit) for s0,s in zip(scales0,scales)]
         zoom_factors = [s0/s for s0,s in zip(scales0,scales)]
         new_data = ndimage.zoom(data, zoom_factors)
@@ -380,7 +380,7 @@ class FrameStackMono(object):
                 channel = self.meta['channel']
         if channel == '':
             channel = 'frames'
-                
+
         f.create_dataset(channel, data=self[:])
         f.close()
         pass
@@ -430,8 +430,8 @@ A FrameStackMono class where a single frame is repeated many times
     def frames(self):
         fn = self.pipeline
         return map(fn, itt.repeat(self.frame,self.L))
-        
-        
+
+
 
 class FStackM_arr(FrameStackMono):
     """A FrameStackMono class as a wrapper around a `3D` Numpy array
@@ -841,13 +841,13 @@ class FStackColl(object):
                 stack.meta['channel'] = ''
             if stack.meta['channel']=='':
                 stack.meta['channel']='ch%d'%i
-                
+
             f.create_dataset(stack.meta['channel'], data=stack[:])
         f.close()
         pass
 
 
-    
+
 
 def from_images(path,flavor=None,**kwargs):
     """Load a Multichannel FStack collection from a collection of images.
@@ -941,10 +941,10 @@ def from_hdf5(path, *args, **kwargs):
 
 
 def from_array(data,ch=None,  *args,**kwargs):
-    
+
     sh = data.shape
     cmap = dict(r=0,g=1,b=2)
-    
+
     if np.ndim(data)>3: #(Multichannel)
         #assume smallest dimension is the number of channels
         k = np.argmin(sh)
@@ -972,6 +972,16 @@ def from_tiff(path, flavor=None, **kwargs):
     obj = from_array(data, **kwargs)
     if isinstance(flavor, str) and  flavor.lower() == 'olympus':
         attach_olympus_metadata(obj, path)
+    return obj
+
+def from_avi(path,ch=None,**kwargs):
+    import imageio
+    reader = imageio.get_reader(path)
+    if ch is None:
+        data = np.array([f for f in reader])
+    else:
+        data = np.array([f[...,ch] for f in reader])
+    obj = from_array(data, **kwargs)
     return obj
 
 def attach_olympus_metadata(obj, path):
@@ -1108,7 +1118,7 @@ try:
 
             if dataset and dataset not in f:
                 print("Dataset name doesn't exist in file, setting to None ")
-                print("The file %s has the following data sets:"%fname, ', '.join(f.keys()))                
+                print("The file %s has the following data sets:"%fname, ', '.join(f.keys()))
                 dataset = None
 
             if dataset is None: # no dataset name is provided
@@ -1127,7 +1137,7 @@ try:
     class FStackColl_hdf5(FStackColl):
         "Base class for hdf5 files"
         def __init__(self, fname, **kwargs):
-            parent = super(FStackColl_hdf5, self)            
+            parent = super(FStackColl_hdf5, self)
             f = h5py.File(fname, 'r')
             datasets = list(f.keys())
             print("The file %s has the following data sets:"%fname, ', '.join(datasets))
@@ -1139,7 +1149,7 @@ try:
                 fsm.meta['channel'] = dset
                 stacks.append(fsm)
             parent.__init__(stacks)
-                
+
 
     class FStackM_hdf5_lsc(FStackM_arr):
         "Class for hdf5 files written by pylsi software"
@@ -1253,7 +1263,7 @@ try:
 except ImportError as e:
     print("Can't load OpenCV python bindings", e)
 
-from . import cluster 
+from . import cluster
 from .components import pca
 def frame_exemplars_pca_som(fs, pcf=None, npc=None, som_gridshape=None, sort_by_size=False):
     frames = fs[:]
@@ -1271,6 +1281,3 @@ def frame_exemplars_pca_som(fs, pcf=None, npc=None, som_gridshape=None, sort_by_
     centroids = (coords[som_result==_k].mean(axis=0) for _k in np.unique(som_result))
     exemplars = list(map(pcf.rec_from_coefs, centroids))
     return exemplars, som_result
-    
-
-        

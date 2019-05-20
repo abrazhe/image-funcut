@@ -990,6 +990,8 @@ class Picker (object):
 
                 for pref_ind, prefix in enumerate(prefs):
                     labels = []
+                    streams = [s.meta['channel'] for s in self.frame_coll.stacks]
+                    stream_idx = {s:k for k,s in enumerate(streams)}
                     matching_tags = [t for t in roi_tgroup if t.startswith(prefix)]
                     for t in matching_tags:
                         roi = self.roi_objs[t]
@@ -1001,7 +1003,8 @@ class Picker (object):
                         for k, ve in enumerate(signal):
                             if np.any(ve):
                                 ax = axs[k, pref_ind]
-                                ax.plot(tx, ve, color=color, alpha=0.5, label=t+':[%d]'%k)
+                                channel_name = stream_idx[k]
+                                ax.plot(tx, ve, color=color, alpha=0.5, label=t+':[%s]'%channel_name)
                                 ## ax.text(0.9,0.9, t,
                                 ##         fontsize=14,
                                 ##         transform=ax.transAxes,color=color,
