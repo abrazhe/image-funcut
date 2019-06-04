@@ -371,7 +371,7 @@ class FrameStackMono(object):
         new_fs.meta['axes'] = new_scales
         return new_fs
 
-    def to_hdf5(self, out_name,channel='', mode='a'):
+    def to_hdf5(self, out_name,channel='', mode='a',compress_level=-1):
         "Export sequence of frames to an HDF5 file with a dataset name as specified in argument 'channel'"
         import h5py
         f = h5py.File(out_name,mode)
@@ -380,8 +380,11 @@ class FrameStackMono(object):
                 channel = self.meta['channel']
         if channel == '':
             channel = 'frames'
-
-        f.create_dataset(channel, data=self[:])
+        kwargs = dict()
+        if compress_level > -1:
+            kwargs['compression'] = 'gzip'
+            kwargs['compression_opts'] = compress_level
+        f.create_dataset(channel, data=self[:], **kwargs)
         f.close()
         pass
 
@@ -833,16 +836,20 @@ class FStackColl(object):
                 ordered_stacks.append(match[0])
         other_stacks = [s for s in self.stacks if s not in ordered_stacks]
         self.stacks = ordered_stacks + other_stacks
-    def to_hdf5(self, out_name):
+    def to_hdf5(self, out_name, compress_level=-1):
         import h5py
         f = h5py.File(out_name,'w')
+        kwargs = dict()
+        if compress_level > -1:
+            kwargs['compression'] = 'gzip'
+            kwargs['compression_opts'] = compress_level
         for i,stack in enumerate(self.stacks):
             if not 'channel' in stack.meta or stack.meta['channel'] is None:
                 stack.meta['channel'] = ''
             if stack.meta['channel']=='':
                 stack.meta['channel']='ch%d'%i
 
-            f.create_dataset(stack.meta['channel'], data=stack[:])
+            f.create_dataset(stack.meta['channel'], data=stack[:],**kwargs)
         f.close()
         pass
 
