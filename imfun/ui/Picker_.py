@@ -979,6 +979,7 @@ class Picker (object):
                 for ax in np.ravel(axs):
                     lh = ax.axvline(t0, color='k', ls='-',lw=0.5)
                     def _cursor(n):
+                        n = np.int(n)
                         try:
                             lh.set_xdata(tx[n])
                             fig.canvas.draw()
