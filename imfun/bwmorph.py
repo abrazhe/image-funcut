@@ -248,15 +248,21 @@ class RegionND:
     def ax_extent(self,axis=0):
         values = [x[axis] for x in self.locs]
         return np.max(values)-np.min(values)
+
+    @property
     def size(self,):
         return len(self.locs)
+
+    @property
     def center(self):
         return np.mean(self.locs,0)
+
     def borders(self):
         return (l for l in self.locs if
                 l[0] == 0 or l[1] == 0 or l[0]==self.shape[0] or l[1] == self.shape[1]
-                or 
+                or
                 len([x for x in neighbours(l,self.shape) if x not in self.locs]))
+    @property 
     def linsize(self,):
         dists = [coords.eu_dist(*pair) for pair in core.misc.allpairs(self.borders())]
         return reduce(max, dists, 0)
