@@ -150,10 +150,10 @@ def from_pickle(name):
         return pickle.load(recipe)
 
 def to_npy(name, warps):
-    np.save(name, warps)
+    np.save(name, warps, allow_pickle=True)
 
 def from_npy(name):
-    return np.load(name)
+    return np.load(name, allow_pickle = True)
 
 def to_dct_encoded(name, warps, upto=50, th=0.5):
     """Convert warps to DCT coefficients and save to a .npy file

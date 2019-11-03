@@ -679,6 +679,7 @@ class Picker (object):
     def drop_all_rois(self,event):
         for roi in list(self.roi_objs.values()):
             roi.destroy()
+        self.frame_hooks = {}
 
     def trace_vessel_contours_in_all_linescans(self, hwidth=2):
         for tag in self.roi_objs:
@@ -767,16 +768,19 @@ class Picker (object):
         else:
             tstr='(%3.3f %s)'%(fi*dz,zunits)
         _title = '%03d '%fi + tstr
-        show_f = self._get_show_f(n)
+        show_f = self._get_show_f(fi)
 
         self.plh.set_data(show_f)
         self.ax1.set_title(_title)
         if self.frame_slider:
-            if self.frame_slider.val !=n:
+            if self.frame_slider.val !=fi:
                 #print 'updating frame slider'
-                self.frame_slider.set_val(n)
+                self.frame_slider.set_val(fi*dz)
         for h in list(self.frame_hooks.values()):
-            h(n)
+            try:
+                h(fi)
+            except:
+                pass
         self.fig.canvas.draw()
 
     def show_home_frame(self):
