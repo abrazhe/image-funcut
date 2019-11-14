@@ -16,7 +16,7 @@ import fnmatch
 
 
 from skimage import io as skio
-from skimage.external import tifffile
+#from skimage.external import tifffile
 
 
 
@@ -48,8 +48,9 @@ from matplotlib.pyplot import imread
 
 
 from imfun.external.physics import Q
-
+from imfun.external import tifffile
 from . import core
+
 #from . import ui
 from .core import ifnot
 from .core import fnutils as fu
@@ -980,6 +981,40 @@ def from_tiff(path, flavor=None, **kwargs):
     if isinstance(flavor, str) and  flavor.lower() == 'olympus':
         attach_olympus_metadata(obj, path)
     return obj
+
+def from_oif(path, **kwargs):
+    from imfun.external import oiffile
+    with oiffile.OifFile(path) as oif:
+        frames = np.squeeze(oif.asarray())
+    obj = from_array(frames, **kwargs)
+    obj.meta['file_path'] = path
+    return obj
+
+def from_lsm(path, **kwargs):
+    fh = tifffile.TiffFile(path)
+    # should I squeeze dimensions here?
+    obj = from_array(np.squeeze(fh.asarray()), **kwargs)
+    if hasattr(fh, 'lsm_metadata'):
+        lsm_meta = fh.lsm_metadata
+        dt = lsm_meta['TimeIntervall']
+        dx = fh.lsm_metadata['VoxelSizeX']
+        dy = fh.lsm_metadata['VoxelSizeY']
+        axes = units.alist_to_scale([(dt, 's'), (dx, 'um')])
+        track = lsm_meta['ScanInformation']['Tracks'][0]
+        metas = [dict(axes=axes, gain1=ch['DetectorGainFirst'], gain2=ch['AmplifierGainFirst'])
+                for ch in track['DetectionChannels']]
+
+        if isinstance(obj, FStackColl):
+            for stack,meta in zip(obj.stacks, metas):
+                stack.meta = meta.copy()
+            obj.meta['axes'] = obj.stacks[0].meta['axes']
+        else:
+            if len(metas):
+                obj.meta = metas[0]
+
+    obj.meta['file_path'] = fh.filename
+    return obj
+
 
 def from_avi(path,ch=None,**kwargs):
     import imageio
