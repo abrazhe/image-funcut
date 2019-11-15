@@ -5,7 +5,7 @@ def locations(shape):
     """ all locations for a shape; substitutes nested cycles
     """
     return itt.product(*map(range, shape))
-    
+
 def n_random_locs(n, shape):
     """
     return a list of n random locations within shape
@@ -17,9 +17,24 @@ def make_grid(shape,size,stride):
     """Make a generator over sets of slices which go through the provided shape
        by a stride
     """
-    origins =  itt.product(*[list(range(0,dim,stride)) for dim in shape])
-    squares = ([slice(a,a+size) for a in o] for o in origins)
+    origins =  itt.product(*[list(range(0,dim-size,stride)) + [dim-size] for dim in shape])
+    squares = tuple(tuple(slice(a,a+size) for a in o) for o in origins)
     return squares
+
+def make_grid2(shape,sizes,strides):
+    """Make a generator over sets of slices which go through the provided shape
+       by a stride
+    """
+    if not np.iterable(sizes):
+        sizes = (sizes,)*len(shape)
+    if not np.iterable(strides):
+        strides = (strides,)*len(shape)
+
+    origins =  itt.product(*[list(range(0,dim-size,stride)) + [dim-size]
+                            for (dim,size,stride) in zip(shape,sizes,strides)])
+    squares = tuple(tuple(slice(a,a+size) for a,size in zip(o,sizes)) for o in origins)
+    return squares
+
 
 def in_circle(coords, radius):
     return lambda x,y: (square_distance((x,y), coords) <= radius**2)
