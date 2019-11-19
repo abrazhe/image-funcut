@@ -178,12 +178,12 @@ def filter_mask(mask, fn, args=()):
 
 def filter_size_regions(regions, min_size=5):
     """Filter contiguous regions (clusters) by their size"""
-    return [r for r in regions if r.size()>min_size]
+    return [r for r in regions if r.size>min_size]
 
 def filter_shape_regions(regions, th = 2):
     """Filter contiguous regions (clusters) by circularity of shape"""
     return [r for r in regions
-            if (r.linsize() > th*np.sqrt(r.size()))]
+            if (r.linsize > th*np.sqrt(r.size))]
 
 def glue_adjacent_regions(regions, max_distance=10):
     """Go through a sequence of regions, for each pair of closely-spaced
@@ -262,7 +262,7 @@ class RegionND:
                 l[0] == 0 or l[1] == 0 or l[0]==self.shape[0] or l[1] == self.shape[1]
                 or
                 len([x for x in neighbours(l,self.shape) if x not in self.locs]))
-    @property 
+    @property
     def linsize(self,):
         dists = [coords.eu_dist(*pair) for pair in core.misc.allpairs(self.borders())]
         return reduce(max, dists, 0)
