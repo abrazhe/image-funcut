@@ -67,7 +67,7 @@ def pca_points(X,ncomp=2):
     Y = [dot(L.reshape(1,-1), X1.T) for L in Vh ]
     ranges = [y.max() - y.min() for y in Y]
     phi = np.rad2deg(np.arctan2(Vh[0,1],Vh[0,0])) # rotation of main axis (for Ellipse)
-    return Vh[:ncomp], phi, ranges[:ncomp],s[:ncomp]**0.5,  c0, array(Y[:ncomp])
+    return Vh[:ncomp], phi, ranges[:ncomp],s[:ncomp],  c0, array(Y[:ncomp])
 
 def pca_svd_project(X, Vh):
     c0 = X.mean(axis=0)
