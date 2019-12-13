@@ -780,7 +780,7 @@ class FStackColl(object):
     def __init__(self, stacks, meta=None):
         self.stacks = list(stacks)
         for k,s in enumerate(self.stacks):
-            if not s.meta['channel']:
+            if ('channel' not in s.meta) or (not s.meta['channel']):
                 s.meta['channel'] = str(k)
 
         # TODO: harmonize metadata
