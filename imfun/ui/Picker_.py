@@ -872,7 +872,7 @@ class Picker (object):
             print(linescan_rois)
             acc2d = {r:robjs[r].get_zview() for r in linescan_rois}
             if not use_pandas:
-                rdata.extend(acc2d)
+                rdata.update(acc2d)
             else:
                 rdata = [rdata, acc2d]
         return rdata

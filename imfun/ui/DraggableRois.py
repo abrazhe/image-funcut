@@ -683,7 +683,7 @@ class VesselContours(object):
 
         self.snrv = core.misc.simple_snr2(data)
 
-        axs[1].plot(self.snrv, 'k',ls='steps')
+        axs[1].plot(self.snrv, 'k', ds='steps')
         lh = axs[1].axhline(th, color='blue', ls='-')
         self.th_line = ThresholdLine(lh,self)
 
