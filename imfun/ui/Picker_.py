@@ -774,8 +774,8 @@ class Picker (object):
         self.ax1.set_title(_title)
         if self.frame_slider:
             if self.frame_slider.val !=fi:
-                #print 'updating frame slider'
-                self.frame_slider.set_val(fi*dz)
+                #self.frame_slider.set_val(fi*dz)
+                self.frame_slider.set_val(fi)
         for h in list(self.frame_hooks.values()):
             try:
                 h(fi)

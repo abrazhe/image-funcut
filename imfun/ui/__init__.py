@@ -40,9 +40,11 @@ codec_ = 'libx264'
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      background = None, frame_pipe=lambda f:f,
                      ncols=None, figsize=None, figscale=4, with_header=True,
-                     codec = codec_, 
-                     titles=None, writer='avconv', bitrate=16000, frame_on=False,
-                     marker_idx = None, **kwargs):
+                     codec = codec_,
+                     titles=None, writer='ffmpeg', bitrate=16000, frame_on=False,
+                     marker_idx = None,
+                     tight_layout = True,
+                     **kwargs):
 
     plt_interactive = plt.isinteractive()
     plt.ioff() # make animations in non-interactive mode
@@ -68,6 +70,10 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add))
 
     fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
+    if tight_layout:
+        plt.subplots_adjust(left=0.01, right=1-0.01,
+                           bottom=0.01, top=0.98,
+                           wspace=0.01, hspace=0.02)
 
     titles = ifnot(titles, ['']*len(pickers))
     if len(titles) < len(pickers):
@@ -80,7 +86,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
 
     views = []
 
-        
+
     for p,title,ax in zip(pickers,titles,np.ravel(axs)):
 
         if 'cmap' in kwargs:
@@ -99,7 +105,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         ax.add_patch(marker)
     for ax in np.ravel(axs)[len(pickers):]:
         plt.setp(ax, visible=False)
-        
+
     header = plt.suptitle('')
     plt.tight_layout()
 
