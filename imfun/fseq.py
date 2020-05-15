@@ -12,15 +12,11 @@ import itertools as itt
 import inspect
 
 import zipfile
-import fnmatch
+#import fnmatch
 
 
 from skimage import io as skio
 #from skimage.external import tifffile
-
-
-
-
 
 import warnings
 
@@ -1007,7 +1003,7 @@ def from_lsm(path, **kwargs):
         dt = lsm_meta['TimeIntervall']
         dx = fh.lsm_metadata['VoxelSizeX']
         dy = fh.lsm_metadata['VoxelSizeY']
-        axes = units.alist_to_scale([(dt, 's'), (dx, 'um')])
+        axes = units.alist_to_scale([(dt, 's'), (dx*1e6, 'um')])
         track = lsm_meta['ScanInformation']['Tracks'][0]
         metas = [dict(axes=axes, gain1=ch['DetectorGainFirst'], gain2=ch['AmplifierGainFirst'])
                 for ch in track['DetectionChannels']]

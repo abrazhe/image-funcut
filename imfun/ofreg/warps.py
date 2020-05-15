@@ -44,7 +44,7 @@ class Warp:
             return Warp.from_function(fnutils.flcompose2(self.fn_, other.fn_),self.sh_)
         else:
             return Warp.from_array(self.field + other.field)
-    def __call__(self, img,mode=_boundary_mode):
+    def __call__(self, img, mode=_boundary_mode,order=3):
         sh = img.shape
         if np.ndim(img) == 2:
             start_coordinates = np.meshgrid(*list(map(np.arange, sh[:2][::-1])))
@@ -52,12 +52,12 @@ class Warp:
                 new_coordinates = self.fn_(start_coordinates)
             else:
                 new_coordinates = [c+f for c,f in zip(start_coordinates, self.field)]
-            return map_coordinates(img, new_coordinates[::-1], mode=mode)
+            return map_coordinates(img, new_coordinates[::-1], mode=mode, order=order)
         elif np.ndim(img) > 2:
             return np.dstack([self(img[...,c],mode) for c in range(img.shape[-1])])
         else:
             raise ValueError("Can't handle image of such shape: {}".format(sh))
-        
+
 def flow_from_fn(fn, sh):
     start_coordinates = np.meshgrid(*list(map(np.arange, sh[::-1])))
     return fn(start_coordinates)-np.array(start_coordinates)
@@ -165,7 +165,7 @@ def to_dct_encoded(name, warps, upto=50, th=0.5):
 def from_dct_encoded(name, **fnargs):
     codes = from_npy(name)
     return [Warp.from_array(dct_decode([c_.toarray() for c_ in c])) for c in codes]
-    
+
 
 def _to_dct_encoded_old(name, warps, upto=50, th=3):
     """Convert warps to DCT coefficients and save to a .npy file
@@ -195,18 +195,18 @@ def _from_dct_encoded_old(name, **fnargs):
     #return map(Warp.from_array, (dct_decode(c,D) for c in  codes))
 
 
-def map_warps(warps, frames, njobs=4):
+def map_warps(warps, frames, njobs=4, **fnkw):
     """
     returns result of applying warps for given frames (one warp per frame)
     """
     if njobs > 1 and _with_pathos_:
         pool = ProcessPool(nodes=njobs)
         #out = pool.map(apply_warp, warps, frames)
-        out = pool.map(Warp.__call__, warps, frames,chunksize=1)
+        out = pool.map(Warp.__call__, warps, frames, chunksize=1)
         #pool.close()
         out = np.array(out)
     else:
-        out = np.array([w(f) for w,f in zip(warps, frames)])
+        out = np.array([w(f,**fnkw) for w,f in zip(warps, frames)])
     if isinstance(frames, (fseq.FrameStackMono, fseq.FStackColl)):
         out = fseq.from_array(out)
         out.meta = frames.meta.copy()
@@ -243,8 +243,8 @@ def dct_encode(flow, upto=50, th=0.5):
 
 def dct_decode(coefs):
     return np.array([idct2d(c) for c in coefs])
-    
-    
+
+
 
 def _dct_encode_old(flow,upto=20,D=None):
     if D is None:

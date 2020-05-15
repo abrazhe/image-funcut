@@ -320,7 +320,7 @@ def local_corr_map(arr, normfn=DFoSD,
     out = np.zeros(sh)
     pixel_counter,npix = 0,np.prod(sh)
     def _v(l):
-        v =  arr[:,l[0],l[1]]
+        v =  arr[:,int(l[0]),int(l[1])]
         if normfn:
             return normfn(v)
         else:
