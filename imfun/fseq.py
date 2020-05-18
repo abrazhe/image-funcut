@@ -12,15 +12,11 @@ import itertools as itt
 import inspect
 
 import zipfile
-import fnmatch
+#import fnmatch
 
 
 from skimage import io as skio
 #from skimage.external import tifffile
-
-
-
-
 
 import warnings
 
@@ -388,6 +384,13 @@ class FrameStackMono(object):
         f.create_dataset(channel, data=self[:], **kwargs)
         f.close()
         pass
+
+    def to_npy(self, out_name):
+        np.save(out_name, self[:])
+
+    def to_tiff(self, out_name):
+        tifffile.imsave(out_name, self[:].astype(np.float32))
+
 
 
 _x1=[(1,2,3), ('sec','um','um')] # two lists
@@ -781,7 +784,7 @@ class FStackColl(object):
         self.stacks = list(stacks)
         for k,s in enumerate(self.stacks):
             if ('channel' not in s.meta) or (not s.meta['channel']):
-                s.meta['channel'] = str(k)
+                s.meta['channel'] = f'ch{k:02d}'
 
         # TODO: harmonize metadata
         if meta is None:
@@ -795,8 +798,9 @@ class FStackColl(object):
         if not stream.meta['channel']:
             stream_names = [s.meta['channel'] for s in self.stacks]
             for k in range(1000):
-                if str(k) not in stream_names:
-                    stream.meta['channel'] = str(k)
+                tag = f'ch{k:02d}'
+                if tag not in stream_names:
+                    stream.meta['channel'] = tag
                     break
         self.stacks.append(stream)
     def pop(self, n=-1):
@@ -999,7 +1003,7 @@ def from_lsm(path, **kwargs):
         dt = lsm_meta['TimeIntervall']
         dx = fh.lsm_metadata['VoxelSizeX']
         dy = fh.lsm_metadata['VoxelSizeY']
-        axes = units.alist_to_scale([(dt, 's'), (dx, 'um')])
+        axes = units.alist_to_scale([(dt, 's'), (dx*1e6, 'um')])
         track = lsm_meta['ScanInformation']['Tracks'][0]
         metas = [dict(axes=axes, gain1=ch['DetectorGainFirst'], gain2=ch['AmplifierGainFirst'])
                 for ch in track['DetectionChannels']]
@@ -1053,7 +1057,7 @@ def _is_glob_or_names(path):
 
 def from_any(path, *args, **kwargs):
     """Dispatch to an appropriate class constructor depending on the file name
-    Should cover aroun 90% of usecases. For the remaining 10%, use direct constructors
+    Should cover around 90% of usecases. For the remaining 10%, use direct constructors
     """
     images =  ('bmp', 'jpg', 'jpeg', 'png', 'tif','tiff', 'ppm', 'pgm')
     if isinstance(path, (FrameStackMono, FStackColl)):
@@ -1178,11 +1182,16 @@ try:
 
     class FStackColl_hdf5(FStackColl):
         "Base class for hdf5 files"
-        def __init__(self, fname, **kwargs):
+        def __init__(self, fname, groupname=None, **kwargs):
             parent = super(FStackColl_hdf5, self)
             f = h5py.File(fname, 'r')
-            datasets = list(f.keys())
-            print("The file %s has the following data sets:"%fname, ', '.join(datasets))
+            g = f[groupname] if groupname else f
+            datasets = list(g.keys())
+            if not groupname:
+                print("The file %s has the following data sets:"%fname, ', '.join(datasets))
+            else:
+                print(f"Group {groupname} in file {fname} has the following data sets:",
+                      ', '.join(datasets))
             self.h5file = f # just in case we need it later
             stacks = []
             for dset in datasets:

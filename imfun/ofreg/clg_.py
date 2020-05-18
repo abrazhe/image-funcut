@@ -32,7 +32,7 @@ def copy_to_larger_cpad(source, destination):
         destination[nr:,:nc] = source[nr-1,:][None,:]
         destination[:nr,nc:] = source[:,nc-1][:,None]
         destination[nr:,nc:] = source[-1,-1]
-    
+
 
 class MSCLG(object):
     def __init__(self,
@@ -104,7 +104,7 @@ class MSCLG(object):
                                         th = dct_regularization_threshold)
             v[0] = l2spline_thresholded(v[0],rho_l2,
                                         nharmonics=dct_regularization_upto,
-                                        th = dct_regularization_threshold)            
+                                        th = dct_regularization_threshold)
         if self.output is 'full':
             return (u[0], v[0]), cerr
         else:

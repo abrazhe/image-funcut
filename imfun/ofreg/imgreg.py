@@ -27,8 +27,8 @@ _output = 'flow' # {fn, flow, dct}
 
 
 
-def shifts( image, template):
-    shift = skfeature.register_translation(template, image,upsample_factor=16.)[0]
+def shifts( image, template, upsample=16.):
+    shift = skfeature.register_translation(template, image,upsample_factor=upsample)[0]
     def _regfn(coordinates):
         return [c - p for c,p in zip(coordinates, shift[::-1])]
     return Warp.from_function(_regfn, image.shape)

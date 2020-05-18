@@ -26,6 +26,9 @@ def residuals_f(f):
 def score_f(f):
     return lambda p, v, x: np.sum((v - f(x,p))**2)
 
+def score_f_l1(f):
+    return lambda p, v, x: np.sum(np.abs(v - f(x,p)))
+
 def rising_exp(t, a_b_tau):
     (a,b,tau) = a_b_tau
     return a - b*exp(-t/tau)

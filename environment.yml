@@ -1,0 +1,22 @@
+channels:
+- conda-forge
+dependencies:
+- python=3.7
+- cython
+- dill
+- future
+- jupyterlab
+- h5py
+- matplotlib
+- nodejs
+- numba
+- numpy
+- numpydoc
+- pandas
+- pip
+- scikit-image
+- scikit-learn
+- scipy
+- tifffile
+- tqdm
+- widgetsnbextension

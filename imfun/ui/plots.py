@@ -106,7 +106,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
               frame_on=False,
               labels = None,
               **kwargs):
-    
+
 
     if sep is None:
         mean_range = np.mean([np.max(v)-np.min(v) for v in vecs])
@@ -190,9 +190,8 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
     stack = np.dstack((ch(0),ch(1),ch(2),alpha*np.ones(sh)*mask))
     return stack
 
-def lean_axes(ax,level=1):
+def lean_axes(ax,level=1, hide = ('top', 'right','bottom', 'left')):
     """plot only x and y axis, not a frame for subplot ax"""
-    hide = ['top', 'right','bottom', 'left']
     for key in hide:
         ax.spines[key].set_visible(False)
     ax.get_xaxis().tick_bottom()
