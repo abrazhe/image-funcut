@@ -26,6 +26,7 @@ def guess_format(file_name):
             result = 'h5'
         else:
             print("Unknown MES file format")
+            print('magic code:', magic)
     return result
 
 def load_file_info(file_name):
