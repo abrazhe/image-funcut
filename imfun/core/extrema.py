@@ -22,7 +22,7 @@ def locextr(v, x=None, refine = True, output='full',
            maxima = sorted(maxima, key=lambda p: yfit[p], reverse=True)
            minima = sorted(minima, key=lambda p: yfit[p], reverse=False)
        if output=='full':
-           return xfit, yfit, der1, maxima, minima 
+           return xfit, yfit, der1, maxima, minima
        elif output=='max':
            return list(zip(xfit[maxima], yfit[maxima]))
        elif output =='min':
@@ -31,7 +31,7 @@ def locextr(v, x=None, refine = True, output='full',
 def locextr_lsq_splines(v, x=None, points_per_knot=5,
                         refine=True, output='full',sort_values=True):
     if x is None: x = np.arange(len(v))
-    t  = np.linspace(x[2],x[-2],len(v)/points_per_knot)
+    t  = np.linspace(x[2],x[-2],len(v)//points_per_knot)
     spl = ip.LSQUnivariateSpline(x,v,t)
     if refine:
         xfit = np.linspace(x[0],x[-1], len(x)*10)
@@ -47,7 +47,7 @@ def locextr_lsq_splines(v, x=None, points_per_knot=5,
         maxima = sorted(maxima, key=lambda p: yfit[p], reverse=True)
         minima = sorted(minima, key=lambda p: yfit[p], reverse=False)
     if output=='full':
-        return xfit, yfit, der1, maxima, minima 
+        return xfit, yfit, der1, maxima, minima
     elif output=='max':
         return list(zip(xfit[maxima], yfit[maxima]))
     elif output =='min':

@@ -5,6 +5,7 @@ dependencies:
 - cython
 - dill
 - future
+- ipywidgets
 - jupyterlab
 - h5py
 - matplotlib
