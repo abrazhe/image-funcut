@@ -1000,10 +1000,16 @@ def from_lsm(path, **kwargs):
     obj = from_array(np.squeeze(fh.asarray()), **kwargs)
     if hasattr(fh, 'lsm_metadata'):
         lsm_meta = fh.lsm_metadata
+        obj.meta['lsm_meta'] = lsm_meta
+
         dt = lsm_meta['TimeIntervall']
-        dx = fh.lsm_metadata['VoxelSizeX']
-        dy = fh.lsm_metadata['VoxelSizeY']
-        axes = units.alist_to_scale([(dt, 's'), (dx*1e6, 'um')])
+        dx = lsm_meta['VoxelSizeX']
+        dy = lsm_meta['VoxelSizeY']
+        dz = lsm_meta['VoxelSizeZ']
+
+        # note: this doesn't work with 4D data and should be corrected:
+        first_axis = (dt, 's') if dt > 0 else (dz*1e6, 'um')
+        axes = units.alist_to_scale([first_axis, (dx*1e6, 'um')])
         track = lsm_meta['ScanInformation']['Tracks'][0]
         metas = [dict(axes=axes, gain1=ch['DetectorGainFirst'], gain2=ch['AmplifierGainFirst'])
                 for ch in track['DetectionChannels']]
@@ -1017,6 +1023,8 @@ def from_lsm(path, **kwargs):
                 obj.meta = metas[0]
 
     obj.meta['file_path'] = fh.filename
+    obj.fh = fh
+
     return obj
 
 
