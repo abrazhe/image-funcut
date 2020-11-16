@@ -970,7 +970,7 @@ class Picker (object):
             roi_tgroup = list(roi_tgroup)
 
             prefs = self.roi_prefixes(roi_tgroup)
-            if roi_type is 'area':
+            if roi_type == 'area':
                 #print(prefs)
                 _sh = self.roi_objs[roi_tgroup[0]].get_zview().shape
 
@@ -1047,7 +1047,7 @@ class Picker (object):
 
                 # #TODO: may be use on_click event?
                 fig.canvas.mpl_connect('motion_notify_event', _line_highlighter)
-            elif roi_type is 'path':
+            elif roi_type == 'path':
                 print('path')
                 roi_tgroup = list(roi_tgroup)
                 slices = [self.roi_objs[t].get_zview(**kwargs)[0] for t in roi_tgroup]
