@@ -220,7 +220,7 @@ class Picker (object):
                     ch = None
                 else:
                     ch = stream_idx[selected]
-                    if key is 'i':
+                    if key == 'i':
                         self.ach_setter.set_active(ch)
                 self._ccmap[key] = ch
             self.frame_cache = {}
@@ -434,9 +434,9 @@ class Picker (object):
             handles = [self.roi_objs[key].obj for key in keys]
             try:
                 axs= self.ax1.axis
-                if self.legtype is 'figlegend':
+                if self.legtype == 'figlegend':
                     plt.figlegend(handles, keys, 'upper right')
-                elif self.legtype is 'axlegend':
+                elif self.legtype == 'axlegend':
                     self.ax1.legend(handles, keys)
                     self.ax1.axis(axs)
                     self.redraw()

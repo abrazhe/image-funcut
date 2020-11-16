@@ -13,16 +13,16 @@ def get_prop(node, prop):
 def get_xmljob(name, patt = "*[0-9].xml"):
     if name[-4:] == '.xml':
         return name
-    
+
     folder,filepattern = os.path.split(name)
     print('leica: ', folder, filepattern)
     if folder =='': folder='./'
     print('leica: ', os.sep.join((folder,patt)) or filepattern)
     candidates = glob.glob(os.sep.join((folder,patt)))
-    
+
     if len(candidates)==0: return None
     return sorted(candidates, key = lambda s: common_overlap(s,name))[-1]
-    
+
 def ticks_to_ms(lo,hi):
     """
     Converts from two-word tick representation to milliseconds.
@@ -59,17 +59,17 @@ class LeicaProps_old:
             Units = get_prop(node, 'Unit')
             val = 1e6*float(get_prop(node, 'Length')) # um
             num_elem = float(get_prop(node, 'NumberOfElements'))
-            if Units is 'm':
-                if Id is '1':
+            if Units == 'm':
+                if Id == '1':
                     self.xdim = val
                     self.dx = val/num_elem
-                elif Id is '2':
+                elif Id == '2':
                     self.ydim = val
                     self.dy = val/num_elem
         tstamps = doc.xpathEval("//TimeStamp")
         self.start_time = ticks_to_ms(*low_high_pair(tstamps[0]))
         self.stop_time = ticks_to_ms(*low_high_pair(tstamps[-1]))
-        
+
 
 def common_overlap(str1,str2):
     L = min(len(str1), len(str2))
@@ -78,7 +78,7 @@ def common_overlap(str1,str2):
             break
     return k
 
-        
+
 # ==============
 
 #from xml.sax import saxutils
@@ -120,7 +120,7 @@ class FindVal(xml.sax.ContentHandler):
         self.res['stop_time'] = self.timestamps[-1]
         self.res['tstamps'] = self.timestamps
         #print self.res
-            
+
 
 def leica_parser():
     parser = make_parser()
@@ -156,9 +156,3 @@ def read_lasaf_txt(fname):
     except Exception as inst:
         print("%s: Exception"%fname, type(inst))
         return None
-        
-        
-            
-                
-        
-                              

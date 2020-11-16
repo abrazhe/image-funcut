@@ -105,7 +105,7 @@ class MSCLG(object):
             v[0] = l2spline_thresholded(v[0],rho_l2,
                                         nharmonics=dct_regularization_upto,
                                         th = dct_regularization_threshold)
-        if self.output is 'full':
+        if self.output == 'full':
             return (u[0], v[0]), cerr
         else:
             return (u[0],v[0])

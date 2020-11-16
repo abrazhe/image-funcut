@@ -76,11 +76,11 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
        dersign = -np.sign(di)
    locations = dersign[:-1] - dersign[1:] > 1.5
 
-   if output is 'all':
+   if output == 'all':
        out =  xfit[locations], sp0(xfit)[locations]
-   elif output is 'yfit':
+   elif output == 'yfit':
        out = di[locations]
-   elif output is 'xfit':
+   elif output == 'xfit':
        out = xfit[locations]
    else:
        print("""unknown output code, should be one of  'xfit', 'yfit', 'all',
