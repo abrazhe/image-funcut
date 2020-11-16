@@ -8,7 +8,7 @@ def DFoSD(vec, normL=None, th=1e-6):
     m, x = np.mean, vec[:normL]
     sdx = np.std(x, 0)
     out = np.zeros(vec.shape, vec.dtype)
-    if sdx.shape is ():
+    if np.ndim(sdx) == 0:
         if np.abs(sdx) > th:
             out = (vec - m(x)) / sdx
     else:
@@ -23,7 +23,7 @@ def DFoF(vec, normL=None, th=1e-6):
     normL = ifnot(normL, len(vec))
     m = np.mean(vec[:normL], 0)
     out = np.zeros(vec.shape, vec.dtype)
-    if m.shape is ():
+    if np.ndim(m) == 0:
         if np.abs(m) > th:
             out = vec / m - 1.0
     else:
