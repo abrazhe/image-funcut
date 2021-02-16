@@ -18,13 +18,19 @@ from ..core.baselines import DFoSD, DFoF
 import collections
 
 
-in_circle = coords.in_circle
+#in_circle = coords.in_circle
 
 def circle_from_struct(circ_props):
     cp = circ_props.copy()
     cp.pop('func')
     center = cp.pop('center')
     return plt.Circle(center, **cp)
+
+def rectangle_from_struct(rect_props):
+    rp = rect_props.copy()
+    rp.pop('func')
+    xy = rp.pop('xy')
+    return plt.Rectangle(xy,  **rp)
 
 def line_from_struct(line_props):
     lp = line_props.copy()
@@ -432,20 +438,13 @@ class LineScan(DraggableObj):
                 'color': l.get_color(),}
 
 
-class CircleROI(DraggableObj):
-    """Draggable Circle ROI"""
+class DraggableROI(DraggableObj):
+    """Area-based ROI, circle or square"""
     step = 1
     roi_type = 'area'
+
     def on_scroll(self, event):
-        if not self.event_ok(event, True): return
-        r = self.obj.get_radius()
-        if event.button in ['up']:
-            self.obj.set_radius(r+self.step)
-        else:
-            self.obj.set_radius(max(0.1,r-self.step))
-        self.set_tagtext()
-        self.redraw()
-        return
+        pass
 
     def on_type(self, event):
         if not self.event_ok(event, True): return
@@ -465,6 +464,31 @@ class CircleROI(DraggableObj):
         elif event.key in ['4']:
             self.parent.show_ffts(tags)
 
+    def set_tagtext(self):
+        self.tagtext = None
+
+    def destroy(self):
+        p = self.parent.roi_objs.pop(self.tag)
+        self.disconnect()
+        self.obj.remove()
+        if self.tagtext is not None:
+            self.tagtext.remove()
+        self.redraw()
+
+
+class CircleROI(DraggableROI):
+    """Draggable Circle ROI"""
+    def on_scroll(self, event):
+        if not self.event_ok(event, True): return
+        r = self.obj.get_radius()
+        if event.button in ['up']:
+            self.obj.set_radius(r+self.step)
+        else:
+            self.obj.set_radius(max(0.1,r-self.step))
+        self.set_tagtext()
+        self.redraw()
+        return
+
     def on_press(self, event):
         if not self.event_ok(event, True): return
         x0,y0 = self.obj.center
@@ -474,13 +498,6 @@ class CircleROI(DraggableObj):
             self.parent.show_zview([self.tag])
         elif event.button == 3:
             self.destroy()
-
-    def destroy(self):
-        p = self.parent.roi_objs.pop(self.tag)
-        self.disconnect()
-        self.obj.remove()
-        self.tagtext.remove()
-        self.redraw()
 
     def shift(self, vec):
         self.obj.center += np.array(vec)
@@ -534,7 +551,7 @@ class CircleROI(DraggableObj):
         else:
             self.tagtext.set_position((x,y))
 
-    def in_circle(self, shape):
+    def in_roi(self, shape):
         roi = self.obj
 
         dx,dy = [x.value for x in self.axes[1:3]]
@@ -558,7 +575,7 @@ class CircleROI(DraggableObj):
         fullshape = self.parent.active_stack.frame_shape
         sh = fullshape[:2]
         #v = self.parent.active_stack.mask_reduce(self.in_circle(sh))
-        vx = [stack.mask_reduce(self.in_circle(stack.frame_shape)) for stack in self.parent.frame_coll.stacks]
+        vx = [stack.mask_reduce(self.in_roi(stack.frame_shape)) for stack in self.parent.frame_coll.stacks]
         #print len(fullshape), hasattr(self.parent.fseq, 'ch'), self.parent.fseq.ch
         #if len(fullshape)>2 and hasattr(self.parent.active_stack, 'ch') \
         #   and (self.parent.active_stack.ch is not None):
@@ -583,22 +600,98 @@ class CircleROI(DraggableObj):
                 'edgecolor': c.get_edgecolor(),}
 
 
-class DragRect(DraggableObj):
+class RectangleROI(DraggableROI):
     "Draggable Rectangular ROI"
-    roi_type = 'area'
+
     def on_press(self, event):
         if not self.event_ok(event, True): return
         x0, y0 = self.obj.xy
-        self.pressed = x0, y0, event.xdata, event.ydata
+        self.pressed = event.xdata, event.ydata, x0, y0
+        if event.button == 3:
+            self.destroy()
+        return
+
+    def on_scroll(self, event):
+        #print('rect on_scroll')
+        if not self.event_ok(event, True): return
+        r = self.obj
+        x,y = r.get_xy()
+        width = r.get_width()
+        height = r.get_height()
+        sw,sh = np.sign(width),np.sign(height)
+        delta = self.step/2
+        if event.button in ['down']:
+            delta = -delta
+            #self.obj.set_radius(r+self.step)
+        r.set_xy((x - delta*sw,y - delta*sh))
+        r.set_width(width + 2*delta*sw)
+        r.set_height(height + 2*delta*sh)
+
+        self.set_tagtext()
+        self.redraw()
+        return
+
     def move(self, p):
-        x0, y0, xpress, ypress = self.pressed
-        dx = p[0] - xpress
-        dy = p[1] - ypress
-        self.obj.set_x(x0+dx)
-        self.obj.set_y(y0+dy)
-    def jump(self,p):
-        self.obj.set_x(p[0])
-        self.obj.set_y(p[1])
+        #x0, y0, xpress, ypress = self.pressed
+        xp,yp, x0, y0 = self.pressed
+        dx = p[0] - xp
+        dy = p[1] - yp
+        #dx = p[0] - xpress
+        #dy = p[1] - ypress
+        x,y = self.obj.get_xy()
+        shift = (x0+dx-x, y0+dy-y)
+        #self.obj.set_x(xp+dx)
+        #self.obj.set_y(yp+dy)
+        self.obj.set_xy((x0+dx, y0+dy))
+        self.set_tagtext()
+
+        if self.parent.roi_layout_freeze:
+            # drag all other ROIs along
+            for roi in list(self.parent.roi_objs.values()):
+                if not roi == self:
+                    roi.shift(shift)
+        return
+
+    def get_slice(self):
+        r = self.obj
+        x,y = r.get_xy()
+        w,h = r.get_width(), r.get_height()
+        return slice(y,y+h), slice(x, x+w)
+
+    def shift(self,p):
+        x,y = self.obj.get_xy()
+        self.obj.set_xy((x+p[0], y+p[1]))
+        self.set_tagtext()
+        return
+
+    def to_struct(self):
+            r = self.obj
+            return {'func' : rectangle_from_struct,
+                    'xy': r.get_xy(),
+                    'width': r.get_width(),
+                    'height': r.get_height(),
+                    'alpha': r.get_alpha(),
+                    'label': r.get_label(),
+                    'facecolor': r.get_facecolor(),
+                    'linewidth': r.get_linewidth(),
+                    'edgecolor': r.get_edgecolor(),}
+
+    def set_tagtext(self, margin=2):
+        r = self.obj
+        ax = r.axes
+        origin = r.get_xy()
+        x = origin[0]-margin
+        y = origin[1]-margin
+        lowp = mpl.rcParams['image.origin'] == 'lower'
+        #if lowp : angle = -angle
+        if not hasattr(self, 'tagtext'):
+            self.tagtext = ax.text(x,y, '{}'.format(r.get_label()),
+                                   # verticalalignment=va,
+                                   # horizontalalignment=ha,
+                                   size = 'small',
+                                   color = self.color)
+        else:
+            self.tagtext.set_position((x,y))
 
 def intens_measure(arr1, arr2):
     pass
@@ -612,9 +705,9 @@ def corr_measure(arr1,arr2):
     return 0.5 + np.sum(arr1*arr2)/(2*arr1.std()*arr2.std())
 
 
-class RectFollower(DragRect):
+class RectFollower(RectangleROI):
     def __init__(self, obj, *args, **kwargs):
-        DragRect.__init__(self, obj, *args, **kwargs)
+        RectangleROI.__init__(self, obj, *args, **kwargs)
         self.search_width = 1.5*obj.get_width()
         self.search_height = obj.get_width()
     def on_type(self, event):

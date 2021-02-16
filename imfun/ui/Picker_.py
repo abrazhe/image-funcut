@@ -49,7 +49,7 @@ from ..core.units import quantity_to_pair
 from ..core.baselines import DFoSD, DFoF
 from .plots import group_maps, group_plots
 from . import DraggableRois
-from .DraggableRois import CircleROI, LineScan
+from .DraggableRois import CircleROI, RectangleROI, LineScan
 
 _widgetcolor = 'lightyellow'
 
@@ -139,6 +139,8 @@ class Picker (object):
         self.frame_coll = frame_coll
         self._Nf = None
         self.roi_coloring_model = roi_coloring_model
+        self.area_roi_type='circle' # {circle | rectangle | rect}
+        self.curr_rect_handle = None
         self.roi_objs = {}
         self._tag_pallette = {}
         self.roi_prefix = roi_prefix
@@ -530,15 +532,27 @@ class Picker (object):
 
             #color = self.cw.next()
             color = self.new_color()
-            c = plt.Circle((x,y), self.default_circle_rad*dx.value,
-                           label = label,
-                           linewidth = 1.5,
-                           facecolor=color+[0.5],
-                           edgecolor=color)
+            if self.area_roi_type == 'circle':
+                c = plt.Circle((x,y), self.default_circle_rad*dx.value,
+                               label = label,
+                               linewidth = 1.5,
+                               facecolor=color+[0.5],
+                               edgecolor=color)
 
-            c.figure = self.fig
-            self.ax1.add_patch(c)
-            self.roi_objs[label]= CircleROI(c, self)
+                c.figure = self.fig
+                self.ax1.add_patch(c)
+                self.roi_objs[label]= CircleROI(c, self)
+            elif self.area_roi_type in ('rect', 'rectangle'):
+                r = plt.Rectangle((x,y), 0,0,
+                                  label=label,
+                                  linewidth=1.5,
+                                  facecolor=color + [0.5],
+                                  edgecolor=color)
+                self.pressed = event.xdata, event.ydata
+                r.figure = self.fig
+                self.ax1.add_patch(r)
+                self.curr_rect_handle = r
+                #print('rectangle:',r, r.figure, r.axes)
         elif event.button == 3 and \
              not self.shift_on and \
              not self.roi_layout_freeze:
@@ -592,34 +606,48 @@ class Picker (object):
         if (self.pressed is None) or (event.inaxes != self.ax1):
             return
         pstop = event.xdata, event.ydata
-        if hasattr(self, 'curr_line_handle'):
+
+        if hasattr(self, 'curr_line_handle') and event.button==3:
             self.curr_line_handle.set_data(*rezip((self.pressed,pstop)))
+        if self.curr_rect_handle is not None and event.button==1:
+            r = self.curr_rect_handle
+            xy0 = r.get_xy()
+            new_width = pstop[0] - xy0[0]
+            new_height = pstop[1] - xy0[1]
+            r.set_width(new_width)
+            r.set_height(new_height)
         self.fig.canvas.draw() #todo BLIT!
 
     def on_release(self,event):
         self.pressed = None
-        if not event.button == 3: return
         if self.any_roi_contains(event): return
-        if not hasattr(self, 'curr_line_handle'): return
-        if len(self.curr_line_handle.get_xdata()) > 1:
-            #tag = unique_tag(self.roi_tags(), tagger=self.tagger)
-            tag = self.new_roi_tag()
-            self.curr_line_handle.set_label(tag)
-            newline = LineScan(self.curr_line_handle, self)
-            if newline.length() > self.min_length:
-                self.roi_objs[tag] = newline
+        if event.button == 1 and self.curr_rect_handle is not None:
+            r = self.curr_rect_handle
+            roi = RectangleROI(r, self)
+            roi.set_tagtext()
+            self.roi_objs[r.get_label()] = roi
+            self.curr_rect_handle = None
+            pass
+        elif event.button == 3 and hasattr(self, 'curr_line_handle'):
+            if len(self.curr_line_handle.get_xdata()) > 1:
+                #tag = unique_tag(self.roi_tags(), tagger=self.tagger)
+                tag = self.new_roi_tag()
+                self.curr_line_handle.set_label(tag)
+                newline = LineScan(self.curr_line_handle, self)
+                if newline.length() > self.min_length:
+                    self.roi_objs[tag] = newline
+                else:
+                    try:
+                        newline.destroy()
+                        self.curr_line_handle.remove()
+                    except Exception as e:
+                        #print "Can't remove line handle because", e
+                        pass
             else:
                 try:
-                    newline.destroy()
                     self.curr_line_handle.remove()
                 except Exception as e:
-                    #print "Can't remove line handle because", e
-                    pass
-        else:
-            try:
-                self.curr_line_handle.remove()
-            except Exception as e:
-                print("Can't remove line handle because", e)
+                    print("Can't remove line handle because", e)
         self.curr_line_handle = self.init_line_handle()
         self.legend()
         self.fig.canvas.draw() #todo BLIT!
@@ -658,13 +686,13 @@ class Picker (object):
         rois = [x['func'](x) for x in data]
         #circles = [x for x in rois if isinstance(x, plt.Circle)]
         #lines = [x for x in rois if isinstance(x, plt.Line2D)]
+        constructors = {plt.Circle: (CircleROI, self.ax1.add_patch),
+                        plt.Rectangle: (RectangleROI, self.ax1.add_patch),
+                        plt.Line2D: (LineScan, self.ax1.add_line)}
         for x in rois:
-            if isinstance(x,plt.Circle):
-                self.ax1.add_patch(x)
-                constructor = CircleROI
-            if isinstance(x,plt.Line2D):
-                self.ax1.add_line(x)
-                constructor = LineScan
+            tx = type(x)
+            constructor, hook = constructors[tx]
+            hook(x)
             self.roi_objs.update(dict([(x.get_label(),constructor(x,self))]))
         #list(map(self.ax1.add_patch, circles)) # add points to the axes
         #list(map(self.ax1.add_line, lines)) # add points to the axes
