@@ -2,7 +2,9 @@
 
 import numpy as np
 
+import skimage
 from skimage import feature as skfeature
+from skimage import registration as skreg
 
 from . import lkp_
 from . import gk_
@@ -28,7 +30,14 @@ _output = 'flow' # {fn, flow, dct}
 
 
 def shifts( image, template, upsample=16.):
-    shift = skfeature.register_translation(template, image,upsample_factor=upsample)[0]
+    shift_fn = None
+
+    if skimage.__version__ >= '0.17.2':
+        shift_fn  = skreg.phase_cross_correlation
+    else:
+        shift_fn = skfeature.register_translation
+
+    shift = shift_fn(template, image, upsample_factor=upsample)[0]
     def _regfn(coordinates):
         return [c - p for c,p in zip(coordinates, shift[::-1])]
     return Warp.from_function(_regfn, image.shape)
