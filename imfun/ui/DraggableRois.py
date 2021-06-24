@@ -652,11 +652,16 @@ class RectangleROI(DraggableROI):
                     roi.shift(shift)
         return
 
-    def get_slice(self):
+    def get_extent(self):
+        "coordinates range in ((xmin,xmax),(ymin,ymax)) format"
         r = self.obj
-        x,y = r.get_xy()
-        w,h = r.get_width(), r.get_height()
-        return slice(y,y+h), slice(x, x+w)
+        x0,y0 = r.get_xy()
+        x1,y1 = x0+r.get_width(), y0+r.get_height()
+        if x1 < x0:
+            x0,x1 =x1,x0
+        if y1 < x0:
+            y0,y1 = y1,y0
+        return np.array(((x0,x1),(y0,y1)))
 
     def shift(self,p):
         x,y = self.obj.get_xy()
