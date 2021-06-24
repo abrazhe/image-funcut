@@ -138,6 +138,8 @@ Consider installing it by one of the following commands:
 > pip install git+https://github.com/uqfoundation/pathos
 OR
 > pip install https://github.com/uqfoundation/pathos/archive/master.zip
+OR
+> conda install -c conda-forge pathos
 """)
 
 def to_pickle(name,warps):
