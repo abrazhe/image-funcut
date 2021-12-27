@@ -129,7 +129,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     #print ("L info: ",L, type(L))
     #anim = animation.FuncAnimation(fig, _animate, frames=1202, blit=True)
     #print ("Save count:", anim.save_count)
-    Writer = animation.writers.avail[writer]
+    Writer = animation.writers[writer]
     w = Writer(fps=fps,bitrate=bitrate, codec=codec)
     anim.save(video_name, writer=w)
 
