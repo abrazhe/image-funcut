@@ -42,9 +42,10 @@ from matplotlib.pyplot import imread
 
 #import quantities as pq
 
+import tifffile
 
 from imfun.external.physics import Q
-from imfun.external import tifffile
+#from imfun.external import tifffile
 from . import core
 
 #from . import ui

@@ -206,3 +206,17 @@ def lean_axes(ax,level=1, hide = ('top', 'right','bottom', 'left')):
     if  level > 3:
         ax.xaxis.set_ticks_position('none')
         ax.yaxis.set_ticks_position('none')
+
+def add_scalebar(ax,length=25, height=1,scale=0.1,xy=None,unit='μm',color='w'):
+    l = length/scale
+    h = height/scale
+    pl.setp(ax, xticks=[],yticks=[],frame_on=False)
+    if xy is None:
+        sh = ax.images[0].get_size()
+        x = sh[1] - l - 0.05*sh[1]
+        y = sh[0] - h - 0.05*sh[0]
+        xy= x,y
+    r = pl.Rectangle(xy,l,h, color=color )
+    ax.text(xy[0]+l/2,xy[1],s='{} {}'.format(length,unit),color=color,
+            horizontalalignment='center', verticalalignment='bottom')
+    ax.add_patch(r)
