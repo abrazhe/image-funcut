@@ -27,15 +27,23 @@ except ImportError:
 _boundary_mode='nearest'
 _output = 'flow' # {fn, flow, dct}
 
-
+import inspect
+from functools import partial
 
 def shifts( image, template, upsample=16.):
     shift_fn = None
 
     if skimage.__version__ >= '0.17.2':
         shift_fn  = skreg.phase_cross_correlation
+        # in newer versions of skimage (e.g. 0.19.1) they have added argument `normalization`
+        # to skreg.phase_cross_correlation with possible values as 'phase' or None.
+        # the registration seems to work as expected only when this argument is set to None
+        # adding the following as a temporary workaround.
+        if 'normalization' in inspect.getfullargspec(shift_fn).kwonlyargs:
+            shift_fn = partial(shift_fn, normalization=None)
     else:
         shift_fn = skfeature.register_translation
+
 
     shift = shift_fn(template, image, upsample_factor=upsample)[0]
     def _regfn(coordinates):
