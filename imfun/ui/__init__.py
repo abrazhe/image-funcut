@@ -44,6 +44,7 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      titles=None, writer='ffmpeg', bitrate=16000, frame_on=False,
                      marker_idx = None,
                      tight_layout = True,
+                     bar_data = None,
                      **kwargs):
 
     plt_interactive = plt.isinteractive()
@@ -86,8 +87,24 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
 
     views = []
 
+    raxs = np.ravel(axs)
+    last_ax = raxs[-1]
 
-    for p,title,ax in zip(pickers,titles,np.ravel(axs)):
+    hbar = None
+    data_range = 0
+    if bar_data is not None:
+        bar_data_min = np.nanmin(bar_data['value'])
+        bar_data_range = np.nanmax(bar_data['value']) - bar_data_min
+
+        hbar = plt.Rectangle((1.01, 0.0), 0.1,0.0,
+                   fill=True, color=bar_data['color'], alpha=0.75,
+                   transform=last_ax.transAxes)
+        fig.patches.extend([hbar])
+        fig.canvas.draw()
+
+
+
+    for p,title,ax in zip(pickers,titles,raxs):
 
         if 'cmap' in kwargs:
             cmap_= kwargs.pop('cmap')
@@ -113,6 +130,14 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     def _animate(framecount):
         tstr = ''
         k = start + framecount
+
+        if bar_data is not None:
+            bar_height = (bar_data['value'][k] - bar_data_min)/bar_data_range
+            if bar_height is np.nan:
+                bar_height = 0
+            #print(k, bar_height)
+            hbar.set_height(bar_height)
+
         for view, p in zip(views, pickers):
             view.set_data(frame_pipe(p._get_show_f(k)))
         if with_header:
