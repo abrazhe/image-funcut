@@ -36,6 +36,7 @@ def harmonize_clims(pickers, mode='extend'):
 
 
 codec_ = 'libx264'
+from tqdm.auto import tqdm
 
 def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      background = None, frame_pipe=lambda f:f,
@@ -126,10 +127,13 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     header = plt.suptitle('')
     plt.tight_layout()
 
+    tqc = tqdm(total=L)
+
     # ------ Saving -------------
     def _animate(framecount):
         tstr = ''
         k = start + framecount
+        tqc.update(1)
 
         if bar_data is not None:
             bar_height = (bar_data['value'][k] - bar_data_min)/bar_data_range

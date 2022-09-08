@@ -176,7 +176,8 @@ class Picker (object):
                 f = home_frame[...,None]
             else:
                 f = home_frame
-        elif isinstance(home_frame, collections.Callable):
+        #elif isinstance(home_frame, collections.Callable):
+        elif callable(home_frame):
             f = self.frame_coll.time_project(home_frame)
             f = f.astype(dtype)
             pass
