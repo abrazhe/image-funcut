@@ -389,8 +389,8 @@ class FrameStackMono(object):
     def to_npy(self, out_name):
         np.save(out_name, self[:])
 
-    def to_tiff(self, out_name):
-        tifffile.imsave(out_name, self[:].astype(np.float32))
+    def to_tiff(self, out_name, dtype=np.float32, **kwargs):
+        tifffile.imsave(out_name, self[:].astype(dtype), **kwargs)
 
 
 
@@ -837,11 +837,12 @@ class FStackColl(object):
     def order_stacks(self, name_order):
         ordered_stacks = []
         for name in name_order:
-            match = [s for s in self.stacks if s.meta['channel'].lower() in name]
+            match = [s for s in self.stacks if s.meta['channel'].lower() in name.lower()]
             if match :
                 ordered_stacks.append(match[0])
         other_stacks = [s for s in self.stacks if s not in ordered_stacks]
         self.stacks = ordered_stacks + other_stacks
+
     def to_hdf5(self, out_name, compress_level=-1):
         import h5py
         f = h5py.File(out_name,'w')

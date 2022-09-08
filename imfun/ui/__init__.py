@@ -72,8 +72,9 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
     figsize = ifnot (figsize, (figscale*ncols/aspect, figscale*nrows + header_add))
 
     fig, axs = plt.subplots(nrows, ncols, figsize=figsize)
+    right_tight_marging = 0.01 if bar_data is None else 0.1105
     if tight_layout:
-        plt.subplots_adjust(left=0.01, right=1-0.01,
+        plt.subplots_adjust(left=0.01, right= 1-right_tight_marging,
                            bottom=0.01, top=0.98,
                            wspace=0.01, hspace=0.02)
 
@@ -103,8 +104,6 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         fig.patches.extend([hbar])
         fig.canvas.draw()
 
-
-
     for p,title,ax in zip(pickers,titles,raxs):
 
         if 'cmap' in kwargs:
@@ -125,7 +124,6 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         plt.setp(ax, visible=False)
 
     header = plt.suptitle('')
-    plt.tight_layout()
 
     tqc = tqdm(total=L)
 
