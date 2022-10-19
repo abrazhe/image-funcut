@@ -5,6 +5,8 @@ import numpy as np
 import time, sys
 from swan import pycwt
 
+from tqdm.auto import tqdm
+
 from . import core
 from . import bwmorph
 ifnot = core.ifnot
@@ -47,7 +49,7 @@ def cwt_iter(fseq,
      - generator over (cwt-derived measure, i, j) tuples
       (where i,j are frame indices)
     """
-    tick = time.clock()
+    tick = time.time()
     L = len(fseq)
     subframe = 'sliceobj' in kwargs and kwargs['sliceobj'] or None
     shape = fseq.get_frame_shape(subframe)
@@ -68,18 +70,19 @@ def cwt_iter(fseq,
     dt = fseq.meta['axes'][0][0]
     #dt = dt.to('s').value
     #tunits = dt.unit
-    for s,i,j in pixel_iter:
+    for s,i,j in tqdm(pixel_iter, disable=not verbose, total=npix):
         # todo: normalization should be optional or as an argument to pix_iter
         s = (s-np.mean(s[:normL]))/np.std(s[:normL])
         eds = pycwt.eds(cwtf(s, freqs, 1./dt, wavelet,))
         pixel_counter+= 1
-        if verbose:
-            sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
+        #if verbose:
+        #    sys.stderr.write("\rpixel %05d of %05d"%(pixel_counter,npix))
         yield eds, i, j
         if pixel_counter > max_pixels:
             break
     if verbose:
-        sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+        #sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+        pass
 
 def cwtmap(fseq,
            tranges,
@@ -364,7 +367,7 @@ def fftmap(fseq, frange, func=np.mean,
          - frange : a range of frequencies in Hz, e.g. (1.0, 1.5)
          - func  : range reducing function. np.mean by default, may be np.sum as well
         """
-        tick = time.clock()
+        tick = time.time()
         L = len(fseq)
         shape = fseq.shape('sliceobj' in kwargs and
                            kwargs['sliceobj'] or None)
@@ -387,5 +390,5 @@ def fftmap(fseq, frange, func=np.mean,
             if verbose:
                 sys.stderr.write("\rpixel %05d of %05d"%(k,total))
         if verbose:
-            sys.stderr.write("\n Finished in %3.2f s\n"%(time.clock()-tick))
+            sys.stderr.write("\n Finished in %3.2f s\n"%(time.time()-tick))
         return out
