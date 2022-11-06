@@ -105,6 +105,7 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
               figsize=None,
               frame_on=False,
               labels = None,
+              fill_alpha=0.85,
               **kwargs):
 
 
@@ -124,16 +125,31 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
             pos = prevpos + r[1] + sep -np.min(rnext[0])
             positions.append(pos)
             prevpos = pos
-    L = np.min(list(map(len, vecs)))
+    Lmin = np.min(list(map(len, vecs)))
+    Lmax = np.max(list(map(len, vecs)))
     if x is None:
-        x = np.arange(L)
+        x = np.arange(Lmax)
+    else:
+        if len(x) > Lmax:
+            x = x[:Lmax]
+        else:
+            x = np.pad(x, (0, Lmax-len(x)), mode='linear_ramp')
     if ax is None:
         f,ax = pl.subplots(1,1,figsize=figsize)
+
+    zorder = 0
     for v,p,c,l in zip(vecs,positions[::-1],colors,labels):
-        ax.plot(x, v[:L]+p, color=c, label=l, **kwargs)
+        zorder += 1
+        if len(v) < Lmax:
+            vpadded = np.pad(v, (0, Lmax-len(v)), mode='constant')
+        else:
+            vpadded = v
+        ax.plot(x, vpadded+p, color='w', label=l,zorder=zorder, **kwargs)
+        ax.fill_between(x, p, vpadded+p, color=c, alpha=fill_alpha,zorder=zorder )
         #a.axhline(p, color='b')
     pl.setp(ax, yticks=[],frame_on=frame_on)
     ax.axis('tight')
+    return ax, positions
 
 def group_plots(ylist, ncols=None, x = None,
                 titles = None,
@@ -211,16 +227,19 @@ def lean_axes(ax, level=1, is_twin=False, hide = ('top', 'right','bottom', 'left
         ax.xaxis.set_ticks_position('none')
         ax.yaxis.set_ticks_position('none')
 
-def add_scalebar(ax,length=25, height=1,scale=0.1,xy=None,unit='μm',color='w'):
+def add_scalebar(ax,length=25, height=1, scale=0.1,xy=None, unit='μm',color='w',
+                 with_text=True, fontsize=None, xmargin=0.2):
     l = length/scale
     h = height/scale
     pl.setp(ax, xticks=[],yticks=[],frame_on=False)
     if xy is None:
         sh = ax.images[0].get_size()
-        x = sh[1] - l - 0.05*sh[1]
-        y = sh[0] - h - 0.05*sh[0]
+        x = sh[1] - l - xmargin*sh[1]
+        y = sh[0] - h - 0.1*sh[0]
         xy= x,y
     r = pl.Rectangle(xy,l,h, color=color )
-    ax.text(xy[0]+l/2,xy[1],s='{} {}'.format(length,unit),color=color,
-            horizontalalignment='center', verticalalignment='bottom')
+    if with_text:
+        ax.text(xy[0]+l/2,xy[1],s='{} {}'.format(length,unit),color=color,
+                horizontalalignment='center', verticalalignment='bottom',
+                fontsize=fontsize)
     ax.add_patch(r)
