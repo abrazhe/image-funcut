@@ -557,7 +557,7 @@ class CircleROI(DraggableROI):
         dx,dy = [x.value for x in self.axes[1:3]]
         c = roi.center[0]/dx, roi.center[1]/dy
         fn = coords.in_circle(c, roi.radius/dx)
-        X,Y = np.meshgrid(*list(map(range, shape[::-1])))
+        X,Y = np.meshgrid(*map(range, shape[::-1]))
         return fn(X,Y)
 
     def get_zview(self, normp=False):

@@ -114,6 +114,11 @@ class FrameStackMono(object):
         crops = [ndimage.find_objects(m)[0] for m in masks]
         return np.asarray([[fn(f[crop][mask[crop]],axis=0) for crop,mask in zip(crops,masks)] for f in self])
 
+    def labels_reduce(self, labels, fn=np.mean):
+        crops = ndimage.find_objects(labels)
+        sub_masks = [labels[c]==j+1 for j,c in enumerate(crops)]
+        return np.asarray([[fn(f[crop][mask]) for crop,mask in zip(crops, sub_masks)] for f in self])
+
 
     def softmask_reduce(self,mask, fn=np.mean):
         """Same as mask_reduce, but pixel values are weighted by the mask values between 0 and 1"""
