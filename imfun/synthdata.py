@@ -21,7 +21,7 @@ def ar1(loc, sigma, alpha=0.8):
     while True:
         yield loc+x
         x = next(rnit) + alpha*x
-    
+
 def rand_arrivals(interval, sigma = None, rand_process = ar1):
     if sigma is None:
         sigma = 0.15*interval # 15 % of mean
@@ -73,7 +73,7 @@ def synth_movie(tvec, size, nobjs=42, snr=0.5,
             for n,mask in enumerate(masks):
                 if mask[j,k]:
                     out[:,j,k] +=spike_signals[n]
-              
+
     return out
 
 def synth_movie_from_seq(seq, baseL, type=1):
@@ -125,7 +125,7 @@ def dendrite_masks(nmasks, mlength, mangle, sigma=5, width=0.5, size=128):
 
 
 def gauss2d(xmu=0, ymu=0, xsigma=10, ysigma=10):
-    xsigma, ysigma = list(map(np.float, [xsigma, ysigma]))
+    xsigma, ysigma = list(map(float, [xsigma, ysigma]))
     return lambda x,y: np.exp(-(x-xmu)**2/(2*xsigma**2) - (y-ymu)**2/(2*ysigma**2))
 
 def gauss3d(tscale=10, xscale=20, yscale=20):
@@ -149,8 +149,8 @@ def simple_wave(sstart = 1.0, alpha=0.8, shape=(128,128)):
         amp -= 0.05*sigma**0.25
         if amp < 0.05:
             amp = 0
-        
-        
+
+
 
 def _____waves(shape, nobj=5):
     #out = np.zeros(shape, np.float32)
@@ -160,7 +160,7 @@ def _____waves(shape, nobj=5):
     xlocs = np.random.uniform(20, xs-20, size=nobjs)
     ylocs = np.random.uniform(20, ys-20, size=nobjs)
     tmax = objs[-1].shape[0] + tlocs[-1] + 5
-    
+
 
 class LineSegment:
     def __init__(self, p0, length, phi):
@@ -189,6 +189,3 @@ class LineSegment:
         d1 = eu_dist(self.p0, point)
         d2 = eu_dist(self.p1, point)
         return (d1 + d2) < self.length + dist
-    
-    
-

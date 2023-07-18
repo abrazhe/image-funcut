@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import array,dot,argsort,diag,where, zeros, sqrt,float,linalg
+from numpy import array,dot,argsort,diag,where, zeros, sqrt,linalg
 from numpy.linalg import eig, eigh, inv, norm, svd
 
 
@@ -151,8 +151,8 @@ class PCA_frames():
         else:
             out = (coords@np.diag(self.s)@self.vh).reshape(out_shape)+self.mean_frame
         return out
-            
-            
+
+
 
 
 #### Old stuff -------------------------------------------------------------------------------------------------------

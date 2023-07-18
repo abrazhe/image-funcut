@@ -141,7 +141,7 @@ def lasaf_line_atof(str, sep=';'):
     #replacer = lambda s: string.replace(s, ',', '.')
     def replacer(s): return string.replace(s, ',', '.')
     strlst = list(map(replacer, str.split(sep)))
-    return list(map(np.float, strlst))
+    return list(map(float, strlst))
 
 def read_lasaf_txt(fname):
     try:

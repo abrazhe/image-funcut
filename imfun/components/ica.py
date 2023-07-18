@@ -163,7 +163,7 @@ def fastica(X, ncomp=None, whiten = True,
      - S -- estimated sources (in rows)
      - W -- unmixing matrix
     """
-    n,p = list(map(np.float, X.shape))
+    n,p = list(map(float, X.shape))
     if whiten:
         XW, Uh, s, _ = pca.pca(X, ncomp) # whitened data and projection matrix
         #XW, Uh, _ = whitenmat(X, ncomp) # whitened data and projection matrix
