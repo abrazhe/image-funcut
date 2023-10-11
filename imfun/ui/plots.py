@@ -146,8 +146,10 @@ def plot_coll(vecs,x=None,sep=None,positions=None,colors=None,
             vpadded = np.pad(v, (0, Lmax-len(v)), mode='constant')
         else:
             vpadded = v
-        ax.plot(x + xshift*zorder, vpadded+p, color=line_color, label=l,zorder=zorder, **kwargs)
-        ax.fill_between(x + xshift*zorder, p, vpadded+p, color=c, alpha=fill_alpha,zorder=zorder )
+        lc = line_color if fill_alpha > 0 else c
+        ax.plot(x + xshift*zorder, vpadded+p, color=lc, label=l,zorder=zorder, **kwargs)
+        if fill_alpha > 0:
+            ax.fill_between(x + xshift*zorder, p, vpadded+p, color=c, alpha=fill_alpha,zorder=zorder )
         #a.axhline(p, color='b')
     pl.setp(ax, yticks=[],frame_on=frame_on)
     ax.axis('tight')
