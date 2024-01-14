@@ -22,6 +22,8 @@ from . import track, ui
 from . import ui
 from . import filt
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+#from ._version import get_versions
+#__version__ = get_versions()['version']
+#del get_versions
+from . import _version_pdm
+__version__ = _version_pdm.__version__
