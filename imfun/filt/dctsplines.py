@@ -51,7 +51,7 @@ def l2spline1d(v, s=25., weights=None, eps=1e-3, niter=1000, s_is_scale=True,
     zprev = idct(gamma*dct(v,norm='ortho'),norm='ortho')
     if weights is None or np.allclose(weights, ones(N)):
         return zprev
-    
+
     for nit_ in range(niter):
         z = idct(gamma*dct(weights*(v - zprev) + zprev, norm='ortho'),norm='ortho')
         if norm(z-zprev)/norm(zprev) < eps:
@@ -63,39 +63,38 @@ def l2spline1d(v, s=25., weights=None, eps=1e-3, niter=1000, s_is_scale=True,
 
 
 def dct2d(m,norm='ortho'):
-    return dct(dct(m, norm=norm, axis=0), 
-               norm=norm, axis=1)  
+    return dct(dct(m, norm=norm, axis=0),
+               norm=norm, axis=1)
 
 
 def dctnd(m,norm='ortho'):
     fa = lambda a: lambda m_: dct(m_,norm=norm,axis=a)
     f = fnutils.flcompose(*list(map(fa, range(np.ndim(m)))))
     return f(m)
-    
+
 def idctnd(m,norm='ortho'):
     fa = lambda a: lambda m_: idct(m_,norm=norm,axis=a)
     f = fnutils.flcompose(*list(map(fa, range(np.ndim(m)))))
-    return f(m)    
+    return f(m)
 
 def idct2d(m,norm='ortho'):
-    return idct(idct(m, norm=norm, axis=0), 
-               norm=norm, axis=1)    
+    return idct(idct(m, norm=norm, axis=0),
+               norm=norm, axis=1)
 
 def Lambda_nd(sh):
     ndims = len(sh)
     shapes = np.diag(np.array(sh)-1)+1
     Lams = [-2 + 2*cos((arange(n)*pi)/n) for n in sh]
-    return np.sum([l.reshape(s) for l,s in zip(Lams, shapes)],0)
+    return sum(l.reshape(s) for l,s in zip(Lams, shapes)) # note this is python sum, not np.sum
     #indices = meshgrid(*(range(n) for n in sh))
-    
-    return indices
+    #return indices
 
 def Gamma(sh,s):
     Lam = Lambda_nd(sh)
     o = np.ones(sh)
     return o/(o + s*Lam*Lam)
-    
-    
+
+
 
 def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=False,
              scale_converter=l2sp_gauss_scale_to_smooth):
@@ -106,7 +105,7 @@ def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=
     zprev = idctnd(g*dctnd(m))
     if weights is None or np.allclose(weights, ones(sh)):
         return zprev
-    
+
     for nit_ in range(niter):
         z = idctnd(g*dctnd(weights*(m - zprev) + zprev))
         if norm(z-zprev)/norm(zprev) < eps:
@@ -118,8 +117,8 @@ def l2spline(m, s, weights=None, eps=1e-3, niter=1000, s_is_scale=True, verbose=
 
 from scipy import ndimage
 def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
-    if hw is None: hw = int(np.max(arr.shape)/10)    
-    padded = np.pad(arr,hw,mode='reflect')    
+    if hw is None: hw = int(np.max(arr.shape)/10)
+    padded = np.pad(arr,hw,mode='reflect')
     rolling_median = lambda x: ndimage.median_filter(x, 2*hw)
     crop = (slice(hw,-hw),)*np.ndim(arr)
     out = 1.4826*rolling_median(np.abs(padded-rolling_median(padded)))[crop]
@@ -132,7 +131,7 @@ def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
 
 def rolling_sd_scipy_nd(arr,hw=None,correct_factor=1.,smooth_output=True):
     if hw is None: hw = int(np.ceil(np.max(arr.shape)/10))
-    padded = np.pad(arr,hw,mode='reflect')    
+    padded = np.pad(arr,hw,mode='reflect')
     rolling_median = lambda x: ndimage.median_filter(x, 2*hw)
     crop = (slice(hw,-hw),)*np.ndim(arr)
     out = 1.4826*rolling_median(np.abs(padded-rolling_median(padded)))[crop]
@@ -157,7 +156,7 @@ def get_thresholded_dct(img, nharmonics=100, th=3):
     return dct_coefs
 
 
-def l2spline_thresholded(m, s, s_is_scale=True, 
+def l2spline_thresholded(m, s, s_is_scale=True,
                          nharmonics = 100,
                          th = 3,
                          scale_converter=l2sp_gauss_scale_to_smooth):
@@ -179,7 +178,7 @@ def l2spline_thresholded(m, s, s_is_scale=True,
                                            dct_coefs[crop_in],
                                            smoothed_coefs[crop_in])
     return idctnd(smoothed_coefs)
-    
+
 
 
 def l1spline1d(y, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
@@ -201,7 +200,7 @@ def l1spline1d(y, s, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
         b = b + (z-y-d)
         #acc.append(map(copy, [z, d, b]))
         if _i >0:
-            
+
             err = norm(z-zprev)/(1e-8 + norm(zprev))
             if err < eps:
                 if verbose:
@@ -214,7 +213,7 @@ def l1spline(m, s=25.0, lam=None, weights=None, eps=1e-3, Ni=1,  niter=1000,
              weight_niter = 100,
              verbose=False, scale_converter=l1sp_gauss_scale_to_smooth,
              s_is_scale=True):
-    
+
     sh = m.shape
     if s_is_scale:
         s = scale_converter(s)
@@ -261,7 +260,7 @@ def l1spline_thresholded(m, s=25.0, lam=None,  eps=1e-3, Ni=1,
                          verbose=False,
                          scale_converter=l1sp_gauss_scale_to_smooth,
                          s_is_scale=True):
-    
+
     sh = m.shape
     if s_is_scale:
         s = scale_converter(s)
@@ -275,12 +274,12 @@ def l1spline_thresholded(m, s=25.0, lam=None,  eps=1e-3, Ni=1,
     #acc = []
     noweights = True
     crop_in = (slice(None, nharmonics),) * np.ndim(m)
-    
+
     for _i in range(niter):
         x_ = d+m-b
         coefs = dctnd(x_)
         smoothed_coefs = np.zeros_like(coefs)
-        smoothed_coefs[crop_in] = g[crop_in]*coefs[crop_in]        
+        smoothed_coefs[crop_in] = g[crop_in]*coefs[crop_in]
         if nharmonics >=10:
             nsm = rolling_sd_scipy_nd(coefs[crop_in])
             smoothed_coefs[crop_in] = np.where(abs(coefs[crop_in])>th*nsm,

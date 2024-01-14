@@ -1107,7 +1107,7 @@ def from_any(path, *args, **kwargs):
 
 
 def valid_kwargs(handlerClass,kwargs):
-    spec = inspect.getargspec(handlerClass.__init__)
+    spec = inspect.getfullargspec(handlerClass.__init__)
     kwargs = {k:kwargs[k] for k in kwargs if k in spec[0]}
     return kwargs
 
@@ -1156,7 +1156,7 @@ def _open_seq(path, *args, **kwargs):
                 handler =  FStackM_img
         elif ending in ('tif', 'tiff'): # single multi-frame tiff
             handler = FSeq_tiff_2
-    spec = inspect.getargspec(handler.__init__)
+    spec = inspect.getfullargspec(handler.__init__)
     for k in kwargs.keys():
         if k not in spec[0]:
             kwargs.pop(k) # skip arguments the __init__ doesn't know about

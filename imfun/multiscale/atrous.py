@@ -27,7 +27,7 @@ sigmaej = [[0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],   # 0D
            [0.890, 0.201, 0.086, 0.042, 0.021, 0.010, 0.005],   # 2D
            [0.956, 0.120, 0.035, 0.012, 0.004, 0.001, 0.0005]]  # 3D
 
-           
+
 
 ## Default spline wavelet scaling function
 _phi_ = np.array([1./16, 1./4, 3./8, 1./4, 1./16], _dtype_)
@@ -130,24 +130,24 @@ def conv2d_wholes(uout, u, phi, ind):
                     elif li >=Nc: li = Nc-2-li%Nc
                     uout[i,j] += phi[k,l]*u[ki,li]
 
-    
-    
+
+
 try:
     from numba import jit
     _has_numba_ = True
-    numba_conv1d_wholes = jit(conv1d_wholes)
-    numba_conv2d_wholes = jit(conv2d_wholes)
+    numba_conv1d_wholes = jit(conv1d_wholes, nopython=True)
+    numba_conv2d_wholes = jit(conv2d_wholes, nopython=True)
 except ImportError as ex:
     print(ex)
     _has_numba_ = False
-        
+
 
 def decompose1d_weave(sig, level,
                       phi=_phi_,
                       dtype= _dtype_):
     """
     1D stationary wavelet transform with B3-spline scaling function
-    
+
     Parameters:
       - sig : 1D array
       - level : level of decomposition
@@ -237,7 +237,7 @@ def decompose1d_numpy(sig, level, phi=_phi_, boundary='symm'):
                by default)
     Returns:
       list of wavelet details + last approximation
-    
+
     """
     if boundary == 'symm':
         boundary = 'mirror'
@@ -266,8 +266,8 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
                by default)
     Returns:
       list of wavelet details + last approximation. Each element in the list is
-      an image of the same size as the input image. 
-    
+      an image of the same size as the input image.
+
     """
 
     _b3spline1d = np.array(_phi_, _dtype_)
@@ -280,7 +280,7 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
     arr2d = arr2d.astype(_dtype_)
     # approximation:
     approx = signal.convolve2d(arr2d, phi, mode='same',
-                               boundary=boundary)  
+                               boundary=boundary)
     w = arr2d - approx   # wavelet details
     upphi = zupsample(phi)
     shapecheck = list(map(lambda a,b:a>b, arr2d.shape, upphi.shape))
@@ -290,13 +290,13 @@ def decompose2d_numpy(arr2d, level, phi=None, dtype=_dtype_, boundary='symm'):
         print("Maximum allowed decomposition level reached, not advancing any more")
         return [w, approx]
     else:
-        return [w] + decompose2d_numpy(approx,level-1,upphi,boundary=boundary) 
+        return [w] + decompose2d_numpy(approx,level-1,upphi,boundary=boundary)
 
 
 def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary2d = 'symm'):
     """Semi-separable a trous wavelet decomposition for 3D data
     with B3-spline scaling function
-    
+
     If `arr` is an input array, then each arr[n] are treated as 2D images
     and arr[:,j,k] are treated as 1D signals.
 
@@ -308,8 +308,8 @@ def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary
       - boundary2d : boundary conditions passed to scipy.signal.convolve2d
     Returns:
       list of wavelet details + last approximation. Each element in the list is
-      a 3D array of the same size as the input array. 
-    
+      a 3D array of the same size as the input array.
+
     """
     phi2d = make_phi2d(phi)
     if level <= 0: return arr
@@ -338,7 +338,7 @@ def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary
 ##                    curr_j = 0):
 ##     """Semi-separable a trous wavelet decomposition for 3D data
 ##     with B3-spline scaling function
-    
+
 ##     If `arr` is an array, then each arr[n] are treated as 2D images
 ##     and arr[:,j,k] are treated as 1D signals.
 
@@ -350,8 +350,8 @@ def decompose3d_numpy(arr, level=1, phi = _phi_, boundary1d = 'mirror', boundary
 ##       - boundary2d : boundary conditions passed to scipy.signal.convolve2d
 ##     Returns:
 ##       list of wavelet details + last approximation. Each element in the list is
-##       a 3D array of the same size as the input array. 
-    
+##       a 3D array of the same size as the input array.
+
 ##     """
 ##     lphi = len(phi)
 ##     phirange = np.arange(lphi) - int(lphi/2)
@@ -381,7 +381,7 @@ def decompose3d_weave(arr, level=1,
     """Semi-separable a trous wavelet decomposition for 3D data arrays
     with B3-spline scaling function
 
-    
+
     If `arr` is an array, then each arr[n] are treated as 2D images
     and arr[:,j,k] are treated as 1D signals. If `axis` is not None,
     only 1D decomposition along the first axis is done (considered as temporal domain).
@@ -393,8 +393,8 @@ def decompose3d_weave(arr, level=1,
       - axis: if not None, only do 1D for decompositions along first axis
     Returns:
       list of wavelet details + last approximation. Each element in the list is
-      a 3D array of the same size as the input array. 
-    
+      a 3D array of the same size as the input array.
+
     """
     lphi = len(phi)
     phirange = np.arange(lphi) - int(lphi/2)
@@ -429,7 +429,7 @@ def decompose3d_weave(arr, level=1,
 ### Main dispatcher function
 decompose1d = decompose1d_weave
 decompose2d = decompose2d_weave
-decompose3d = decompose3d_weave    
+decompose3d = decompose3d_weave
 def decompose(arr, *args, **kwargs):
     "Dispatcher on 1D, 2D or 3D data decomposition"
     ndim = arr.ndim
@@ -516,7 +516,7 @@ def estimate_sigma_mad(arr, is_details = False):
         w1 = decompose(arr,1)[0]
     nd = w1.ndim
     return mad(w1)/(0.6745*sigmaej[nd][0])
- 
+
 def smooth(arr, level=1, **kwargs):
     """Return a smoothed representation of the input data by retaining only
     approximation at a given level.
@@ -533,7 +533,7 @@ def smooth_with_detrend(arr,smooth_level=1,detrend_level=7):
     """Return a smoothed and detrended representation of the input data by removing the
         aproximation at a given level, and dropping first levels of coefficients.
     """
-    return np.sum(decompose(arr,detrend_level)[smooth_level:-1], axis=0)    
+    return np.sum(decompose(arr,detrend_level)[smooth_level:-1], axis=0)
 
 ## def _wavelet_enh_std(f, level=4, out = 'rec', absp = False):
 ##     fw = dec_atrous2d(f, level)
@@ -546,8 +546,8 @@ def smooth_with_detrend(arr,smooth_level=1,detrend_level=7):
 ##     elif out == 'supp':
 ##         return represent_support(supp)
 
- 
-        
+
+
 def wavelet_denoise(f, k=[3.5,3.0,2.5,2.0], level = 4, noise_std = None,
                     modulus=False,
                     soft=False):
@@ -603,7 +603,7 @@ def DFoSD(v, level=9, smooth=0,**kwargs):
     """Normalize `v` as :math:`(v-v_0)/\\sigma` for :math:`v_0` taken as
     approximation at given level and :math:`\\sigma` taken as an estimation of
     the noise standard deviation.
-    """    
+    """
     coefs = decompose(v, level,**kwargs)
     approx = coefs[-1]
     if smooth:
@@ -625,7 +625,7 @@ def _DFoF_asym(v, level=5, r=1.0):
     out = v/baseline - 1.0
     out[zi] = 0
     return out
-    
+
 
 def _asymmetric_smooth(v, level=8, niter=1000, tol = 1e-5, r=1.0,verbose=False):
     acc = []

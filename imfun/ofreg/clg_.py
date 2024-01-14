@@ -185,7 +185,7 @@ class MSCLG(object):
         return (u,v), array(cerr[:ni+1])
 
 
-@jit
+@jit(nopython=True)
 def pcgs_update(u,v,J11,J12,J13,J22,J23):
     nrows,ncols = u.shape
     #nrows2,ncols2 = v.shape
@@ -227,7 +227,7 @@ def pcgs_update(u,v,J11,J12,J13,J22,J23):
     changed += boundary_conditions(v)
     return (changed/(nrows*ncols))**0.5
 
-@jit
+@jit(nopython=True)
 def sor_update(u,v,omega,J11,J12,J13,J22,J23):
     nrows,ncols = u.shape
     changed = 0
@@ -240,7 +240,7 @@ def sor_update(u,v,omega,J11,J12,J13,J22,J23):
     changed += boundary_conditions(v)
     return (changed/(nrows*ncols))**0.5
 
-@jit
+@jit(nopython=True)
 def sor_at(u,v,l,omega,J11,J12,J13,J22,J23):
     J21 = J12
     changed = 0
@@ -255,7 +255,7 @@ def sor_at(u,v,l,omega,J11,J12,J13,J22,J23):
     v[l] = vlocal
     return changed
 
-@jit
+@jit(nopython=True)
 def boundary_conditions(m):
     nrows,ncols = m.shape
     # first and last rows
@@ -276,7 +276,7 @@ def boundary_conditions(m):
     m[-1,-1] = m[-2,-2]
     return error
 
-@jit
+@jit(nopython=True)
 def nhood_sum(m, loc):
     Nr,Nc = m.shape
     out = 0

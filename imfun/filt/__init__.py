@@ -167,14 +167,14 @@ def adaptive_medianf2(arr, k=3, s=1):
     return d + approx
 
 
-@jit
+@jit(nopython=True)
 def mirrorpd(i,N):
     "mirror boundary/padding conditions"
     if i < 0: return -i%N
     elif i>=N: return N-2-i%N
     else: return i
 
-@jit
+@jit(nopython=True)
 def nearestpd(i,N):
     "nearest boundary/padding conditions"
     if i < 0: return 0
@@ -182,7 +182,7 @@ def nearestpd(i,N):
     else: return i
 
 
-@jit
+@jit(nopython=True)
 def filt2d(u, kern):
     uout = np.zeros_like(u)
     (Nr,Nc),(kern_r,kern_c) = u.shape,kern.shape
@@ -211,4 +211,3 @@ def opening_of_closing(a):
 
 
 # ---------------------------------------------
-
