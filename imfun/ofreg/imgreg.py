@@ -28,9 +28,10 @@ _boundary_mode='nearest'
 _output = 'flow' # {fn, flow, dct}
 
 import inspect
+from inspect import signature
 from functools import partial
 
-def shifts( image, template, upsample=16.):
+def shifts( image, template, upsample=16., normalization=None):
     shift_fn = None
 
     if skimage.__version__ >= '0.17.2':
@@ -39,8 +40,11 @@ def shifts( image, template, upsample=16.):
         # to skreg.phase_cross_correlation with possible values as 'phase' or None.
         # the registration seems to work as expected only when this argument is set to None
         # adding the following as a temporary workaround.
-        if 'normalization' in inspect.getfullargspec(shift_fn).kwonlyargs:
-            shift_fn = partial(shift_fn, normalization=None)
+        #if 'normalization' in inspect.getfullargspec(shift_fn).kwonlyargs: was
+        if 'normalization' in signature(shift_fn).parameters.keys():
+            #print('setting normalization parameter to', normalization)
+            #shift_fn = partial(shift_fn, normalization=None)
+            shift_fn = partial(shift_fn, normalization=normalization)
     else:
         shift_fn = skfeature.register_translation
 

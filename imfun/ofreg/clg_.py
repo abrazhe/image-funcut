@@ -46,7 +46,7 @@ class MSCLG(object):
         self.reltol = reltol
         self.algorithm=algorithm
         self.niter=niter
-        self.omega = 1.9
+        self.omega = sor_omega
         self.kstop = 10
         self.verbose=verbose
     def __call__(self, source, target, nl=None, alpha=1e-5, rho=10., rho_l1 = 0.,
