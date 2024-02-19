@@ -581,7 +581,8 @@ class CircleROI(DraggableROI):
         #   and (self.parent.active_stack.ch is not None):
         #    v = v[:,self.parent.active_stack.ch]
         if normp:
-            if isinstance(normp, collections.Callable):
+            #if isinstance(normp, collections.Callable):
+            if callable(normp):
                 return np.array([normp(v) for v in vx])
             else:
                 Lnorm = isinstance(normp,int) and normp or len(v)
