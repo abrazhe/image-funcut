@@ -210,10 +210,20 @@ def mask4overlay2(mask,color=(1,0,0), alpha=0.9):
     stack = np.dstack((ch(0),ch(1),ch(2),alpha*np.ones(sh)*mask))
     return stack
 
-def lean_axes(ax, level=1, is_twin=False, hide = ('top', 'right','bottom', 'left')):
+def lean_axes(ax, level=1, is_twin=False,
+              dropped=True,
+              hide = ('top', 'right','bottom', 'left')):
     """plot only x and y axis, not a frame for subplot ax"""
+
+    if dropped:
+        for key in ('top', 'right','bottom', 'left'):
+            ax.spines[key].set_position(('outward', 6))
+
     for key in hide:
         ax.spines[key].set_visible(False)
+
+
+
 
     ax.get_xaxis().tick_bottom()
     if not is_twin:
