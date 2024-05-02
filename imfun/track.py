@@ -60,21 +60,27 @@ def locextr(v, x=None, mode = 'max', refine=10, output='xfit'):
        x = np.arange(len(v))
 
    sp0 = ip.UnivariateSpline(x,atrous.smooth(v),s=0)
+
    if mode in ['max', 'min']:
        sp = sp0.derivative(1)
    elif mode in ['gup', 'gdown', 'gany']:
        sp = sp0.derivative(2)
+
    res = 0.05
+   
    if refine > 1:
        xfit = np.linspace(0,x[-1], len(x)*refine)
    else:
        xfit = x
+
    di = sp(xfit)
    if mode in ['max', 'gup']:
        dersign = np.sign(di)
    elif mode in ['min', 'gdown']:
        dersign = -np.sign(di)
-   locations = dersign[:-1] - dersign[1:] > 1.5
+       
+   locations = np.where(dersign[:-1] - dersign[1:] > 1.5)[0]
+   #print('check:', di.shape, locations.shape, xfit.shape)
 
    if output == 'all':
        out =  xfit[locations], sp0(xfit)[locations]
@@ -101,7 +107,10 @@ def guess_seeds(seq, Nfirst=10,smoothing=4):
         print('Skewness sign:', s)
     except :
         s = 1
-    y = atrous.smooth(np.mean(s*d,axis=0), smoothing)
+    if smoothing > 0:
+       y = atrous.smooth(np.mean(s*d,axis=0), smoothing)
+    else:
+       y = y
     (xfit,yfit), (mx,mn), (gups,gdowns) = extrema.extrema2(y, sort_values=True)
     # highest gradient up to the left of the highest max
     gu1 = next((g for g in gups if g < mx[0]))
@@ -152,14 +161,19 @@ def v2grads(v):
     xfit = np.arange(0,L,0.1)
     return np.abs(sp2.derivative(1)(xfit))
 
-def track_walls(linescan,output = 'kalman',Nfirst=None,gain=0.25):
+def track_walls(linescan,output = 'kalman',Nfirst=None,gain=0.25,convert_to_gradients=True):
     '''
     output can be one of ('kalman',  'extr', 'mean', 'all')
     '''
-    if Nfirst is None: Nfirst = len(linescan)/2
+    if Nfirst is None: Nfirst = len(linescan)//2
     seeds = guess_seeds(linescan,Nfirst)
     xfit = np.arange(0,linescan.shape[1],0.1)
-    grads = np.array(list(map(v2grads, linescan)))
+    if convert_to_gradients:
+       grads = np.array(list(map(v2grads, linescan)))
+    else:
+       grads = linescan
+       xfit = np.arange(len(linescan[0]))
+    print(grads.shape)
     if output in ['kalman', 'mean', 'all']:
         tk1,tk2 = [track_pkalman(xfit, grads,seed,gain=gain) for seed in seeds]
     if output in ['extr', 'mean', 'all']:
