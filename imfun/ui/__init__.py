@@ -45,6 +45,9 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
                      titles=None, writer='ffmpeg', bitrate=16000, frame_on=False,
                      marker_idx = None,
                      tight_layout = True,
+                     zero_framecount=False,
+                     show_framenumbers=True,
+                     #time_precision=1,
                      bar_data = None,
                      **kwargs):
 
@@ -143,9 +146,14 @@ def pickers_to_movie(pickers, video_name, fps=25, start=0, stop=None,
         for view, p in zip(views, pickers):
             view.set_data(frame_pipe(p._get_show_f(k)))
         if with_header:
+            show_count = k-start if zero_framecount else k
             if zunits in ['sec','msec','s','usec', 'us','ms','seconds']:
-                tstr = ', time: %0.3f %s' %(k*dz.value, zunits) #TODO: use in py3 way
-            header.set_text('frame %04d'%k + tstr)
+                #tstr = 'time: %0.1f %s' %(show_count*dz.value, zunits) #TODO: use in py3 way
+                tstr = f"time: {show_count*dz.value : 0.1f} {zunits}"
+                #tstr = "time: {:0.1f} {:s}".format(show_count*dz.value, zunits)
+            if show_framenumbers:
+                tstr = 'frame %04d, '%show_count + tstr
+            header.set_text(tstr)
         if k in marker_idx:
             plt.setp(marker, visible=True)
         else:
