@@ -7,7 +7,7 @@ import numpy as np
 from scipy import io
 
 
-from imfun.external.physics import Q
+#from imfun.external.physics import Q
 from ..core.units import QS
 from ..core import units
 from ..core import fnutils as fu

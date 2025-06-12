@@ -1,6 +1,6 @@
 import numpy as np
 
-from imfun.external.physics import Q
+#from imfun.external.physics import Q
 
 names = ("value", "unit")
 formats = ('float', "U21")

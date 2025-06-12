@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from imfun.external.physics import Q
+#from imfun.external.physics import Q
 
 from imfun.core import units
 from imfun.core.units import QS
